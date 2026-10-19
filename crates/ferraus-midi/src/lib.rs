@@ -11,13 +11,19 @@
 //! * [`MidiFile::notes_seconds`] — read every note back in seconds.
 //! * [`MidiFile::tempo_map`] → [`TempoMap`] — ticks ↔ seconds ↔ beats.
 //! * [`MidiFile::read`] / [`MidiFile::to_smf_bytes`] / [`MidiFile::to_json_string`].
+//!
+//! Hum-to-MIDI lives in [`transcribe`] (the `transcribe` command, the Basic Pitch seam
+//! [`transcribe::poly::register_poly_transcriber`], and note-level metrics in
+//! [`transcribe::eval`]) and [`hum`] (the `hum` one-shot).
 
 pub mod edit;
 pub mod gm;
+pub mod hum;
 pub mod model;
 pub mod ops;
 pub mod smf;
 pub mod tempo;
+pub mod transcribe;
 
 pub use edit::{Groove, QuantizeOptions, QuantizeWhat};
 pub use model::{MidiFile, Note, SecondsNote, Timed, Track};
@@ -28,5 +34,8 @@ use ferraus_core::OpSpec;
 
 /// Ops this crate contributes to the command registry.
 pub fn ops() -> Vec<OpSpec> {
-    ops::ops()
+    let mut v = ops::ops();
+    v.extend(transcribe::ops());
+    v.extend(hum::ops());
+    v
 }
