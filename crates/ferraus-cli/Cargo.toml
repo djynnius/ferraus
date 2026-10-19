@@ -1,5 +1,6 @@
 [package]
 name = "ferraus"
+default-run = "ferraus"
 description = "ferraus: a cross-platform music editing CLI for people and AI agents"
 version.workspace = true
 edition.workspace = true
@@ -19,6 +20,7 @@ eula = false
 
 [[bin]]
 name = "ferraus"
+default-run = "ferraus"
 path = "src/main.rs"
 
 [[bin]]
@@ -59,6 +61,7 @@ clap_complete = "4.5"
 
 [package.metadata.deb]
 name = "ferraus"
+default-run = "ferraus"
 maintainer = "Sunday Ikpe <ikakke.ikpe@gmail.com>"
 copyright = "2026, Sunday Ikpe and the ferraus contributors"
 license-file = ["../../LICENSE-MIT", "0"]
@@ -83,6 +86,7 @@ assets = [
 
 [package.metadata.generate-rpm]
 name = "ferraus"
+default-run = "ferraus"
 license = "Apache-2.0 OR MIT"
 summary = "Music editing CLI for people and AI agents"
 assets = [
