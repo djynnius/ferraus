@@ -25,9 +25,7 @@ impl PanLaw {
             "-4.5db" | "-4.5" | "4.5db" => Ok(PanLaw::Minus4_5),
             "-6db" | "-6" | "6db" | "constant-voltage" => Ok(PanLaw::Minus6),
             "linear" | "0db" | "0" => Ok(PanLaw::Linear),
-            other => Err(Error::usage(format!(
-                "unknown pan law '{other}': expected -3dB, -4.5dB, -6dB, or linear"
-            ))),
+            other => Err(Error::usage(format!("unknown pan law '{other}': expected -3dB, -4.5dB, -6dB, or linear"))),
         }
     }
 
@@ -46,7 +44,7 @@ impl PanLaw {
 pub fn pan_gains(pos: f64, law: PanLaw) -> (f64, f64) {
     let p = pos.clamp(-1.0, 1.0);
     let theta = (p + 1.0) * FRAC_PI_4; // 0 .. π/2
-    // exact zeros at the extremes (cos(π/2) is not exactly 0 in floating point)
+                                       // exact zeros at the extremes (cos(π/2) is not exactly 0 in floating point)
     let (pl, pr) = if p >= 1.0 {
         (0.0, 1.0)
     } else if p <= -1.0 {
@@ -92,9 +90,7 @@ pub fn parse_position(s: &str) -> Result<f64> {
         }
     };
     if !(-100.0..=100.0).contains(&v) {
-        return Err(Error::usage(format!(
-            "pan position '{s}' is outside -100 (left) .. 100 (right)"
-        )));
+        return Err(Error::usage(format!("pan position '{s}' is outside -100 (left) .. 100 (right)")));
     }
     Ok(v)
 }
@@ -153,12 +149,7 @@ impl Keyframes {
             }
         }
         let tangents = monotone_tangents(&frames, &values);
-        Ok(Keyframes {
-            frames,
-            values,
-            curve,
-            tangents,
-        })
+        Ok(Keyframes { frames, values, curve, tangents })
     }
 
     /// Parse `0s=-100,4s=0,end=100` against a buffer. `value` parses each value.
@@ -172,9 +163,8 @@ impl Keyframes {
     ) -> Result<Keyframes> {
         let mut pts = Vec::new();
         for item in s.split(',').map(|x| x.trim()).filter(|x| !x.is_empty()) {
-            let (t, v) = item.split_once('=').ok_or_else(|| {
-                Error::usage(format!("keyframe '{item}' should look like 4s=0"))
-            })?;
+            let (t, v) =
+                item.split_once('=').ok_or_else(|| Error::usage(format!("keyframe '{item}' should look like 4s=0")))?;
             let frame = Time::parse(t)?.frames(sample_rate, total, bpm)?;
             pts.push((frame, value(v)?));
         }
@@ -249,18 +239,12 @@ fn monotone_tangents(x: &[usize], y: &[f64]) -> Vec<f64> {
     if n < 2 {
         return vec![0.0; n];
     }
-    let d: Vec<f64> = (0..n - 1)
-        .map(|i| (y[i + 1] - y[i]) / (x[i + 1] - x[i]) as f64)
-        .collect();
+    let d: Vec<f64> = (0..n - 1).map(|i| (y[i + 1] - y[i]) / (x[i + 1] - x[i]) as f64).collect();
     let mut m = vec![0.0; n];
     m[0] = d[0];
     m[n - 1] = d[n - 2];
     for i in 1..n - 1 {
-        m[i] = if d[i - 1] * d[i] <= 0.0 {
-            0.0
-        } else {
-            (d[i - 1] + d[i]) / 2.0
-        };
+        m[i] = if d[i - 1] * d[i] <= 0.0 { 0.0 } else { (d[i - 1] + d[i]) / 2.0 };
     }
     for i in 0..n - 1 {
         if d[i] == 0.0 {

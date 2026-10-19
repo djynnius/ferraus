@@ -15,11 +15,7 @@ struct History {
 
 impl History {
     fn new(len: usize) -> History {
-        History {
-            buf: vec![0.0; 2 * len],
-            len,
-            pos: 0,
-        }
+        History { buf: vec![0.0; 2 * len], len, pos: 0 }
     }
 
     /// Push a sample; after this, `slice()[0]` is the newest.
@@ -101,21 +97,8 @@ impl Oversampler {
         for (i, v) in proto.iter().enumerate() {
             h[i] = *v as f32;
         }
-        let phases = (0..factor)
-            .map(|p| {
-                (0..=taps)
-                    .map(|k| factor as f32 * h[k * factor + p])
-                    .collect()
-            })
-            .collect();
-        Oversampler {
-            factor,
-            taps,
-            h: h[..len].to_vec(),
-            phases,
-            up: History::new(taps + 1),
-            down: History::new(len),
-        }
+        let phases = (0..factor).map(|p| (0..=taps).map(|k| factor as f32 * h[k * factor + p]).collect()).collect();
+        Oversampler { factor, taps, h: h[..len].to_vec(), phases, up: History::new(taps + 1), down: History::new(len) }
     }
 
     pub fn factor(&self) -> usize {
@@ -231,17 +214,12 @@ mod tests {
     fn round_trip_is_transparent_in_band() {
         let sr = 48000.0;
         let n = 4800;
-        let x: Vec<f32> = (0..n)
-            .map(|i| (0.5 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / sr).sin()) as f32)
-            .collect();
+        let x: Vec<f32> =
+            (0..n).map(|i| (0.5 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / sr).sin()) as f32).collect();
         for f in [2usize, 4, 8] {
             let mut y = x.clone();
             Oversampler::new(f, 12).process_with(&mut y, |v| v);
-            let err: f32 = x[200..n - 200]
-                .iter()
-                .zip(&y[200..n - 200])
-                .map(|(a, b)| (a - b).abs())
-                .fold(0.0, f32::max);
+            let err: f32 = x[200..n - 200].iter().zip(&y[200..n - 200]).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
             assert!(err < 2e-3, "factor {f}: {err}");
         }
     }

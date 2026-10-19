@@ -53,10 +53,7 @@ impl FilterType {
 
     /// Whether the gain argument affects this type.
     pub fn uses_gain(self) -> bool {
-        matches!(
-            self,
-            FilterType::Peak | FilterType::LowShelf | FilterType::HighShelf
-        )
+        matches!(self, FilterType::Peak | FilterType::LowShelf | FilterType::HighShelf)
     }
 }
 
@@ -72,13 +69,7 @@ pub struct Coeffs {
 
 impl Coeffs {
     /// The identity filter.
-    pub const IDENTITY: Coeffs = Coeffs {
-        b0: 1.0,
-        b1: 0.0,
-        b2: 0.0,
-        a1: 0.0,
-        a2: 0.0,
-    };
+    pub const IDENTITY: Coeffs = Coeffs { b0: 1.0, b1: 0.0, b2: 0.0, a1: 0.0, a2: 0.0 };
 
     /// Design a filter. `q` is the quality factor (for shelves it is the cookbook `Q`, with
     /// 0.707 giving the steepest monotonic shelf), `gain_db` is used by peak and shelves.
@@ -91,40 +82,16 @@ impl Coeffs {
         let alpha = sn / (2.0 * q);
         let a = 10f64.powf(gain_db / 40.0);
         let (b0, b1, b2, a0, a1, a2) = match ty {
-            FilterType::Lowpass => (
-                (1.0 - cs) / 2.0,
-                1.0 - cs,
-                (1.0 - cs) / 2.0,
-                1.0 + alpha,
-                -2.0 * cs,
-                1.0 - alpha,
-            ),
-            FilterType::Highpass => (
-                (1.0 + cs) / 2.0,
-                -(1.0 + cs),
-                (1.0 + cs) / 2.0,
-                1.0 + alpha,
-                -2.0 * cs,
-                1.0 - alpha,
-            ),
+            FilterType::Lowpass => ((1.0 - cs) / 2.0, 1.0 - cs, (1.0 - cs) / 2.0, 1.0 + alpha, -2.0 * cs, 1.0 - alpha),
+            FilterType::Highpass => {
+                ((1.0 + cs) / 2.0, -(1.0 + cs), (1.0 + cs) / 2.0, 1.0 + alpha, -2.0 * cs, 1.0 - alpha)
+            }
             FilterType::Bandpass => (alpha, 0.0, -alpha, 1.0 + alpha, -2.0 * cs, 1.0 - alpha),
             FilterType::Notch => (1.0, -2.0 * cs, 1.0, 1.0 + alpha, -2.0 * cs, 1.0 - alpha),
-            FilterType::Allpass => (
-                1.0 - alpha,
-                -2.0 * cs,
-                1.0 + alpha,
-                1.0 + alpha,
-                -2.0 * cs,
-                1.0 - alpha,
-            ),
-            FilterType::Peak => (
-                1.0 + alpha * a,
-                -2.0 * cs,
-                1.0 - alpha * a,
-                1.0 + alpha / a,
-                -2.0 * cs,
-                1.0 - alpha / a,
-            ),
+            FilterType::Allpass => (1.0 - alpha, -2.0 * cs, 1.0 + alpha, 1.0 + alpha, -2.0 * cs, 1.0 - alpha),
+            FilterType::Peak => {
+                (1.0 + alpha * a, -2.0 * cs, 1.0 - alpha * a, 1.0 + alpha / a, -2.0 * cs, 1.0 - alpha / a)
+            }
             FilterType::LowShelf => {
                 let s = 2.0 * a.sqrt() * alpha;
                 (
@@ -156,22 +123,10 @@ impl Coeffs {
                     FilterType::Highpass1 => (1.0 / (k + 1.0), -1.0 / (k + 1.0)),
                     _ => (a1, 1.0),
                 };
-                return Coeffs {
-                    b0,
-                    b1,
-                    b2: 0.0,
-                    a1,
-                    a2: 0.0,
-                };
+                return Coeffs { b0, b1, b2: 0.0, a1, a2: 0.0 };
             }
         };
-        Coeffs {
-            b0: b0 / a0,
-            b1: b1 / a0,
-            b2: b2 / a0,
-            a1: a1 / a0,
-            a2: a2 / a0,
-        }
+        Coeffs { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 }
     }
 
     /// Complex response at `freq` as (re, im).
@@ -240,6 +195,47 @@ impl Biquad {
     }
 }
 
+/// An `f32` biquad (transposed direct form II) for hot inner loops where `f64` state is not
+/// needed (band-pass banks well above the low-frequency range). State is flushed per sample.
+#[derive(Clone, Copy, Debug)]
+pub struct Biquad32 {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+    z1: f32,
+    z2: f32,
+}
+
+impl Biquad32 {
+    pub fn new(c: Coeffs) -> Biquad32 {
+        Biquad32 {
+            b0: c.b0 as f32,
+            b1: c.b1 as f32,
+            b2: c.b2 as f32,
+            a1: c.a1 as f32,
+            a2: c.a2 as f32,
+            z1: 0.0,
+            z2: 0.0,
+        }
+    }
+
+    #[inline(always)]
+    pub fn process(&mut self, x: f32) -> f32 {
+        let y = self.b0 * x + self.z1;
+        self.z1 = crate::util::flush(self.b1 * x - self.a1 * y + self.z2);
+        self.z2 = crate::util::flush(self.b2 * x - self.a2 * y);
+        y
+    }
+
+    pub fn process_block(&mut self, buf: &mut [f32]) {
+        for s in buf {
+            *s = self.process(*s);
+        }
+    }
+}
+
 /// Q values of the second-order sections of an `order`-pole Butterworth filter (an odd
 /// order adds one first-order section, not listed here).
 pub fn butterworth_qs(order: usize) -> Vec<f64> {
@@ -260,9 +256,7 @@ pub struct Cascade {
 
 impl Cascade {
     pub fn new(coeffs: impl IntoIterator<Item = Coeffs>) -> Cascade {
-        Cascade {
-            stages: coeffs.into_iter().map(Biquad::new).collect(),
-        }
+        Cascade { stages: coeffs.into_iter().map(Biquad::new).collect() }
     }
 
     /// Butterworth low-pass of any order (6 dB/oct per order).
@@ -276,21 +270,11 @@ impl Cascade {
     }
 
     fn butterworth(high: bool, order: usize, freq: f64, sr: f64) -> Cascade {
-        let ty = if high {
-            FilterType::Highpass
-        } else {
-            FilterType::Lowpass
-        };
-        let mut cs: Vec<Coeffs> = butterworth_qs(order)
-            .into_iter()
-            .map(|q| Coeffs::design(ty, freq, q, 0.0, sr))
-            .collect();
+        let ty = if high { FilterType::Highpass } else { FilterType::Lowpass };
+        let mut cs: Vec<Coeffs> =
+            butterworth_qs(order).into_iter().map(|q| Coeffs::design(ty, freq, q, 0.0, sr)).collect();
         if order % 2 == 1 {
-            let t1 = if high {
-                FilterType::Highpass1
-            } else {
-                FilterType::Lowpass1
-            };
+            let t1 = if high { FilterType::Highpass1 } else { FilterType::Lowpass1 };
             cs.push(Coeffs::design(t1, freq, 0.707, 0.0, sr));
         }
         Cascade::new(cs)
@@ -339,10 +323,7 @@ impl Cascade {
 
     /// Combined magnitude at `freq` in dB.
     pub fn magnitude_db(&self, freq: f64, sample_rate: f64) -> f64 {
-        self.stages
-            .iter()
-            .map(|s| s.c.magnitude_db(freq, sample_rate))
-            .sum()
+        self.stages.iter().map(|s| s.c.magnitude_db(freq, sample_rate)).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -393,15 +374,8 @@ impl MultibandSplitter {
         fs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         fs.dedup();
         let xovers = fs.iter().map(|f| Crossover::new(*f, sample_rate)).collect();
-        let comp = (0..=fs.len())
-            .map(|i| {
-                Cascade::new(
-                    fs.iter()
-                        .skip(i + 1)
-                        .map(|f| lr4_allpass(*f, sample_rate)),
-                )
-            })
-            .collect();
+        let comp =
+            (0..=fs.len()).map(|i| Cascade::new(fs.iter().skip(i + 1).map(|f| lr4_allpass(*f, sample_rate)))).collect();
         MultibandSplitter { xovers, comp }
     }
 
@@ -467,9 +441,7 @@ mod tests {
         // drive a real sine through the filter
         let mut c = Cascade::butterworth_highpass(4, 1000.0, SR);
         let n = 48000;
-        let x: Vec<f32> = (0..n)
-            .map(|i| (2.0 * PI * 100.0 * i as f64 / SR).sin() as f32)
-            .collect();
+        let x: Vec<f32> = (0..n).map(|i| (2.0 * PI * 100.0 * i as f64 / SR).sin() as f32).collect();
         let y: Vec<f32> = x.iter().map(|v| c.process(*v)).collect();
         let level = crate::util::rms(&y[n / 2..]) / crate::util::rms(&x[n / 2..]);
         let db = 20.0 * (level as f64).log10();

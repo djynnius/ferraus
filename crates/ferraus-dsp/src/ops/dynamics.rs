@@ -4,8 +4,7 @@
 use super::{apply_own_mix, freq_or_off, gain_or_auto, own_mix, per_band, per_channel, secs, sr};
 use crate::biquad::Cascade;
 use crate::dynamics::{
-    self, ClipMode, Compressor, CompressorParams, DeessParams, Detector, ExpanderParams, GateParams,
-    LimiterParams,
+    self, ClipMode, Compressor, CompressorParams, DeessParams, Detector, ExpanderParams, GateParams, LimiterParams,
 };
 use crate::saturation::{SatType, Saturator};
 use ferraus_core::prelude::*;
@@ -26,13 +25,8 @@ const DRUMS: &[(&str, &str)] = &[
     ("knee", "3dB"),
     ("detector", "peak"),
 ];
-const BUS: &[(&str, &str)] = &[
-    ("threshold", "-14dB"),
-    ("ratio", "2:1"),
-    ("attack", "30ms"),
-    ("release", "200ms"),
-    ("knee", "6dB"),
-];
+const BUS: &[(&str, &str)] =
+    &[("threshold", "-14dB"), ("ratio", "2:1"), ("attack", "30ms"), ("release", "200ms"), ("knee", "6dB")];
 const MASTER: &[(&str, &str)] = &[
     ("threshold", "-10dB"),
     ("ratio", "1.5:1"),
@@ -43,13 +37,8 @@ const MASTER: &[(&str, &str)] = &[
 ];
 /// "Compress, clip high frequencies, and make the sound tighter": high-pass 60 Hz →
 /// compress 4:1 5 ms / 60 ms → de-ess (add `--lowpass 16kHz` for the optional top cut).
-const TIGHTEN: &[(&str, &str)] = &[
-    ("highpass", "60Hz"),
-    ("ratio", "4:1"),
-    ("attack", "5ms"),
-    ("release", "60ms"),
-    ("deess", "on"),
-];
+const TIGHTEN: &[(&str, &str)] =
+    &[("highpass", "60Hz"), ("ratio", "4:1"), ("attack", "5ms"), ("release", "60ms"), ("deess", "on")];
 
 pub fn ops() -> Vec<OpSpec> {
     vec![
@@ -353,10 +342,7 @@ fn multiband(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
         out.scale(db_to_lin(mk) as f32);
     }
     if a.flag("limiter") {
-        let lp = LimiterParams {
-            ceiling_db: a.db("limiter-ceiling")? as f32,
-            ..LimiterParams::default()
-        };
+        let lp = LimiterParams { ceiling_db: a.db("limiter-ceiling")? as f32, ..LimiterParams::default() };
         dynamics::limit(&mut out.data, rate, &lp);
     }
     ctx.metric("band_gain_reduction_max_db", reductions);
@@ -419,7 +405,19 @@ mod tests {
         // hard knee, peak detector on a step (square wave avoids ripple)
         let s = spec("compress");
         let x = AudioBuffer::from_mono(48000, (0..48000).map(|i| if (i / 24) % 2 == 0 { 0.5 } else { -0.5 }).collect());
-        let y = run(&s, &[("makeup", "0dB"), ("sidechain-hpf", "0Hz"), ("detector", "peak"), ("knee", "0dB"), ("ratio", "4:1"), ("threshold", "-20dB")], x).unwrap();
+        let y = run(
+            &s,
+            &[
+                ("makeup", "0dB"),
+                ("sidechain-hpf", "0Hz"),
+                ("detector", "peak"),
+                ("knee", "0dB"),
+                ("ratio", "4:1"),
+                ("threshold", "-20dB"),
+            ],
+            x,
+        )
+        .unwrap();
         let want = dynamics::compressor_curve(-6.0206, -20.0, 4.0, 0.0) as f64;
         let got = 20.0 * (y.data[0][40000].abs() as f64 / 0.5).log10();
         assert!((got - want).abs() < 0.5, "{got} vs {want}");

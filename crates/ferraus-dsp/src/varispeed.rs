@@ -29,11 +29,7 @@ impl Kernel {
         let table = (0..n)
             .map(|i| {
                 let x = i as f64 / RES as f64;
-                let sinc = if x == 0.0 {
-                    1.0
-                } else {
-                    (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
-                };
+                let sinc = if x == 0.0 { 1.0 } else { (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x) };
                 let r = x / half_width as f64;
                 let w = if r >= 1.0 { 0.0 } else { i0(beta * (1.0 - r * r).sqrt()) / i0b };
                 (sinc * w) as f32
@@ -95,9 +91,8 @@ mod tests {
     #[test]
     fn doubles_frequency_and_halves_length() {
         let sr = 8000.0;
-        let x: Vec<f32> = (0..8000)
-            .map(|i| (2.0 * std::f64::consts::PI * 300.0 * i as f64 / sr).sin() as f32)
-            .collect();
+        let x: Vec<f32> =
+            (0..8000).map(|i| (2.0 * std::f64::consts::PI * 300.0 * i as f64 / sr).sin() as f32).collect();
         let y = varispeed(&x, 2.0);
         assert_eq!(y.len(), 4000);
         let zc = y[100..3900].windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();

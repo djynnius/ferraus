@@ -12,9 +12,8 @@ pub fn design_linear_phase(taps: usize, sample_rate: f64, mag: impl Fn(f64) -> f
     let m = (taps * 4).next_power_of_two();
     let mut planner = RealFftPlanner::<f64>::new();
     let inv = planner.plan_fft_inverse(m);
-    let mut spec: Vec<Complex<f64>> = (0..=m / 2)
-        .map(|k| Complex::new(mag(k as f64 * sample_rate / m as f64), 0.0))
-        .collect();
+    let mut spec: Vec<Complex<f64>> =
+        (0..=m / 2).map(|k| Complex::new(mag(k as f64 * sample_rate / m as f64), 0.0)).collect();
     // DC and Nyquist bins must be real
     spec[0].im = 0.0;
     spec[m / 2].im = 0.0;
@@ -133,9 +132,7 @@ impl PartitionedConvolver {
         let np = self.parts.len();
         self.fdl_pos = (self.fdl_pos + np - 1) % np;
         let slot = &mut self.fdl[self.fdl_pos];
-        self.fwd
-            .process(&mut self.scratch_t, slot)
-            .expect("fft sizes match");
+        self.fwd.process(&mut self.scratch_t, slot).expect("fft sizes match");
         self.acc.iter_mut().for_each(|c| *c = Complex::new(0.0, 0.0));
         for p in 0..np {
             let x = &self.fdl[(self.fdl_pos + p) % np];
@@ -147,9 +144,7 @@ impl PartitionedConvolver {
         self.scratch_f.copy_from_slice(&self.acc);
         self.scratch_f[0].im = 0.0;
         self.scratch_f[b].im = 0.0;
-        self.inv
-            .process(&mut self.scratch_f, &mut self.scratch_t)
-            .expect("fft sizes match");
+        self.inv.process(&mut self.scratch_f, &mut self.scratch_t).expect("fft sizes match");
         let scale = 1.0 / (2 * b) as f32;
         for (o, v) in out.iter_mut().zip(&self.scratch_t[b..]) {
             *o = v * scale;

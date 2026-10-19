@@ -37,11 +37,7 @@ pub struct Lfo {
 impl Lfo {
     /// `phase` in cycles (0..1).
     pub fn new(rate_hz: f64, sample_rate: f64, shape: Shape, phase: f64) -> Lfo {
-        Lfo {
-            phase: phase.rem_euclid(1.0),
-            inc: rate_hz / sample_rate,
-            shape,
-        }
+        Lfo { phase: phase.rem_euclid(1.0), inc: rate_hz / sample_rate, shape }
     }
 
     /// Value of a shape at a phase (cycles).
@@ -169,8 +165,7 @@ impl Phaser {
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
         if self.counter == 0 {
-            let f = (self.center * 2f64.powf(self.octaves * self.lfo.tick()))
-                .clamp(20.0, self.sample_rate * 0.45);
+            let f = (self.center * 2f64.powf(self.octaves * self.lfo.tick())).clamp(20.0, self.sample_rate * 0.45);
             let t = (PI * f / self.sample_rate).tan();
             self.coeff = ((t - 1.0) / (t + 1.0)) as f32;
             // advance the LFO by the skipped samples

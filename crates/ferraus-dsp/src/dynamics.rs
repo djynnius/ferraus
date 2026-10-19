@@ -40,11 +40,7 @@ pub struct EnvelopeFollower {
 
 impl EnvelopeFollower {
     pub fn new(attack_s: f64, release_s: f64, sample_rate: f64) -> EnvelopeFollower {
-        EnvelopeFollower {
-            att: time_coeff(attack_s, sample_rate),
-            rel: time_coeff(release_s, sample_rate),
-            env: 0.0,
-        }
+        EnvelopeFollower { att: time_coeff(attack_s, sample_rate), rel: time_coeff(release_s, sample_rate), env: 0.0 }
     }
 
     /// Feed a non-negative level (e.g. `|x|`), get the envelope.
@@ -75,11 +71,7 @@ pub struct DbSmoother {
 
 impl DbSmoother {
     pub fn new(up_s: f64, down_s: f64, sample_rate: f64, initial: f32) -> DbSmoother {
-        DbSmoother {
-            up: time_coeff(up_s, sample_rate),
-            down: time_coeff(down_s, sample_rate),
-            state: initial,
-        }
+        DbSmoother { up: time_coeff(up_s, sample_rate), down: time_coeff(down_s, sample_rate), state: initial }
     }
 
     #[inline(always)]
@@ -133,18 +125,11 @@ impl LevelDetector {
     /// `hpf_hz <= 0` disables the sidechain high-pass.
     pub fn new(detector: Detector, hpf_hz: f64, channels: usize, sample_rate: f64) -> Self {
         let hpf = if hpf_hz > 0.0 {
-            (0..channels)
-                .map(|_| Cascade::butterworth_highpass(2, hpf_hz, sample_rate))
-                .collect()
+            (0..channels).map(|_| Cascade::butterworth_highpass(2, hpf_hz, sample_rate)).collect()
         } else {
             Vec::new()
         };
-        LevelDetector {
-            detector,
-            hpf,
-            ms: 0.0,
-            ms_coeff: time_coeff(0.010, sample_rate),
-        }
+        LevelDetector { detector, hpf, ms: 0.0, ms_coeff: time_coeff(0.010, sample_rate) }
     }
 
     /// Level in dB of one frame (one sample per channel).
@@ -153,11 +138,7 @@ impl LevelDetector {
         let mut pk = 0.0f32;
         let mut sq = 0.0f32;
         for (c, x) in frame.iter().enumerate() {
-            let v = if let Some(f) = self.hpf.get_mut(c) {
-                f.process(*x)
-            } else {
-                *x
-            };
+            let v = if let Some(f) = self.hpf.get_mut(c) { f.process(*x) } else { *x };
             pk = pk.max(v.abs());
             sq += v * v;
         }
@@ -226,10 +207,7 @@ fn stats_from(gains_db: &[f32]) -> DynamicsStats {
     }
     let max = gains_db.iter().fold(0.0f32, |m, g| m.max(-g));
     let mean = gains_db.iter().map(|g| -g as f64).sum::<f64>() / gains_db.len() as f64;
-    DynamicsStats {
-        max_reduction_db: max,
-        mean_reduction_db: mean as f32,
-    }
+    DynamicsStats { max_reduction_db: max, mean_reduction_db: mean as f32 }
 }
 
 /// Feed-forward log-domain compressor.
@@ -241,10 +219,7 @@ pub struct Compressor {
 
 impl Compressor {
     pub fn new(params: CompressorParams, sample_rate: f64) -> Compressor {
-        Compressor {
-            params,
-            sample_rate,
-        }
+        Compressor { params, sample_rate }
     }
 
     /// Lookahead in samples.
@@ -258,12 +233,7 @@ impl Compressor {
         let p = &self.params;
         let n = sidechain.first().map(|c| c.len()).unwrap_or(0);
         let la = self.lookahead();
-        let mut det = LevelDetector::new(
-            p.detector,
-            p.sidechain_hpf,
-            sidechain.len(),
-            self.sample_rate,
-        );
+        let mut det = LevelDetector::new(p.detector, p.sidechain_hpf, sidechain.len(), self.sample_rate);
         // attack = moving towards more reduction (down), release = back up
         let mut sm = DbSmoother::new(p.release_s, p.attack_s, self.sample_rate, 0.0);
         let mut frame = vec![0.0f32; sidechain.len()];
@@ -406,12 +376,7 @@ pub struct LimiterParams {
 
 impl Default for LimiterParams {
     fn default() -> Self {
-        LimiterParams {
-            ceiling_db: -1.0,
-            release_s: 0.050,
-            lookahead_s: 0.005,
-            oversample: 4,
-        }
+        LimiterParams { ceiling_db: -1.0, release_s: 0.050, lookahead_s: 0.005, oversample: 4 }
     }
 }
 
@@ -446,10 +411,7 @@ fn frame_true_peaks(channels: &[Vec<f32>], factor: usize) -> Vec<f32> {
 /// Compute the limiter gain envelope (linear) for target ceiling `c`.
 fn limiter_gains(tp: &[f32], c: f32, la: usize, release_coeff: f32) -> Vec<f32> {
     let n = tp.len();
-    let req: Vec<f32> = tp
-        .iter()
-        .map(|p| if *p > c { c / *p } else { 1.0 })
-        .collect();
+    let req: Vec<f32> = tp.iter().map(|p| if *p > c { c / *p } else { 1.0 }).collect();
     // future minimum over [n, n+la] with a monotonic deque
     let mut fmin = vec![1.0f32; n];
     let mut dq: VecDeque<usize> = VecDeque::new();
@@ -591,13 +553,7 @@ pub struct DeessParams {
 
 impl Default for DeessParams {
     fn default() -> Self {
-        DeessParams {
-            center: 6500.0,
-            bandwidth_oct: 1.0,
-            threshold_db: -20.0,
-            range_db: 6.0,
-            split: true,
-        }
+        DeessParams { center: 6500.0, bandwidth_oct: 1.0, threshold_db: -20.0, range_db: 6.0, split: true }
     }
 }
 
@@ -656,7 +612,6 @@ pub fn transient_shape(channels: &mut [Vec<f32>], sample_rate: f64, attack_db: f
     }
     apply_gain_db(channels, &gains, 0.0);
 }
-
 
 #[cfg(test)]
 mod tests {

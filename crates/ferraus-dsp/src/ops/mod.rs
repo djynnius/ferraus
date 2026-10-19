@@ -60,9 +60,9 @@ pub(crate) fn gain_or_auto(a: &Args, name: &str) -> Result<Option<f64>> {
     match a.raw(name) {
         None => Ok(None),
         Some(v) if v.eq_ignore_ascii_case("auto") => Ok(None),
-        Some(v) => units::parse_db(v)
-            .map(Some)
-            .map_err(|e| Error::usage(format!("--{name}: {} (or 'auto')", e.message))),
+        Some(v) => {
+            units::parse_db(v).map(Some).map_err(|e| Error::usage(format!("--{name}: {} (or 'auto')", e.message)))
+        }
     }
 }
 
@@ -80,7 +80,10 @@ pub(crate) fn rate_hz(a: &Args, name: &str, ctx: &mut OpCtx) -> Result<f64> {
         let bpm = match ctx.bpm() {
             Some(b) => b,
             None => {
-                ctx.warn("no_tempo", format!("--{name} {raw} is in beats but no tempo is known; assuming 120 BPM (pass --bpm)"));
+                ctx.warn(
+                    "no_tempo",
+                    format!("--{name} {raw} is in beats but no tempo is known; assuming 120 BPM (pass --bpm)"),
+                );
                 120.0
             }
         };
@@ -100,11 +103,7 @@ pub(crate) fn degrees(a: &Args, name: &str) -> Result<f64> {
 pub(crate) fn percent_in(a: &Args, name: &str, lo: f64, hi: f64) -> Result<f64> {
     let v = a.percent(name)?;
     if v < lo || v > hi {
-        return Err(Error::usage(format!(
-            "--{name} must be between {}% and {}%",
-            lo * 100.0,
-            hi * 100.0
-        )));
+        return Err(Error::usage(format!("--{name} must be between {}% and {}%", lo * 100.0, hi * 100.0)));
     }
     Ok(v)
 }
@@ -130,8 +129,7 @@ pub(crate) fn sync_secs(a: &Args, name: &str, sample_rate: u32, ctx: &mut OpCtx,
             ),
         );
     }
-    st.seconds(sample_rate, ctx.bpm(), fallback_bpm)
-        .map_err(|e| Error::usage(format!("--{name}: {}", e.message)))
+    st.seconds(sample_rate, ctx.bpm(), fallback_bpm).map_err(|e| Error::usage(format!("--{name}: {}", e.message)))
 }
 
 /// Run `f` on each channel in place (parallel-safe signature, sequential execution keeps
@@ -158,12 +156,7 @@ pub(crate) fn per_band<T: Clone>(
         .map(|s| parse(s).map_err(|e| Error::usage(format!("--{name}: {}", e.message))))
         .collect::<Result<_>>()?;
     if parsed.len() > bands {
-        return Err(Error::usage(format!(
-            "--{name} has {} values but there are only {bands} bands",
-            parsed.len()
-        )));
+        return Err(Error::usage(format!("--{name} has {} values but there are only {bands} bands", parsed.len())));
     }
-    Ok((0..bands)
-        .map(|i| parsed[i.min(parsed.len() - 1)].clone())
-        .collect())
+    Ok((0..bands).map(|i| parsed[i.min(parsed.len() - 1)].clone()).collect())
 }

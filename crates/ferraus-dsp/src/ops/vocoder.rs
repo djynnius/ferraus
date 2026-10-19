@@ -2,7 +2,7 @@
 
 use super::{secs, sr};
 use crate::vocoder::{
-    pitch_track_to_samples, parse_midi_notes, render_midi, render_osc, track_pitch, vocode_classic, vocode_spectral,
+    parse_midi_notes, pitch_track_to_samples, render_midi, render_osc, track_pitch, vocode_classic, vocode_spectral,
     VocoderParams, Waveform,
 };
 use ferraus_core::prelude::*;
@@ -64,7 +64,10 @@ fn carrier_signal(a: &Args, modulator: &[f32], rate: u32, ctx: &mut OpCtx) -> Re
         }
         None => {
             if a.has("midi") {
-                ctx.warn("midi_ignored", "--midi only applies to oscillator carriers; it is ignored for an audio carrier");
+                ctx.warn(
+                    "midi_ignored",
+                    "--midi only applies to oscillator carriers; it is ignored for an audio carrier",
+                );
             }
             let mut c = ctx.read_audio_path(Path::new(&spec))?;
             if c.sample_rate != rate {
@@ -181,8 +184,20 @@ mod tests {
         let mut smf = Smf::new(Header::new(Format::SingleTrack, Timing::Metrical(u15::new(480))));
         smf.tracks.push(vec![
             TrackEvent { delta: u28::new(0), kind: TrackEventKind::Meta(MetaMessage::Tempo(u24::new(500_000))) },
-            TrackEvent { delta: u28::new(0), kind: TrackEventKind::Midi { channel: u4::new(0), message: MidiMessage::NoteOn { key: u7::new(key), vel: u7::new(100) } } },
-            TrackEvent { delta: u28::new(480), kind: TrackEventKind::Midi { channel: u4::new(0), message: MidiMessage::NoteOff { key: u7::new(key), vel: u7::new(0) } } },
+            TrackEvent {
+                delta: u28::new(0),
+                kind: TrackEventKind::Midi {
+                    channel: u4::new(0),
+                    message: MidiMessage::NoteOn { key: u7::new(key), vel: u7::new(100) },
+                },
+            },
+            TrackEvent {
+                delta: u28::new(480),
+                kind: TrackEventKind::Midi {
+                    channel: u4::new(0),
+                    message: MidiMessage::NoteOff { key: u7::new(key), vel: u7::new(0) },
+                },
+            },
             TrackEvent { delta: u28::new(0), kind: TrackEventKind::Meta(MetaMessage::EndOfTrack) },
         ]);
         let mut out = Vec::new();

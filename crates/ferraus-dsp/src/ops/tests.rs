@@ -52,7 +52,8 @@ fn every_op_runs_with_defaults() {
         let s = run_op(&op, &pairs, AudioBuffer::new(48000, 2, 4800)).unwrap();
         assert!(s.peak() < 1e-6, "{} turned silence into {}", op.name, s.peak());
         // very short input
-        run_op(&op, &pairs, AudioBuffer::new(48000, 1, 3)).unwrap_or_else(|e| panic!("{} short: {}", op.name, e.message));
+        run_op(&op, &pairs, AudioBuffer::new(48000, 1, 3))
+            .unwrap_or_else(|e| panic!("{} short: {}", op.name, e.message));
     }
 }
 
@@ -86,11 +87,8 @@ fn compress_tighten_preset_is_listed() {
 
 /// Ops measured by the speed test, with arguments.
 fn bench_cases() -> Vec<(&'static str, Vec<(&'static str, &'static str)>)> {
-    let mut v: Vec<(&'static str, Vec<(&'static str, &'static str)>)> = all()
-        .iter()
-        .filter(|o| o.name != "match-eq" && o.name != "eq")
-        .map(|o| (o.name, vec![]))
-        .collect();
+    let mut v: Vec<(&'static str, Vec<(&'static str, &'static str)>)> =
+        all().iter().filter(|o| o.name != "match-eq" && o.name != "eq").map(|o| (o.name, vec![])).collect();
     v.push(("eq", vec![("band", "highpass:80Hz"), ("band", "peak:3kHz:+2dB"), ("band", "highshelf:10kHz:+1dB")]));
     v.push(("eq", vec![("band", "peak:3kHz:+2dB"), ("linear-phase", "true")]));
     v.push(("reverb", vec![("type", "hall"), ("decay", "3s")]));
@@ -99,6 +97,12 @@ fn bench_cases() -> Vec<(&'static str, Vec<(&'static str, &'static str)>)> {
     v.push(("compress", vec![("preset", "tighten"), ("character", "tube")]));
     v.push(("multiband", vec![("bands", "4"), ("limiter", "true")]));
     v.push(("delay", vec![("analog", "true"), ("pingpong", "true")]));
+    v.push(("fade", vec![("in", "2s"), ("out", "3s"), ("curve", "log")]));
+    v.push(("transient", vec![("attack", "+4dB"), ("sustain", "-3dB")]));
+    v.push(("tilt", vec![("gain", "+3dB")]));
+    v.push(("speed", vec![("factor", "1.5")]));
+    v.push(("speed", vec![("factor", "0.7")]));
+    v.push(("pan", vec![("points", "0s=-100,5s=100"), ("curve", "spline")]));
     v
 }
 
@@ -112,9 +116,15 @@ fn speed_every_effect_at_least_50x_realtime() {
     println!("{:<44} {:>10}", "op", "x realtime");
     for (name, pairs) in bench_cases() {
         let op = all().into_iter().find(|o| o.name == name).unwrap();
-        let t = Instant::now();
-        run_op(&op, &pairs, x.clone()).unwrap();
-        let rt = secs / t.elapsed().as_secs_f64();
+        // best of three: the machine may be busy with other work
+        let best = (0..3)
+            .map(|_| {
+                let t = Instant::now();
+                run_op(&op, &pairs, x.clone()).unwrap();
+                t.elapsed().as_secs_f64()
+            })
+            .fold(f64::MAX, f64::min);
+        let rt = secs / best;
         let label = format!("{name} {pairs:?}");
         println!("{label:<44} {rt:>10.0}");
         if rt < 50.0 {

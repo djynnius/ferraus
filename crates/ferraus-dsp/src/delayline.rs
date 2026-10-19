@@ -15,11 +15,7 @@ impl DelayLine {
     /// A delay line able to delay by at least `max_delay` samples.
     pub fn new(max_delay: usize) -> DelayLine {
         let cap = (max_delay + 4).next_power_of_two();
-        DelayLine {
-            buf: vec![0.0; cap],
-            mask: cap - 1,
-            write: 0,
-        }
+        DelayLine { buf: vec![0.0; cap], mask: cap - 1, write: 0 }
     }
 
     /// Longest supported delay in samples.
@@ -82,11 +78,7 @@ pub struct Allpass {
 
 impl Allpass {
     pub fn new(delay: usize, gain: f32) -> Allpass {
-        Allpass {
-            line: DelayLine::new(delay.max(1)),
-            delay: delay.max(1),
-            gain,
-        }
+        Allpass { line: DelayLine::new(delay.max(1)), delay: delay.max(1), gain }
     }
 
     #[inline(always)]
@@ -101,9 +93,7 @@ impl Allpass {
     /// Process with a modulated (fractional) delay around the nominal delay.
     #[inline(always)]
     pub fn process_mod(&mut self, x: f32, offset: f32) -> f32 {
-        let d = self
-            .line
-            .read_linear((self.delay as f32 + offset).clamp(1.0, self.line.max_delay() as f32));
+        let d = self.line.read_linear((self.delay as f32 + offset).clamp(1.0, self.line.max_delay() as f32));
         let v = x + self.gain * d;
         let y = d - self.gain * v;
         self.line.push(v);

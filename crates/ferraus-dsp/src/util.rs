@@ -76,12 +76,7 @@ pub struct Noise {
 
 impl Noise {
     pub fn new(seed: u64) -> Noise {
-        Noise {
-            state: seed
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407)
-                | 1,
-        }
+        Noise { state: seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407) | 1 }
     }
 
     /// Next uniform value in [-1, 1).
@@ -107,11 +102,7 @@ pub struct DcBlocker {
 impl DcBlocker {
     pub fn new(freq: f64, sample_rate: f64) -> DcBlocker {
         let r = (1.0 - 2.0 * std::f64::consts::PI * freq / sample_rate).clamp(0.0, 0.99999) as f32;
-        DcBlocker {
-            r,
-            x1: 0.0,
-            y1: 0.0,
-        }
+        DcBlocker { r, x1: 0.0, y1: 0.0 }
     }
 
     #[inline]

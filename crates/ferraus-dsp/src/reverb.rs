@@ -193,13 +193,11 @@ impl Tank for Plate {
         self.fb_l = flush(left_end);
         self.fb_r = flush(right_end);
         let t = &self.taps;
-        let l = self.d_r1.read(t[0]) + self.d_r1.read(t[1]) - self.ap_r2.tap(t[2])
-            + self.d_r2.read(t[3])
+        let l = self.d_r1.read(t[0]) + self.d_r1.read(t[1]) - self.ap_r2.tap(t[2]) + self.d_r2.read(t[3])
             - self.d_l1.read(t[4])
             - self.ap_l2.tap(t[5])
             - self.d_l2.read(t[6]);
-        let r = self.d_l1.read(t[7]) + self.d_l1.read(t[8]) - self.ap_l2.tap(t[9])
-            + self.d_l2.read(t[10])
+        let r = self.d_l1.read(t[7]) + self.d_l1.read(t[8]) - self.ap_l2.tap(t[9]) + self.d_l2.read(t[10])
             - self.d_r1.read(t[11])
             - self.ap_r2.tap(t[12])
             - self.d_r2.read(t[13]);
@@ -398,12 +396,36 @@ fn probe_tank(sample_rate: f64, p: &ReverbParams, len: usize) -> (Vec<f32>, f64)
     (ir, energy)
 }
 
-/// RT60 of an impulse response in the 1 kHz octave band (EDC to -60 dB).
+/// RT60 of an impulse response in the 1 kHz octave band. The Schroeder decay curve is
+/// measured from -5 dB down to -35 dB (or as deep as the response reaches) and extrapolated
+/// to -60 dB, so the response only needs to be about one decay time long.
 pub fn rt60_mid(ir: &[f32], sample_rate: f64) -> Option<f64> {
     let mut band = ir.to_vec();
     Cascade::butterworth_highpass(4, 707.0, sample_rate).process_block(&mut band);
     Cascade::butterworth_lowpass(4, 1414.0, sample_rate).process_block(&mut band);
-    edc_decay_time(&band, sample_rate, 60.0)
+    let n = band.len();
+    let mut edc = vec![0.0f64; n];
+    let mut acc = 0.0f64;
+    for i in (0..n).rev() {
+        acc += (band[i] as f64).powi(2);
+        edc[i] = acc;
+    }
+    let e0 = *edc.first()?;
+    if e0 <= 0.0 {
+        return None;
+    }
+    let db = |i: usize| 10.0 * (edc[i] / e0).max(1e-300).log10();
+    let t5 = (0..n).find(|&i| db(i) <= -5.0)?;
+    // deepest usable level: -35 dB, or what the curve reaches at 90% of its length
+    let reach = db((n * 9 / 10).max(t5 + 1).min(n - 1));
+    let lo = reach.max(-35.0);
+    if lo > -15.0 {
+        return None;
+    }
+    let tl = (t5..n).find(|&i| db(i) <= lo)?;
+    let slope = (lo + 5.0) / (tl - t5).max(1) as f64; // dB per sample (negative)
+    let t60 = tl as f64 + (-60.0 - lo) / slope;
+    Some(t60 / sample_rate)
 }
 
 /// Tune the internal decay so the tank's mid-frequency (1 kHz octave) RT60 matches the
@@ -411,13 +433,13 @@ pub fn rt60_mid(ir: &[f32], sample_rate: f64) -> Option<f64> {
 /// Returns the calibrated parameters and the tank's impulse-response energy.
 pub fn calibrate(sample_rate: f64, p: &ReverbParams) -> (ReverbParams, f64) {
     let target = p.decay_s.max(0.05);
-    let len = ((target * 2.5 + 0.2) * sample_rate) as usize;
+    let len = ((target * 1.1 + 0.1) * sample_rate) as usize;
     let mut q = p.clone();
     let mut energy = 0.0;
     for iter in 0..3 {
         let (ir, e) = probe_tank(sample_rate, &q, len);
         energy = e;
-        let measured = rt60_mid(&ir, sample_rate).unwrap_or(len as f64 / sample_rate);
+        let measured = rt60_mid(&ir, sample_rate).unwrap_or(4.0 * target);
         let ratio = target / measured.max(1e-3);
         if (ratio - 1.0).abs() < 0.02 || iter == 2 {
             break;
@@ -437,11 +459,7 @@ pub fn reverb_wet(input: &[f32], out_len: usize, sample_rate: f64, p: &ReverbPar
     let mut wl = Vec::with_capacity(out_len);
     let mut wr = Vec::with_capacity(out_len);
     for i in 0..out_len {
-        let x = if i >= predelay {
-            input.get(i - predelay).copied().unwrap_or(0.0)
-        } else {
-            0.0
-        };
+        let x = if i >= predelay { input.get(i - predelay).copied().unwrap_or(0.0) } else { 0.0 };
         let (l, r) = tank.process(x);
         wl.push(l * norm);
         wr.push(r * norm);
@@ -474,22 +492,14 @@ pub fn post_filter(l: &mut [f32], r: &mut [f32], sample_rate: f64, lowcut: f64, 
 /// Remove the IR's tail after it falls below `threshold_db` relative to its peak, plus any
 /// leading silence before it rises above that level. Returns the trimmed channels.
 pub fn trim_ir(ir: &[Vec<f32>], threshold_db: f64) -> Vec<Vec<f32>> {
-    let peak = ir
-        .iter()
-        .flat_map(|c| c.iter())
-        .fold(0.0f32, |m, v| m.max(v.abs()));
+    let peak = ir.iter().flat_map(|c| c.iter()).fold(0.0f32, |m, v| m.max(v.abs()));
     if peak <= 0.0 {
         return ir.to_vec();
     }
     let thr = peak * 10f32.powf(threshold_db as f32 / 20.0);
     let n = ir.first().map(|c| c.len()).unwrap_or(0);
-    let first = (0..n)
-        .find(|&i| ir.iter().any(|c| c[i].abs() >= thr))
-        .unwrap_or(0);
-    let last = (0..n)
-        .rev()
-        .find(|&i| ir.iter().any(|c| c[i].abs() >= thr))
-        .unwrap_or(n.saturating_sub(1));
+    let first = (0..n).find(|&i| ir.iter().any(|c| c[i].abs() >= thr)).unwrap_or(0);
+    let last = (0..n).rev().find(|&i| ir.iter().any(|c| c[i].abs() >= thr)).unwrap_or(n.saturating_sub(1));
     ir.iter().map(|c| c[first..=last].to_vec()).collect()
 }
 

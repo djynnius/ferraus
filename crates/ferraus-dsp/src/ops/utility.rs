@@ -51,11 +51,8 @@ fn speed(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
 fn dc_remove(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     let f = a.freq("freq")?;
     let rate = sr(&buf);
-    let offsets: Vec<f64> = buf
-        .data
-        .iter()
-        .map(|c| c.iter().map(|v| *v as f64).sum::<f64>() / c.len().max(1) as f64)
-        .collect();
+    let offsets: Vec<f64> =
+        buf.data.iter().map(|c| c.iter().map(|v| *v as f64).sum::<f64>() / c.len().max(1) as f64).collect();
     if f <= 0.0 {
         per_channel(&mut buf, |c, ch| {
             let m = offsets[c] as f32;

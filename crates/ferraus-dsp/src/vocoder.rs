@@ -2,7 +2,7 @@
 //! carrier sources they need: band-limited oscillators (PolyBLEP saw/square/pulse, noise),
 //! an autocorrelation pitch tracker for `--follow`, and MIDI note parsing for `--midi`.
 
-use crate::biquad::{octaves_to_q, Biquad, Cascade, Coeffs, FilterType};
+use crate::biquad::{octaves_to_q, Biquad32, Cascade, Coeffs, FilterType};
 use crate::dynamics::EnvelopeFollower;
 use crate::stft::Stft;
 use crate::util::{rms, Noise};
@@ -54,11 +54,7 @@ pub struct Oscillator {
 
 impl Oscillator {
     pub fn new(wave: Waveform, seed: u64) -> Oscillator {
-        Oscillator {
-            wave,
-            phase: 0.0,
-            noise: Noise::new(seed),
-        }
+        Oscillator { wave, phase: 0.0, noise: Noise::new(seed) }
     }
 
     /// Next sample at `freq` Hz.
@@ -89,10 +85,7 @@ impl Oscillator {
 /// Render an oscillator following a per-sample frequency track (`None`/0 = silence).
 pub fn render_osc(wave: Waveform, freqs: &[f64], sample_rate: f64, seed: u64) -> Vec<f32> {
     let mut o = Oscillator::new(wave, seed);
-    freqs
-        .iter()
-        .map(|f| if *f > 0.0 { o.next(*f, sample_rate) } else { 0.0 })
-        .collect()
+    freqs.iter().map(|f| if *f > 0.0 { o.next(*f, sample_rate) } else { 0.0 }).collect()
 }
 
 /// Autocorrelation pitch tracker. Returns one estimate per `hop` samples (frame centres at
@@ -254,23 +247,13 @@ pub fn parse_midi_notes(bytes: &[u8]) -> Result<Vec<MidiNote>, String> {
             Ev::Off(ch, key) => {
                 if let Some(pos) = open.iter().position(|o| o.0 == ch && o.1 == key) {
                     let o = open.remove(pos);
-                    notes.push(MidiNote {
-                        start_s: o.3,
-                        end_s: now,
-                        key,
-                        velocity: o.2,
-                    });
+                    notes.push(MidiNote { start_s: o.3, end_s: now, key, velocity: o.2 });
                 }
             }
         }
     }
     for o in open {
-        notes.push(MidiNote {
-            start_s: o.3,
-            end_s: now,
-            key: o.1,
-            velocity: o.2,
-        });
+        notes.push(MidiNote { start_s: o.3, end_s: now, key: o.1, velocity: o.2 });
     }
     notes.sort_by(|a, b| a.start_s.partial_cmp(&b.start_s).unwrap_or(std::cmp::Ordering::Equal));
     Ok(notes)
@@ -332,14 +315,7 @@ impl Default for VocoderParams {
 /// Log-spaced band centres.
 pub fn band_centres(bands: usize, lo: f64, hi: f64) -> Vec<f64> {
     let n = bands.max(2);
-    (0..n)
-        .map(|i| lo * (hi / lo).powf(i as f64 / (n - 1) as f64))
-        .collect()
-}
-
-fn band_filter(fc: f64, q: f64, sr: f64) -> Cascade {
-    let c = Coeffs::design(FilterType::Bandpass, fc, q, 0.0, sr);
-    Cascade::new([c, c])
+    (0..n).map(|i| lo * (hi / lo).powf(i as f64 / (n - 1) as f64)).collect()
 }
 
 /// Sibilance amount 0..1 from the ratio of high-band to full-band envelope.
@@ -380,9 +356,61 @@ fn match_rms(y: &mut [f32], reference: &[f32], lo: f64, hi: f64, sample_rate: f6
     }
 }
 
+/// Bands processed together in one pass (independent filters pipeline and vectorise well).
+const LANES: usize = 8;
+
+/// Up to [`LANES`] 4th-order band-passes (two identical constant-peak sections each) run in
+/// lockstep on the same input. Unused lanes have zero coefficients and output silence.
+struct BandBank {
+    c: [[f32; 5]; LANES],
+    s: [[f32; 4]; LANES],
+}
+
+impl BandBank {
+    fn new(centres: &[f64], shift: f64, q: f64, sample_rate: f64) -> BandBank {
+        let mut c = [[0.0f32; 5]; LANES];
+        for (k, f) in centres.iter().enumerate().take(LANES) {
+            let d = Coeffs::design(FilterType::Bandpass, f * shift, q, 0.0, sample_rate);
+            c[k] = [d.b0 as f32, d.b1 as f32, d.b2 as f32, d.a1 as f32, d.a2 as f32];
+        }
+        BandBank { c, s: [[0.0; 4]; LANES] }
+    }
+
+    #[inline(always)]
+    fn process(&mut self, x: f32) -> [f32; LANES] {
+        let mut out = [0.0f32; LANES];
+        for j in 0..LANES {
+            let [b0, b1, b2, a1, a2] = self.c[j];
+            let st = &mut self.s[j];
+            let y = b0 * x + st[0];
+            st[0] = b1 * x - a1 * y + st[1];
+            st[1] = b2 * x - a2 * y;
+            let y2 = b0 * y + st[2];
+            st[2] = b1 * y - a1 * y2 + st[3];
+            st[3] = b2 * y - a2 * y2;
+            out[j] = y2;
+        }
+        out
+    }
+
+    /// Denormal protection, called every few samples (state cannot decay from 1e-20 to the
+    /// subnormal range within that time).
+    fn flush(&mut self) {
+        for st in &mut self.s {
+            for v in st.iter_mut() {
+                *v = crate::util::flush(*v);
+            }
+        }
+    }
+}
+
 /// Classic channel vocoder: band-pass filter banks on modulator and carrier, envelope
 /// followers on the modulator bands, per-band carrier normalisation, and optional noise
-/// resynthesis of sibilants. Output RMS matches the modulator.
+/// resynthesis of sibilants (the carrier input crossfades to white noise while the
+/// modulator's high-band energy ratio says "sibilant", and an "air" band of noise above the
+/// range follows the modulator's own highs). Output level follows the modulator.
+///
+/// Processes band by band over the whole signal with `f32` filters (cache friendly).
 pub fn vocode_classic(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: &VocoderParams) -> Vec<f32> {
     let n = modulator.len();
     let centres = band_centres(p.bands, p.lo, p.hi.min(sample_rate * 0.45));
@@ -390,55 +418,69 @@ pub fn vocode_classic(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: &
     let ratio = (centres[nb - 1] / centres[0]).powf(1.0 / (nb - 1) as f64);
     let q = octaves_to_q(ratio.log2()) * 1.2;
     let shift = 2f64.powf(-p.formant_shift / 12.0);
-    let mut mod_f: Vec<Cascade> = centres.iter().map(|f| band_filter(f * shift, q, sample_rate)).collect();
-    let mut car_f: Vec<Cascade> = centres.iter().map(|f| band_filter(*f, q, sample_rate)).collect();
-    let mut noise_f: Vec<Cascade> = centres.iter().map(|f| band_filter(*f, q, sample_rate)).collect();
-    let mut mod_env: Vec<EnvelopeFollower> = (0..nb)
-        .map(|_| EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate))
-        .collect();
-    let mut car_env = mod_env.clone();
-    let mut noise_env = mod_env.clone();
-    let floor = (rms(carrier) * 1e-3).max(1e-7);
     let mut noise = Noise::new(p.seed ^ 0x5eed);
-    // sibilance detection and the "air" band above the vocoder range
-    let mut hf_det = Biquad::design(FilterType::Highpass, 4000.0, 0.707, 0.0, sample_rate);
-    let mut hf_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
-    let mut all_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
-    let air_fc = p.hi.min(sample_rate * 0.4);
-    let mut air_mod = Cascade::butterworth_highpass(4, air_fc, sample_rate);
-    let mut air_noise = Cascade::butterworth_highpass(4, air_fc, sample_rate);
-    let mut air_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
-    let mut out = Vec::with_capacity(n);
-    for i in 0..n {
-        let m = modulator[i];
-        let c = carrier.get(i).copied().unwrap_or(0.0);
-        let nz = if p.unvoiced { noise.tick() } else { 0.0 };
-        let s = if p.unvoiced {
-            let h = hf_env.process(hf_det.process(m).abs());
-            let a = all_env.process(m.abs());
-            sibilance(h, a)
-        } else {
-            0.0
-        };
-        let mut y = 0.0f32;
-        for b in 0..nb {
-            let em = mod_env[b].process(mod_f[b].process(m).abs());
-            let cb = car_f[b].process(c);
-            let ec = car_env[b].process(cb.abs()).max(floor);
-            let mut src = cb / ec;
-            if p.unvoiced {
-                let nb_ = noise_f[b].process(nz);
-                let en = noise_env[b].process(nb_.abs()).max(1e-6);
-                src = (1.0 - s) * src + s * nb_ / en;
+    let mut car: Vec<f32> = (0..n).map(|i| carrier.get(i).copied().unwrap_or(0.0)).collect();
+    // sibilance amount per sample, and the carrier crossfade to noise
+    let sib: Vec<f32> = if p.unvoiced {
+        let mut hf_det = Biquad32::new(Coeffs::design(FilterType::Highpass, 4000.0, 0.707, 0.0, sample_rate));
+        let mut hf_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
+        let mut all_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
+        let s: Vec<f32> = modulator
+            .iter()
+            .map(|m| {
+                let h = hf_env.process(hf_det.process(*m).abs());
+                let a = all_env.process(m.abs());
+                sibilance(h, a)
+            })
+            .collect();
+        let crms = rms(&car).max(1e-9);
+        for (c, sv) in car.iter_mut().zip(&s) {
+            *c = (1.0 - sv) * *c / crms + sv * noise.tick() * 1.732;
+        }
+        s
+    } else {
+        Vec::new()
+    };
+    let floor = (rms(&car) * 1e-3).max(1e-7);
+    let mut out = vec![0.0f32; n];
+    let att = crate::util::time_coeff(p.attack_s, sample_rate);
+    let rel = crate::util::time_coeff(p.release_s, sample_rate);
+    for group in centres.chunks(LANES) {
+        let mut mod_bank = BandBank::new(group, shift, q, sample_rate);
+        let mut car_bank = BandBank::new(group, 1.0, q, sample_rate);
+        let mut em = [0.0f32; LANES];
+        let mut ec = [0.0f32; LANES];
+        for (i, (o, (m, c))) in out.iter_mut().zip(modulator.iter().zip(&car)).enumerate() {
+            let ym = mod_bank.process(*m);
+            let yc = car_bank.process(*c);
+            let mut acc = 0.0f32;
+            for j in 0..LANES {
+                let a = ym[j].abs();
+                em[j] = a + if a > em[j] { att } else { rel } * (em[j] - a);
+                let b = yc[j].abs();
+                ec[j] = b + if b > ec[j] { att } else { rel } * (ec[j] - b);
+                acc += em[j] * yc[j] / ec[j].max(floor);
             }
-            y += em * src;
+            *o += acc;
+            if i % 64 == 63 {
+                mod_bank.flush();
+                car_bank.flush();
+                for v in em.iter_mut().chain(ec.iter_mut()) {
+                    *v = crate::util::flush(*v);
+                }
+            }
         }
-        if p.unvoiced {
-            let ea = air_env.process(air_mod.process(m).abs());
-            let an = air_noise.process(nz);
-            y += s * ea * an * 2.0;
+    }
+    if p.unvoiced {
+        let air_fc = p.hi.min(sample_rate * 0.4);
+        let mut air_mod = Cascade::butterworth_highpass(4, air_fc, sample_rate);
+        let mut air_noise = Cascade::butterworth_highpass(4, air_fc, sample_rate);
+        let mut air_env = EnvelopeFollower::new(p.attack_s, p.release_s, sample_rate);
+        for ((o, m), sv) in out.iter_mut().zip(modulator).zip(&sib) {
+            let ea = air_env.process(air_mod.process(*m).abs());
+            let an = air_noise.process(noise.tick());
+            *o += sv * ea * an * 2.0;
         }
-        out.push(y);
     }
     match_rms(&mut out, modulator, centres[0], centres[nb - 1], sample_rate);
     out
@@ -563,9 +605,8 @@ mod tests {
     #[test]
     fn pitch_tracker_finds_a_sine() {
         let sr = 16000.0;
-        let x: Vec<f32> = (0..16000)
-            .map(|i| (2.0 * std::f64::consts::PI * 220.0 * i as f64 / sr).sin() as f32 * 0.5)
-            .collect();
+        let x: Vec<f32> =
+            (0..16000).map(|i| (2.0 * std::f64::consts::PI * 220.0 * i as f64 / sr).sin() as f32 * 0.5).collect();
         let frames = track_pitch(&x, sr, 256, 60.0, 1000.0);
         let voiced: Vec<f64> = frames[10..frames.len() - 10].iter().flatten().copied().collect();
         assert!(voiced.len() > 40);

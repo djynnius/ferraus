@@ -74,7 +74,10 @@ fn pan(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
         (st.data[0].clone(), st.data[1].clone())
     } else {
         if buf.channels() > 1 {
-            ctx.warn("mono_summed", "pan mode sums a stereo source to mono before placing it; use --mode balance to keep the stereo image");
+            ctx.warn(
+                "mono_summed",
+                "pan mode sums a stereo source to mono before placing it; use --mode balance to keep the stereo image",
+            );
         }
         let m = buf.mono_mix();
         (m.clone(), m)
@@ -204,7 +207,12 @@ mod tests {
         assert!((y.data[0][1000] - c).abs() < 1e-6 && (y.data[1][1000] - c).abs() < 1e-6);
         assert!(y.data[0][2000].abs() < 1e-6 && (y.data[1][2000] - 1.0).abs() < 1e-6);
         assert!(y.data[0][999] > y.data[0][1000]);
-        let y = run(&spec("pan"), &[("from", "L50"), ("to", "R50"), ("over", "1s..2s")], AudioBuffer::from_mono(1000, vec![1.0; 3000])).unwrap();
+        let y = run(
+            &spec("pan"),
+            &[("from", "L50"), ("to", "R50"), ("over", "1s..2s")],
+            AudioBuffer::from_mono(1000, vec![1.0; 3000]),
+        )
+        .unwrap();
         let (gl, gr) = pan_gains(-0.5, PanLaw::Minus3);
         assert!((y.data[0][1000] as f64 - gl).abs() < 1e-6 && (y.data[1][1000] as f64 - gr).abs() < 1e-6);
     }

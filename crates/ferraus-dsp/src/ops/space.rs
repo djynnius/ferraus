@@ -120,9 +120,9 @@ fn loop_filter(spec: &str, rate: f64) -> Result<LoopFilter> {
     if s.is_empty() || s == "off" || s == "none" {
         return Ok(LoopFilter::None);
     }
-    let (ty, f) = s
-        .split_once(':')
-        .ok_or_else(|| Error::usage(format!("--filter '{spec}': expected lowpass:6kHz, highpass:800Hz, bandpass:1kHz, or off")))?;
+    let (ty, f) = s.split_once(':').ok_or_else(|| {
+        Error::usage(format!("--filter '{spec}': expected lowpass:6kHz, highpass:800Hz, bandpass:1kHz, or off"))
+    })?;
     let ty = match ty {
         "lowpass" | "lp" => FilterType::Lowpass,
         "highpass" | "hp" => FilterType::Highpass,
@@ -155,12 +155,8 @@ impl Echo {
         Ok(Echo {
             line: DelayLine::new(max),
             filt: loop_filter(filter, rate)?,
-            wow: analog.then(|| {
-                (
-                    Lfo::new(0.6, rate, Shape::Sine, phase),
-                    Lfo::new(5.3, rate, Shape::Sine, phase + 0.3),
-                )
-            }),
+            wow: analog
+                .then(|| (Lfo::new(0.6, rate, Shape::Sine, phase), Lfo::new(5.3, rate, Shape::Sine, phase + 0.3))),
         })
     }
 
@@ -261,7 +257,15 @@ mod tests {
             let rate = 24000;
             let y = run(
                 &s,
-                &[("type", ty), ("decay", &d), ("mix", "100%"), ("tail", &tail), ("predelay", "0ms"), ("lowcut", "0Hz"), ("highcut", "0Hz")],
+                &[
+                    ("type", ty),
+                    ("decay", &d),
+                    ("mix", "100%"),
+                    ("tail", &tail),
+                    ("predelay", "0ms"),
+                    ("lowcut", "0Hz"),
+                    ("highcut", "0Hz"),
+                ],
                 impulse(rate, 0.01),
             )
             .unwrap();
@@ -274,7 +278,16 @@ mod tests {
             // broadband, without damping
             let y = run(
                 &s,
-                &[("type", ty), ("decay", &d), ("mix", "100%"), ("tail", &tail), ("predelay", "0ms"), ("lowcut", "0Hz"), ("highcut", "0Hz"), ("damping", "0%")],
+                &[
+                    ("type", ty),
+                    ("decay", &d),
+                    ("mix", "100%"),
+                    ("tail", &tail),
+                    ("predelay", "0ms"),
+                    ("lowcut", "0Hz"),
+                    ("highcut", "0Hz"),
+                    ("damping", "0%"),
+                ],
                 impulse(rate, 0.01),
             )
             .unwrap();
@@ -313,7 +326,8 @@ mod tests {
         let x = impulse(48000, 1.5);
         let y = run(&s, &[("mix", "100%"), ("filter", "off")], x.clone()).unwrap();
         // no --bpm: 1/4 at 160 BPM = 375 ms
-        let peak = y.data[0].iter().enumerate().fold((0, 0.0f32), |m, (i, v)| if v.abs() > m.1 { (i, v.abs()) } else { m });
+        let peak =
+            y.data[0].iter().enumerate().fold((0, 0.0f32), |m, (i, v)| if v.abs() > m.1 { (i, v.abs()) } else { m });
         assert!((peak.0 as i64 - 18000).abs() <= 2, "{}", peak.0);
         // second echo is feedback-scaled
         let second = y.data[0][36000 - 3..36000 + 3].iter().fold(0.0f32, |m, v| m.max(v.abs()));

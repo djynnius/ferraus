@@ -61,9 +61,8 @@ pub(crate) fn parse_band(s: &str) -> Result<Band> {
     if parts.len() < 2 {
         return Err(bad("missing frequency"));
     }
-    let ty = FilterType::parse(parts[0]).ok_or_else(|| {
-        bad("unknown type (peak, lowshelf, highshelf, lowpass, highpass, bandpass, notch)")
-    })?;
+    let ty = FilterType::parse(parts[0])
+        .ok_or_else(|| bad("unknown type (peak, lowshelf, highshelf, lowpass, highpass, bandpass, notch)"))?;
     let freq = units::parse_freq(parts[1]).map_err(|e| bad(&e.message))?;
     let mut gain = 0.0;
     let mut q = None;
@@ -97,7 +96,9 @@ pub(crate) fn parse_band(s: &str) -> Result<Band> {
 /// Biquad cascade implementing one band.
 pub(crate) fn band_cascade(b: &Band, rate: f64) -> Cascade {
     match b.ty {
-        FilterType::Lowpass | FilterType::Highpass => pass_filter(b.ty == FilterType::Highpass, b.freq, b.order, b.q, rate),
+        FilterType::Lowpass | FilterType::Highpass => {
+            pass_filter(b.ty == FilterType::Highpass, b.freq, b.order, b.q, rate)
+        }
         FilterType::Bandpass | FilterType::Notch => {
             let c = Coeffs::design(b.ty, b.freq, b.q, 0.0, rate);
             Cascade::new(std::iter::repeat_n(c, (b.order / 2).max(1)))
@@ -208,7 +209,14 @@ fn parse_smoothing(s: &str) -> Result<f64> {
 }
 
 /// Correction curve (dB per bin) taking `input` towards `reference`.
-pub(crate) fn match_curve(input: &[f32], reference: &[f32], rate: f64, size: usize, smoothing: f64, amount: f64) -> Vec<f64> {
+pub(crate) fn match_curve(
+    input: &[f32],
+    reference: &[f32],
+    rate: f64,
+    size: usize,
+    smoothing: f64,
+    amount: f64,
+) -> Vec<f64> {
     let df = rate / size as f64;
     let pi = smooth_octave(&welch_psd(input, size), df, smoothing);
     let pr = smooth_octave(&welch_psd(reference, size), df, smoothing);
@@ -250,7 +258,8 @@ fn match_eq(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuff
     let smoothing = parse_smoothing(&a.str_or("smoothing", "1/3oct"))?;
     let mut reference = ctx.read_audio_path(&path)?;
     if reference.sample_rate != buf.sample_rate {
-        reference = ferraus_core::resample::resample(&reference, buf.sample_rate, ferraus_core::resample::Quality::High);
+        reference =
+            ferraus_core::resample::resample(&reference, buf.sample_rate, ferraus_core::resample::Quality::High);
     }
     let rate = sr(&buf);
     let size = ((8192.0 * rate / 48000.0) as usize).next_power_of_two().max(1024);
@@ -304,7 +313,10 @@ mod tests {
                 pairs.push(("linear-phase", "true"));
             }
             let y = run(&s, &pairs, x.clone()).unwrap();
-            let g = 20.0 * (tone_level(&y.data[0][12000..36000], 48000, 1000.0) / tone_level(&x.data[0][12000..36000], 48000, 1000.0)).log10();
+            let g = 20.0
+                * (tone_level(&y.data[0][12000..36000], 48000, 1000.0)
+                    / tone_level(&x.data[0][12000..36000], 48000, 1000.0))
+                .log10();
             assert!((g - 6.0).abs() < 0.1, "linear_phase={lp}: {g}");
         }
     }
@@ -315,7 +327,8 @@ mod tests {
         let x = sine(48000, 100.0, 1.0, 0.5);
         for (order, want) in [("2", -40.0), ("4", -80.0)] {
             let y = run(&s, &[("freq", "1kHz"), ("order", order)], x.clone()).unwrap();
-            let g = 20.0 * (crate::util::rms(&y.data[0][24000..]) / crate::util::rms(&x.data[0][24000..])).log10() as f64;
+            let g =
+                20.0 * (crate::util::rms(&y.data[0][24000..]) / crate::util::rms(&x.data[0][24000..])).log10() as f64;
             assert!((g - want).abs() < 1.0, "order {order}: {g}");
         }
     }
@@ -336,7 +349,8 @@ mod tests {
         let rate = 48000;
         // reference: noise with the highs boosted by a +9 dB high shelf
         let mut r = noise(rate, 3.0, 0.2, 9);
-        Cascade::new([Coeffs::design(FilterType::HighShelf, 3000.0, 0.707, 9.0, rate as f64)]).process_block(&mut r.data[0]);
+        Cascade::new([Coeffs::design(FilterType::HighShelf, 3000.0, 0.707, 9.0, rate as f64)])
+            .process_block(&mut r.data[0]);
         let path = dir.path("ref.wav");
         ferraus_core::testing::write_wav(&path, &r);
         let x = noise(rate, 3.0, 0.2, 10);
