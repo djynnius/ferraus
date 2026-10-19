@@ -5,12 +5,20 @@ version.workspace = true
 edition.workspace = true
 license = "GPL-3.0-only"
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
 publish = false
 
 [package.metadata.dist]
-# Built and shipped beside ferraus by the release workflow; kept out of the permissive core.
-dist = false
+# Released as its own GPLv3 app (archive + installers); ferraus finds it next to
+# itself or on PATH.
+dist = true
+
+[package.metadata.wix]
+upgrade-guid = "40EECA67-8F1E-49C3-B1A3-D7BD3B0DEFB3"
+path-guid = "7C394D4A-587C-442F-911B-2BE14354D72A"
+license = false
+eula = false
 
 [dependencies]
 ferraus-plugins = { path = "../ferraus-plugins", version = "0.1.0", default-features = false }

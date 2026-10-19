@@ -184,7 +184,7 @@ fn plugin_and_sounds_commands() {
     // preset by name
     let e = c.run_with(
         "plugin run",
-        &[("plugin", "Ferraus Test Gain"), ("plugin-preset", "Loud"), ("param", "gain=0dB")],
+        &[("plugin", "Ferraus Test Gain"), ("preset", "Loud"), ("param", "gain=0dB")],
         &[&input],
         |g| g.output = Some(o.clone()),
     );

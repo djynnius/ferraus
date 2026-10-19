@@ -15,7 +15,8 @@ Options:
   --help      Print this help
   --probe <path>  Print the plugin descriptors of a .clap bundle as JSON (debugging aid)";
 
-fn main() {
+/// Entry point of the `ferraus-plughost` binary (shipped by the `ferraus` package).
+pub fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(|s| s.as_str()) {
         Some("--version") | Some("-V") => {

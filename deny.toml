@@ -8,7 +8,7 @@ allow = [
 ]
 confidence-threshold = 0.9
 exceptions = [
-  { allow = ["GPL-3.0", "GPL-3.0-or-later"], crate = "ferraus-plughost-vst3" },
+  { allow = ["GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later"], crate = "ferraus-plughost-vst3" },
 ]
 
 [bans]

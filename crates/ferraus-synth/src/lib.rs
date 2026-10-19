@@ -18,8 +18,8 @@ pub mod sfz;
 pub mod source;
 
 pub use render::{
-    render, render_with_report, set_plugin_engine_factory, Engine, PluginEngineFactory, RenderOptions, RenderReport,
-    Selector, VelocityCurve,
+    render, render_with_report, set_plugin_engine_factory, set_plugin_offline_renderer, Engine, PluginEngineFactory,
+    PluginOfflineRenderer, RenderOptions, RenderReport, Scheduled, Selector, VelocityCurve,
 };
 pub use source::{
     parse_source, read_aliases, scan_sound_folder, InstrumentSource, Resolved, Resolver, Sf2Preset, SoundEntry,

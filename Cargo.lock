@@ -647,6 +647,7 @@ dependencies = [
  "ferraus-ml",
  "ferraus-models",
  "ferraus-pitch",
+ "ferraus-plughost",
  "ferraus-plugins",
  "ferraus-restore",
  "ferraus-score",

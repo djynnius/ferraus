@@ -21,6 +21,10 @@ eula = false
 name = "ferraus"
 path = "src/main.rs"
 
+[[bin]]
+name = "ferraus-plughost"
+path = "src/bin/ferraus-plughost.rs"
+
 [lib]
 name = "ferraus_cli"
 path = "src/lib.rs"
@@ -40,6 +44,7 @@ ferraus-denoise.workspace = true
 ferraus-midi.workspace = true
 ferraus-synth.workspace = true
 ferraus-plugins.workspace = true
+ferraus-plughost.workspace = true
 ferraus-models.workspace = true
 ferraus-mcp.workspace = true
 ferraus-score.workspace = true

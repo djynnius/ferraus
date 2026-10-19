@@ -469,7 +469,8 @@ pub fn scan_dirs(opts: &ScanOptions) -> Vec<PathBuf> {
             dirs.extend(standard_dirs(*f));
         }
     }
-    dirs.extend(opts.extra.iter().cloned());
+    // absolute, so cached entries stay valid from any working directory
+    dirs.extend(opts.extra.iter().map(|p| ferraus_core::ctx::absolutize(p)));
     let mut seen = Vec::new();
     dirs.retain(|d| {
         if seen.contains(d) {

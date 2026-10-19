@@ -37,17 +37,25 @@ pub fn ensure_built() -> PathBuf {
             };
             let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.toml");
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+            // the CLAP host binary is shipped by the `ferraus` package
+            let status = Command::new(&cargo)
+                .args(["build", "--quiet", "-p", "ferraus", "--bin", "ferraus-plughost"])
+                .arg("--manifest-path")
+                .arg(&manifest)
+                .arg("--target-dir")
+                .arg(&target)
+                .arg("--profile")
+                .arg(&profile)
+                .env_remove("CC")
+                .env_remove("CXX")
+                .env_remove("CFLAGS")
+                .env_remove("CXXFLAGS")
+                .env_remove("LDFLAGS")
+                .status()
+                .expect("run cargo build for the CLAP host");
+            assert!(status.success(), "building the CLAP host failed");
             let status = Command::new(cargo)
-                .args([
-                    "build",
-                    "--quiet",
-                    "-p",
-                    "ferraus-plughost",
-                    "-p",
-                    "ferraus-plughost-vst3",
-                    "-p",
-                    "ferraus-test-plugin",
-                ])
+                .args(["build", "--quiet", "-p", "ferraus-plughost-vst3", "-p", "ferraus-test-plugin"])
                 .arg("--manifest-path")
                 .arg(&manifest)
                 .arg("--target-dir")

@@ -4,6 +4,7 @@
 pub mod cli;
 pub mod config;
 pub mod docgen;
+pub mod glue;
 pub mod progress;
 pub mod system;
 pub mod tools;
@@ -12,6 +13,7 @@ use ferraus_core::Registry;
 
 /// Every op from every crate. One place, so the CLI, MCP server, schemas, and docs agree.
 pub fn registry() -> Registry {
+    glue::install();
     let mut r = Registry::new();
     r.extend(ferraus_core::builtin::ops());
     r.extend(ferraus_codec::ops());

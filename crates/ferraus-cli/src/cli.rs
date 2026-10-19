@@ -613,6 +613,7 @@ pub fn run(argv: Vec<String>) -> i32 {
         inputs = vals.cloned().collect();
     }
 
+    crate::glue::set_sound_paths(globals.sound_paths.clone());
     if prefs.is_async {
         return crate::system::spawn_async(&argv, prefs.json);
     }

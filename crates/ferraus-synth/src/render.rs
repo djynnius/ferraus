@@ -26,6 +26,17 @@ pub type PluginEngineFactory = fn(&InstrumentSource, u32) -> Result<Box<dyn Engi
 
 static PLUGIN_FACTORY: OnceLock<PluginEngineFactory> = OnceLock::new();
 
+/// Renders a whole event list through a plugin instrument offline (the plugin host runs
+/// in its own process, so it takes every event up front): returns `frames` stereo frames.
+pub type PluginOfflineRenderer = fn(&InstrumentSource, &[Scheduled], usize, u32) -> Result<(Vec<f32>, Vec<f32>)>;
+
+static PLUGIN_OFFLINE: OnceLock<PluginOfflineRenderer> = OnceLock::new();
+
+/// Register the offline plugin renderer (called once by the application).
+pub fn set_plugin_offline_renderer(f: PluginOfflineRenderer) -> bool {
+    PLUGIN_OFFLINE.set(f).is_ok()
+}
+
 /// Register the engine factory for plugin instruments (called once by `ferraus-plugins`).
 pub fn set_plugin_engine_factory(f: PluginEngineFactory) -> bool {
     PLUGIN_FACTORY.set(f).is_ok()
@@ -442,8 +453,16 @@ pub fn render_with_report(
     let ng = groups.len().max(1) as f64;
     let mut notes = 0;
     for (gi, g) in groups.iter().enumerate() {
-        let mut engine = make_engine(&g.source, opts.sample_rate)?;
-        let (gl, gr) = render_events(engine.as_mut(), &g.events, frames, &mut |f| progress((gi as f64 + f) / ng))?;
+        let (gl, gr) = match (&g.source, PLUGIN_OFFLINE.get()) {
+            (InstrumentSource::Plugin { .. }, Some(offline)) => {
+                progress(gi as f64 / ng)?;
+                offline(&g.source, &g.events, frames, opts.sample_rate)?
+            }
+            _ => {
+                let mut engine = make_engine(&g.source, opts.sample_rate)?;
+                render_events(engine.as_mut(), &g.events, frames, &mut |f| progress((gi as f64 + f) / ng))?
+            }
+        };
         for (a, b) in l.iter_mut().zip(&gl) {
             *a += *b;
         }

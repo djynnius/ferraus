@@ -35,7 +35,7 @@ fn param_param() -> ferraus_core::ParamSpec {
 }
 
 fn preset_param() -> ferraus_core::ParamSpec {
-    param("plugin-preset", ParamKind::Str)
+    param("preset", ParamKind::Str)
         .help("Load one of the plugin's presets by name (see 'plugin presets list') before applying --param values")
 }
 
@@ -86,21 +86,21 @@ fn plugin_ops() -> Vec<OpSpec> {
             .example("ferraus plugin run vocal.wav --plugin \"Dragonfly Room Reverb\" --tail 3s --mix 30% -o vocal.verb.wav", "Add 30% room reverb and let it ring for 3 s")
             .example("ferraus plugin run in.wav --plugin com.acme.eq --param \"Low Gain=-3dB\" --param cutoff=2.5kHz -o out.wav", "Set parameters in display units"),
         OpSpec::custom("plugin presets list", Category::Plugins, "List a plugin's presets", plugin_presets_list)
-            .about("Discovers presets through the plugin's own preset-discovery interface (CLAP) or program lists (VST3). Use a name with --plugin-preset.")
+            .about("Discovers presets through the plugin's own preset-discovery interface (CLAP) or program lists (VST3). Use a name with --preset.")
             .positional("name")
             .param(plugin_name_param())
             .param(watchdog_param())
             .example("ferraus plugin presets list \"Surge XT\"", "List Surge XT's presets")
             .example("ferraus plugin presets list Dexed --json", "Presets as JSON"),
         OpSpec::custom("plugin state save", Category::Plugins, "Save a plugin's native state as base64 JSON", plugin_state_save)
-            .about("Loads the plugin, applies --state, --plugin-preset, and --param values, and writes the plugin's native state blob (base64) with the resolved parameters to a JSON file. Pass that file to --state on 'plugin run' or 'render' to reproduce a sound exactly.")
+            .about("Loads the plugin, applies --state, --preset, and --param values, and writes the plugin's native state blob (base64) with the resolved parameters to a JSON file. Pass that file to --state on 'plugin run' or 'render' to reproduce a sound exactly.")
             .positional("name")
             .param(plugin_name_param())
             .param(param_param())
             .param(preset_param())
             .param(state_param())
             .param(watchdog_param())
-            .example("ferraus plugin state save \"Surge XT\" --plugin-preset \"Warm Pad\" -o pad.state.json", "Save a preset as a reusable state file")
+            .example("ferraus plugin state save \"Surge XT\" --preset \"Warm Pad\" -o pad.state.json", "Save a preset as a reusable state file")
             .example("ferraus plugin state save com.acme.eq --param cutoff=2.5kHz -o eq.json", "Save state after setting a parameter"),
         OpSpec::custom("plugin state load", Category::Plugins, "Load a saved state into a plugin and show the resulting parameters", plugin_state_load)
             .about("Checks that a state file loads into the plugin and reports every parameter value afterwards. Useful to inspect a state before rendering with it.")
@@ -327,7 +327,7 @@ fn options(a: &Args, ctx: &mut OpCtx) -> Result<PluginOptions> {
     let tail = if a.has("tail") { Tail::Seconds(a.seconds("tail")?) } else { Tail::Auto };
     Ok(PluginOptions {
         params: param_pairs(a)?,
-        preset: a.str("plugin-preset"),
+        preset: a.str("preset"),
         state,
         block_size: if a.has("block-size") { a.int("block-size")? as u32 } else { 512 },
         tail,

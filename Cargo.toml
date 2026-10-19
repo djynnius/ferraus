@@ -30,6 +30,7 @@ ferraus-analysis = { path = "crates/ferraus-analysis", version = "0.1.0" }
 ferraus-master = { path = "crates/ferraus-master", version = "0.1.0" }
 ferraus-edit = { path = "crates/ferraus-edit", version = "0.1.0" }
 ferraus-restore = { path = "crates/ferraus-restore", version = "0.1.0" }
+ferraus-plughost = { path = "crates/ferraus-plughost", version = "0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
