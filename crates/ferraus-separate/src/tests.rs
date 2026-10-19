@@ -324,6 +324,34 @@ fn dry_run_plans_without_writing() {
     assert_eq!(v["outputs"].as_array().unwrap().len(), 1);
 }
 
+#[test]
+fn memory_plans() {
+    const MB: u64 = 1 << 20;
+    const GB: u64 = 1 << 30;
+    let min = |m: f64| (m * 60.0 * 44_100.0) as usize;
+    let demucs = [(5200 * MB, 1500 * MB)];
+    let roformer = [(6000 * MB, 3800 * MB), (5200 * MB, 1500 * MB)];
+    // unknown model peak, short song: everything in memory, full sessions
+    let p = plan_memory(2 * GB, min(0.2), 2, 9, &[(0, 0)]);
+    assert!(!p.spill && !p.lean && p.fits);
+    // htdemucs at 2 GB: a short song stays in memory but needs a lean session ...
+    let p = plan_memory(2 * GB, min(4.0), 2, 5, &demucs);
+    assert!(!p.spill && p.lean && p.fits, "{p:?}");
+    // ... an hour spills as well
+    let p = plan_memory(2 * GB, min(60.0), 2, 5, &demucs);
+    assert!(p.spill && p.lean && p.fits && p.estimate <= 2 * GB, "{p:?}");
+    // with 8 GB an hour spills but keeps the fast session
+    let p = plan_memory(8 * GB, min(60.0), 2, 5, &demucs);
+    assert!(p.spill && !p.lean && p.fits, "{p:?}");
+    // the RoFormer alone exceeds 2 GB: lean, and spill only when the signals are large
+    let p = plan_memory(2 * GB, min(1.0), 2, 5, &roformer);
+    assert!(!p.fits && p.lean && !p.spill, "{p:?}");
+    let p = plan_memory(2 * GB, min(60.0), 2, 5, &roformer);
+    assert!(!p.fits && p.lean && p.spill && p.estimate < 4 * GB, "{p:?}");
+    // blocks are at least 16384 frames (the assembly margins reach 6144 samples back)
+    assert!(plan_memory(MB, min(1.0), 2, 20, &[]).block >= 1 << 14);
+}
+
 fn spill_dirs() -> Vec<PathBuf> {
     let prefix = format!("{}{}-", stream::SPILL_PREFIX, std::process::id());
     std::fs::read_dir(std::env::temp_dir())

@@ -340,7 +340,11 @@ fn plan_memory(budget: u64, frames: usize, channels: usize, tracks: usize, peaks
             return MemPlan { budget, spill, lean: use_lean, block, estimate: need + ws, fits: true };
         }
     }
-    MemPlan { budget, spill: true, lean: true, block, estimate: lean + ws, fits: false }
+    // the model alone exceeds the budget: run lean, and spill only when the signals are a
+    // sizeable share of the budget (spilling a short song gains nothing)
+    let spill = resident > budget / 4;
+    let estimate = lean + ws + if spill { 0 } else { resident };
+    MemPlan { budget, spill, lean: true, block, estimate, fits: false }
 }
 
 /// The integer grid of the output format (for exact sum-to-mix), `None` for float output.
