@@ -115,7 +115,7 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(param("state", ParamKind::Path).required().help("State file from 'plugin state save' (or a sidecar with a plugin stage)"))
             .param(watchdog_param())
             .example("ferraus plugin state load \"Surge XT\" --state pad.state.json", "Show the parameters stored in a state file")
-            .example("ferraus plugin state load Dexed --state song.wav.json --json", "Read the plugin state recorded in a sidecar")
+            .example("ferraus plugin state load Dexed --state song.wav.ferraus.json --json", "Read the plugin state recorded in a sidecar")
             .example("ferraus plugin state load dragonfly-reverb --state room.state.json --watchdog 30s", "Check a reverb state file, stopping the host if it hangs for 30 s"),
     ]
 }
