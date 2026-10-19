@@ -1,12 +1,20 @@
 [package]
 name = "ferraus-denoise"
+description = "Noise reduction for ferraus: noise profiles, spectral gating, adaptive tracking, RNNoise"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = ["rnnoise"]
+# RNNoise through the pure-Rust `nnnoiseless` port (BSD-3-Clause, weights embedded).
+rnnoise = ["dep:nnnoiseless"]
+
 [dependencies]
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+realfft.workspace = true
+nnnoiseless = { version = "0.5.2", default-features = false, optional = true }
