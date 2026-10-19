@@ -98,7 +98,7 @@ fn tune_detects_key_and_hard_effect() {
     let x = detuned_vocal(sr);
     let (y, c) = run_ctx("tune", &[("effect", "hard")], AudioBuffer::from_mono(sr, x));
     let key = c.notes["key"].as_str().unwrap().to_string();
-    assert!(key.starts_with("C major") || key.contains("not used"), "{key}");
+    assert!(key.starts_with("C major (detected, confidence"), "{key}");
     let after = residuals(&y.data[0], sr);
     assert!(after.iter().all(|r| r.abs() <= 5.0), "{after:?} ({key})");
 }
@@ -397,6 +397,96 @@ fn every_op_is_documented() {
     }
     assert!(!spec("stretch").auto_mix);
     assert!(spec("tune").auto_mix && spec("pitch").auto_mix);
+}
+
+#[test]
+fn executor_end_to_end() {
+    use ferraus_core::exec::{Invocation, Runtime};
+    let registry = testing::leak_registry(crate::ops());
+    let rt = Runtime {
+        registry,
+        io: &testing::SIMPLE_IO,
+        progress: &testing::NO_PROGRESS,
+        presets: &|_, _| None,
+        cancel: Default::default(),
+    };
+    let dir = TempDir::new("pitch-e2e");
+    let wav = dir.path("take.wav");
+    let sr = 16000;
+    testing::write_wav(&wav, &AudioBuffer::from_mono(sr, detuned_vocal(sr)));
+    let globals = ferraus_core::Globals {
+        output: Some(dir.path("tuned.wav").display().to_string()),
+        sidecar: false,
+        ..Default::default()
+    };
+    let out = rt.invoke(Invocation {
+        command: "tune".into(),
+        args: vec![("key".into(), "C major".into()), ("retune_speed".into(), "10ms".into())],
+        inputs: vec![wav.display().to_string()],
+        globals: globals.clone(),
+        ..Default::default()
+    });
+    let env = out.envelope;
+    assert!(env.ok, "{:?}", env.error);
+    assert_eq!(env.params["key"], "C major");
+    assert_eq!(env.params["scale"], "C major");
+    assert_eq!(env.metrics["resynthesis"], "td_psola");
+    let tuned = testing::read_wav(&dir.path("tuned.wav"));
+    assert_eq!(tuned.frames(), testing::read_wav(&wav).frames());
+    // dry run of a custom op writes nothing
+    let out = rt.invoke(Invocation {
+        command: "analyze pitch".into(),
+        inputs: vec![wav.display().to_string()],
+        globals: ferraus_core::Globals {
+            output: Some(dir.path("p.csv").display().to_string()),
+            dry_run: true,
+            sidecar: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    assert!(out.envelope.ok);
+    assert!(!dir.path("p.csv").exists());
+    // unknown tracker name is a usage error; model tracker is model_not_cached (exit 5)
+    let out = rt.invoke(Invocation {
+        command: "analyze key".into(),
+        args: vec![("method".into(), "wavelets".into())],
+        inputs: vec![wav.display().to_string()],
+        ..Default::default()
+    });
+    assert_eq!(out.envelope.error.unwrap().exit_code, 2);
+    let out = rt.invoke(Invocation {
+        command: "analyze pitch".into(),
+        args: vec![("tracker".into(), "crepe".into())],
+        inputs: vec![wav.display().to_string()],
+        ..Default::default()
+    });
+    let e = out.envelope.error.unwrap();
+    assert_eq!((e.exit_code, e.code.as_str()), (5, "model_not_cached"));
+}
+
+#[test]
+fn hybrid_stretch_keeps_tone_pitch_and_click_times() {
+    let sr = 22050;
+    let tone = sine_wave(sr, 330.0, 2.0, 0.1);
+    let clicks = testing::clicks(sr, 0.5, 2.0, 0.9).data.remove(0);
+    let x: Vec<f32> = tone.iter().zip(&clicks).map(|(a, b)| a + b).collect();
+    let (y, c) = run_ctx("stretch", &[("factor", "1.5")], AudioBuffer::from_mono(sr, x));
+    assert_eq!(c.metrics["engine"], "hybrid", "{:?}", c.metrics);
+    let d = &y.data[0];
+    for k in 1..4 {
+        let want = (k as f64 * 0.5 * sr as f64 * 1.5).round() as usize;
+        let lo = want - 200;
+        let p = (lo..want + 200).max_by(|a, b| d[*a].abs().total_cmp(&d[*b].abs())).unwrap();
+        assert!((p as f64 - want as f64).abs() <= 0.001 * sr as f64, "click {k}: {p} vs {want}");
+        assert!(d[p].abs() > 0.7);
+    }
+    // between clicks the tone keeps its pitch
+    let seg = &d[(0.2 * sr as f64) as usize..(0.6 * sr as f64) as usize];
+    let fr = track(seg, sr, &PyinOptions::default());
+    let v: Vec<f64> = fr[3..fr.len() - 3].iter().filter(|f| f.voiced).map(|f| f.freq_hz).collect();
+    let m = crate::util::median(&v).unwrap();
+    assert!(crate::util::cents(330.0, m).abs() < 5.0, "{m}");
 }
 
 /// Release benchmark: `cargo test -p ferraus-pitch --release -- --ignored --nocapture bench`
