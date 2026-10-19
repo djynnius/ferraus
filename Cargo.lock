@@ -1096,6 +1096,7 @@ dependencies = [
  "ferraus-core",
  "ferraus-ml",
  "ferraus-models",
+ "ferraus-pitch",
  "rand 0.8.8",
  "rand_chacha",
  "rayon",

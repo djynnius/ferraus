@@ -25,6 +25,9 @@ along the way).
 - Separation: ONNX Runtime with execution-provider fallback, a signed model registry with
   resumable verified downloads; tiers `fast`, `balanced` (fine-tuned Demucs), `quality`
   (Mel-Band RoFormer vocals, the `auto` default), `max`, `--stems 6`, `--drum-split` (DrumSep);
+  `--vocal-split` (lead and backing) with a built-in melody-guided harmonic mask (no model;
+  best effort: on synthetic lead + harmony mixes the lead's SI-SDR rose about 1 dB on mono and
+  3–4 dB on stereo input) and the UVR karaoke model as an opt-in `--cascade-models` override;
   ensembles, TTA, sum-to-mix, cascades; streaming separation with temp-file spill under
   `--max-memory` and block-by-block decode and encode (60-minute song: 1.6 GB on `fast` and
   `balanced`, 2.8 GB on `quality`); htdemucs STFT on the host and all cores on Apple silicon

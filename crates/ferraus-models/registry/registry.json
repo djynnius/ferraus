@@ -254,13 +254,16 @@
       "stems": ["backing", "lead"],
       "format": "onnx",
       "size_bytes": 52786726,
-      "sha256": null,
-      "urls": ["https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_KARA_2.onnx"],
+      "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+      "urls": [
+        "https://huggingface.co/seanghay/uvr_models/resolve/6f4fc0cfb0717c9033ffed12471a53008f145b20/UVR_MDXNET_KARA_2.onnx",
+        "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_KARA_2.onnx"
+      ],
       "sample_rate": 44100,
       "overlap": 0.25,
-      "license": {"spdx": null, "url": "https://github.com/TRvlvr/model_repo", "commercial_use": null, "note": "No explicit license on the weights."},
+      "license": {"spdx": null, "url": "https://github.com/TRvlvr/model_repo", "commercial_use": null, "note": "No license is stated for the weights: neither TRvlvr/model_repo nor the Hugging Face mirror seanghay/uvr_models has a LICENSE or a license field (the UVR GUI's MIT license does not cover the weights)."},
       "source": {"paper": "https://arxiv.org/abs/2111.12203", "weights": "https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models"},
-      "status": "unverified",
+      "status": "verified",
       "arch": "mdx",
       "io": {
         "inputs": [{"name": "input", "shape": [-1, 4, 2048, 256]}],
@@ -269,7 +272,7 @@
         "context_samples": 2560,
         "params": {"n_fft": 5120, "hop": 1024, "dim_f": 2048, "dim_t": 256, "compensate": 1.065}
       },
-      "notes": "UVR karaoke model: its primary output is the mix without the lead vocal, so run on a vocal stem it yields the backing vocals (complement = lead). Candidate for --vocal-split via --cascade-models; not in tiers (no license)."
+      "notes": "UVR karaoke model (UVR_MDXNET_KARA_2): its primary output is the mix without the lead vocal, so run on a vocal stem it yields the backing vocals (complement = lead). Opt-in only: --cascade-models vocal-split=separate/mdx-kara-2 (warns: no clear license); never in tiers. The Hugging Face mirror (pinned by commit) and the GitHub release are byte-identical (sha256 equals the LFS oid); UVR's model hash (md5 of the last 10,240,000 bytes) is 1d64a6d2c30f709b8c9b4ce1366d96ee, whose model_data_new.json entry gives the parameters above. Downloaded, hashed, I/O checked with ONNX Runtime (input [-1, 4, 2048, 256], output the same) and run by the project on 2026-10-19."
     },
     {
       "name": "separate/drumsep-inagoy",
@@ -296,6 +299,17 @@
         "params": {"n_fft": 4096, "hop": 1024, "normalize": "track"}
       },
       "notes": "Hybrid Demucs (v3) fine-tuned on drum stems; four outputs, no separate hi-hat stem (hi-hats land in cymbals). The Gridshift export (v1, the original weights) keeps the spectrogram outside the graph: ferraus computes Demucs' _spec in Rust and adds _ispec(freq_out) to time_out (adapter hdemucs-spec). The uploader notes that this v1 export had the attention self-reference mask removed by hand, so it can differ slightly from the PyTorch model. Downloaded, hashed (sha256 equals the LFS oid and the repo's manifest), and run by the project on 2026-10-19."
+    },
+    {
+      "name": "separate/melody-mask",
+      "version": "1",
+      "task": "separate",
+      "stems": ["lead", "backing"],
+      "format": "builtin",
+      "license": {"spdx": "Apache-2.0 OR MIT", "url": "https://github.com/djynnius/ferraus", "commercial_use": true, "note": "Part of ferraus; no trained weights."},
+      "source": {"code": "https://github.com/djynnius/ferraus/blob/main/crates/ferraus-separate/src/vocal_split.rs"},
+      "status": "builtin",
+      "notes": "Built-in lead/backing split for separate --vocal-split (no model file): tracks the lead's pitch (pYIN, or CREPE/SwiftF0 with --vocal-split-tracker), keeps the energy on its harmonics, sends other voices' harmonics (and, while the lead is voiced, most energy between its harmonics below 4 kHz) to the backing, weights stereo input by how centred each bin is, and sets backing = vocals - lead. A heuristic, reported as best effort. On synthetic mixes built from six MUSDB18 vocal excerpts (lead = the excerpt, backing = pitch-shifted copies or other singers, 6-9 dB down, panned) the median lead SI-SDR rose from 5.3/5.6 dB (whole stem) to 6.6/6.1 dB on mono input and from 3.8/4.6 dB to 8.2/8.0 dB on stereo input, where a centre extraction alone reaches 7.8/8.2 dB."
     },
     {
       "name": "denoise/dfn3",
@@ -521,6 +535,9 @@
     },
     "separate.drum-split": {
       "default": {"members": [{"model": "separate/drumsep-inagoy@2022"}]}
+    },
+    "separate.vocal-split": {
+      "default": {"members": [{"model": "separate/melody-mask@1"}], "note": "No lead/backing model has a clear license (UVR karaoke and RoFormer karaoke weights carry none; anvuew's BS-RoFormer karaoke is GPL-3.0), so the default is the built-in melody-guided mask. --cascade-models vocal-split=<model> runs a model instead."}
     },
     "separate.extended": {
       "default": {"members": [{"model": "separate/htdemucs-6s@v4-onnx.2026-05-21", "stems": ["guitar", "piano"]}]}

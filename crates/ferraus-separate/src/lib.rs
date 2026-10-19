@@ -17,6 +17,7 @@ pub mod host_stft;
 pub mod pipeline;
 pub mod stft;
 pub mod stream;
+pub mod vocal_split;
 
 use adapter::SeparationModel;
 use ferraus_core::prelude::*;
@@ -41,7 +42,7 @@ pub fn ops() -> Vec<OpSpec> {
         separate,
     )
     .inputs(ferraus_core::op::Inputs::ONE_AUDIO)
-    .about("Separates a song into stems with open models run through ONNX Runtime. Tiers trade speed for quality: fast (Demucs v4), balanced (Demucs v4 fine-tuned bag), quality (Mel-Band RoFormer vocals + fine-tuned Demucs), max (ensemble with test-time augmentation); the default, auto, picks the best tier whose models are verified. Models run one at a time over the song window by window, and long inputs spill to temporary files so the run stays within --max-memory. Models download on first use only with -y or models.auto_download = true; otherwise the command fails with exit code 5 and the exact `ferraus models pull` command. With --sum-to-mix on (default) the residual goes to `other`, so the written stems add back to the input within one LSB. Each stem's JSON result carries a quality estimate (ensemble agreement, or mask confidence for a single model).")
+    .about("Separates a song into stems with open models run through ONNX Runtime. Tiers trade speed for quality: fast (Demucs v4), balanced (Demucs v4 fine-tuned bag), quality (Mel-Band RoFormer vocals + fine-tuned Demucs), max (ensemble with test-time augmentation); the default, auto, picks the best tier whose models are verified. Models run one at a time over the song window by window, and long inputs spill to temporary files so the run stays within --max-memory. Models download on first use only with -y or models.auto_download = true; otherwise the command fails with exit code 5 and the exact `ferraus models pull` command. With --sum-to-mix on (default) the residual goes to `other`, so the written stems add back to the input within one LSB. Each stem's JSON result carries a quality estimate (ensemble agreement, or mask confidence for a single model). --vocal-split splits the vocal stem into lead and backing with a built-in method (no model): it tracks the lead's pitch, keeps the energy on its harmonics (and, for stereo input, mainly the centred part of it), sends other voices' harmonics to the backing, and makes backing = vocals - lead; it is best effort, reported as method melody_mask, and --cascade-models vocal-split=<model> runs a separation model instead.")
     .param(param("stems", ParamKind::Choice).choices(&["2", "4", "6"]).default("4").help("2 = vocals + instrumental, 4 = vocals/drums/bass/other, 6 = adds guitar and piano"))
     .param(param("tier", ParamKind::Choice).choices(&["auto", "fast", "balanced", "quality", "max"]).default("auto").help("Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry (quality, then balanced, then fast) and reports the choice"))
     .param(param("only", ParamKind::List).help("Write only these stems, e.g. vocals,drums"))
@@ -50,7 +51,8 @@ pub fn ops() -> Vec<OpSpec> {
     .param(param("ensemble", ParamKind::List).help("Custom ensemble of models, e.g. a,b,c"))
     .param(param("weights", ParamKind::List).help("Ensemble weights, e.g. 0.5,0.3,0.2 (default equal)"))
     .param(param("ensemble-mode", ParamKind::Choice).choices(&["avg", "max", "min"]).default("avg").help("avg = balanced, max = fuller (more bleed), min = cleaner (less bleed)"))
-    .param(param("vocal-split", ParamKind::Flag).help("Second stage on the vocals: lead and backing"))
+    .param(param("vocal-split", ParamKind::Flag).help("Second stage on the vocals: lead and backing (built in: a mask that follows the lead's pitch; best effort)"))
+    .param(param("vocal-split-tracker", ParamKind::Choice).choices(&["pyin", "crepe", "swiftf0"]).default("pyin").advanced().help("Pitch tracker of the built-in vocal split: pyin (built in) or a model tracker (needs 'ferraus models pull pitch/<name>' or -y)"))
     .param(param("drum-split", ParamKind::Flag).help("Second stage on the drums: kick, snare, toms, hh, cymbals"))
     .param(param("extended", ParamKind::List).help("Best-effort extraction from other: guitar,piano,keys,strings,brass"))
     .param(param("overlap", ParamKind::Percent).default("25%").help("Window overlap, crossfaded with a raised-cosine window"))
@@ -62,6 +64,7 @@ pub fn ops() -> Vec<OpSpec> {
     .example("ferraus separate song.wav", "Four stems with the default tier (auto: the best verified tier, quality today): song.vocals.wav, song.drums.wav, ...")
     .example("ferraus separate song.wav --tier fast --stems 2", "Quick vocals + instrumental")
     .example("ferraus separate song.wav --only vocals --tier max", "Best possible vocal stem")
+    .example("ferraus separate song.wav --only vocals --vocal-split", "Vocal stem plus song.lead.wav and song.backing.wav (built-in pitch-guided split, best effort)")
     .example("ferraus separate song.wav --ensemble separate/htdemucs,separate/htdemucs-6s --weights 0.6,0.4", "Custom ensemble")]
 }
 
@@ -463,10 +466,13 @@ struct CascadeReq {
     wanted: Vec<String>,
     residual_to: Option<&'static str>,
     sum_to_mix: bool,
+    /// Pitch tracker of the built-in vocal split.
+    tracker: String,
 }
 
 fn cascade_requests(a: &Args, extended: &[String], sum_to_mix: bool) -> Vec<CascadeReq> {
     let mut v = Vec::new();
+    let tracker = a.choice("vocal-split-tracker");
     if a.flag("vocal-split") {
         v.push(CascadeReq {
             stage: "vocal-split",
@@ -474,6 +480,7 @@ fn cascade_requests(a: &Args, extended: &[String], sum_to_mix: bool) -> Vec<Casc
             wanted: vec!["lead".into(), "backing".into()],
             residual_to: Some("backing"),
             sum_to_mix,
+            tracker: tracker.clone(),
         });
     }
     if a.flag("drum-split") {
@@ -483,6 +490,7 @@ fn cascade_requests(a: &Args, extended: &[String], sum_to_mix: bool) -> Vec<Casc
             wanted: DRUM_PARTS.iter().map(|s| s.to_string()).collect(),
             residual_to: Some("cymbals"),
             sum_to_mix,
+            tracker: tracker.clone(),
         });
     }
     if !extended.is_empty() {
@@ -492,6 +500,7 @@ fn cascade_requests(a: &Args, extended: &[String], sum_to_mix: bool) -> Vec<Casc
             wanted: extended.to_vec(),
             residual_to: None,
             sum_to_mix: false,
+            tracker,
         });
     }
     v
@@ -1032,7 +1041,9 @@ fn dry_run_plan(
 ) -> Result<Value> {
     let cached = |r: &ModelRef| match r {
         ModelRef::File(p) => p.exists(),
-        ModelRef::Registry(n) => manifest.resolve(n).map(|e| cache.cached(e).is_some()).unwrap_or(false),
+        ModelRef::Registry(n) => {
+            manifest.resolve(n).map(|e| e.is_builtin() || cache.cached(e).is_some()).unwrap_or(false)
+        }
     };
     let plan: Vec<Value> = members
         .iter()
@@ -1056,7 +1067,9 @@ fn dry_run_plan(
     }
     let mut cascades = Vec::new();
     for c in cascades_req {
-        let members = match cascade_members(manifest, overrides, c.stage) {
+        let checked = cascade_members(manifest, overrides, c.stage)
+            .and_then(|m| builtin_stage(manifest, &m, c.stage).map(|b| (m, b)));
+        let (members, builtin) = match checked {
             Ok(m) => m,
             Err(e) => {
                 cascades.push(json!({
@@ -1092,7 +1105,11 @@ fn dry_run_plan(
                     produced.push(s);
                 }
             }
-            models.push(json!({"model": label(&m.reference), "cached": cached(&m.reference)}));
+            if builtin.is_some() {
+                models.push(json!({"model": builtin, "cached": true, "builtin": true, "tracker": c.tracker}));
+            } else {
+                models.push(json!({"model": label(&m.reference), "cached": cached(&m.reference)}));
+            }
         }
         let mut unavailable: Vec<&str> =
             c.wanted.iter().map(|s| s.as_str()).filter(|w| !produced.iter().any(|p| p == w)).collect();
@@ -1105,17 +1122,119 @@ fn dry_run_plan(
             ctx.prepare_output(&p)?;
             outs.push(json!({"stem": w, "path": p.display().to_string()}));
         }
-        cascades.push(json!({
+        let mut entry = json!({
             "stage": c.stage,
             "source": c.source,
             "available": true,
             "models": models,
             "outputs": outs,
             "unavailable": unavailable,
-            "best_effort": c.stage == "extended",
-        }));
+            "best_effort": c.stage == "extended" || builtin.is_some(),
+        });
+        if builtin.is_some() {
+            entry["method"] = json!(vocal_split::METHOD);
+        }
+        cascades.push(entry);
     }
     Ok(json!({"plan": plan, "outputs": outputs, "cascades": cascades, "shifts": shifts, "overlap": overlap}))
+}
+
+/// The built-in registry entry a cascade stage runs instead of models (`separate/melody-mask`
+/// for `vocal-split`), or `None` when its members are model files.
+fn builtin_stage(manifest: &Manifest, members: &[Member], stage: &str) -> Result<Option<String>> {
+    let mut builtin = None;
+    for m in members {
+        let ModelRef::Registry(name) = &m.reference else { continue };
+        let Ok(e) = manifest.resolve(name) else { continue };
+        if !e.is_builtin() {
+            continue;
+        }
+        if e.name != vocal_split::MODEL || stage != "vocal-split" {
+            return Err(Error::usage(format!("{} cannot run the --{stage} stage", e.id())).with_hint(format!(
+                "pass --cascade-models {stage}=<model> (see ferraus models list --task separate)"
+            )));
+        }
+        if members.len() > 1 {
+            return Err(Error::usage(format!("{} cannot be combined with other --{stage} models", e.id())));
+        }
+        builtin = Some(e.id());
+    }
+    Ok(builtin)
+}
+
+/// Quality report of a stem from the built-in vocal split.
+fn melody_quality(st: &vocal_split::Stats, tracker: &str, stem: &str) -> Value {
+    let score = (st.voiced_fraction() * (st.mean_confidence / 0.6).min(1.0)).clamp(0.0, 1.0);
+    let energy = if stem == "lead" { st.lead_ratio_db() } else { st.backing_ratio_db() };
+    json!({
+        "score": (score * 1000.0).round() / 1000.0,
+        "method": vocal_split::METHOD,
+        "calibrated": false,
+        "best_effort": true,
+        "tracker": tracker,
+        "voiced_fraction": (st.voiced_fraction() * 1000.0).round() / 1000.0,
+        "pitch_confidence": (st.mean_confidence * 1000.0).round() / 1000.0,
+        "energy_db": (energy * 10.0).round() / 10.0,
+    })
+}
+
+/// Pass 1 and 2 of the built-in vocal split (pitch track, then mask), into two new tracks.
+fn run_melody_mask(
+    ctx: &mut OpCtx,
+    req: &CascadeReq,
+    source: &Track,
+    sr: u32,
+    mem: &MemPlan,
+    spill: Option<&stream::SpillDir>,
+) -> Result<(Track, Track, vocal_split::Stats, String)> {
+    let kind = ferraus_pitch::tracker::TrackerKind::parse(&req.tracker)?;
+    let tracker: Box<dyn ferraus_pitch::tracker::PitchTracker> = match kind {
+        ferraus_pitch::tracker::TrackerKind::Pyin => Box::new(vocal_split::LeadPyin),
+        k => ferraus_pitch::tracker::tracker_for(ctx, k)?,
+    };
+    let opts = vocal_split::Options::default();
+    let (n, ch) = (source.frames, source.channels);
+    let cancel = ctx.cancel.clone();
+    let progress = ctx.progress;
+    let command = ctx.command.clone();
+    ctx.progress.stage("vocal-split: pitch", 1, 2);
+    let f0 = vocal_split::track_f0(tracker.as_ref(), source, sr, &opts, &mut |f| {
+        cancel.check()?;
+        progress.progress(&command, 0.9 + 0.04 * f);
+        Ok(())
+    })?;
+    ctx.progress.stage("vocal-split: mask", 2, 2);
+    let mut lead = Track::zeros(n, ch, spill)?;
+    let mut backing = Track::zeros(n, ch, spill)?;
+    let st = vocal_split::split(source, sr, &f0, &opts, mem.block, &mut lead, &mut backing, &mut |f| {
+        cancel.check()?;
+        progress.progress(&command, 0.94 + 0.04 * f);
+        Ok(())
+    })?;
+    if st.vocals_energy <= 1e-12 {
+        ctx.warn("vocal_split_silent", "the vocal stem is silent; lead and backing are silent");
+    } else {
+        if st.voiced_fraction() < 0.5 || st.mean_confidence < 0.25 {
+            ctx.warn(
+                "vocal_split_pitch_unreliable",
+                format!(
+                    "the lead pitch was found in only {:.0} % of the sung frames (mean confidence {:.2}); the lead/backing split follows the pitch track, so expect lead parts in the backing and the reverse",
+                    st.voiced_fraction() * 100.0,
+                    st.mean_confidence
+                ),
+            );
+        }
+        if st.backing_ratio_db() < -14.0 {
+            ctx.warn(
+                "vocal_split_little_backing",
+                format!(
+                    "the backing output holds only {:.1} dB of the vocal stem's energy: the stem seems to have little or no backing vocals, so the backing is mostly what the lead mask left out (breaths, reverb, bleed)",
+                    st.backing_ratio_db()
+                ),
+            );
+        }
+    }
+    Ok((lead, backing, st, tracker.name().to_string()))
 }
 
 /// A second stage on one final stem. Writes the requested outputs and returns a JSON summary.
@@ -1136,40 +1255,54 @@ fn run_cascade(
 ) -> Result<Value> {
     let stage = req.stage;
     let members = cascade_members(manifest, overrides, stage)?;
-    let resolved = resolve_members(ctx, &members, accept)?;
     let (n, ch) = (source.frames, source.channels);
     let wanted: Vec<&str> = req.wanted.iter().map(|s| s.as_str()).collect();
-    let mut produced: Vec<String> = Vec::new();
     let mut keep: Vec<(String, Track)> = Vec::new();
-    for r in &resolved {
-        let sel: Vec<(usize, String)> = r
-            .stems
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| {
-                let c = canonical(s);
-                ((r.member.stems.is_empty() || r.member.stems.contains(&c)) && !produced.contains(&c)).then_some((i, c))
-            })
-            .collect();
-        produced.extend(sel.iter().map(|(_, c)| c.clone()));
-        let store: Vec<(usize, String)> = sel.into_iter().filter(|(_, c)| wanted.contains(&c.as_str())).collect();
-        let model = open_model(ctx, r, mem.lean)?;
-        let mut tracks: Vec<Track> = store.iter().map(|_| Track::zeros(n, ch, spill)).collect::<Result<_>>()?;
-        if !store.is_empty() {
-            let cancel = ctx.cancel.clone();
-            let mut tick = |_f: f64| cancel.check();
-            let mut sink = |at: usize, blk: ferraus_ml::Block| -> Result<()> {
-                for ((si, _), t) in store.iter().zip(tracks.iter_mut()) {
-                    t.write(at, &blk[*si])?;
-                }
-                Ok(())
-            };
-            stream::run_member(model.as_ref(), source, sr, run_opts, mem.block, &mut tick, &mut sink)?;
+    let mut missing: Vec<&str> = Vec::new();
+    let model_labels: Vec<String>;
+    // the built-in vocal split reports its own quality; models report mask confidence
+    let mut melody: Option<(vocal_split::Stats, String)> = None;
+    if let Some(id) = builtin_stage(manifest, &members, stage)? {
+        let (lead, backing, st, tracker) = run_melody_mask(ctx, req, source, sr, mem, spill)?;
+        keep.push(("lead".into(), lead));
+        keep.push(("backing".into(), backing));
+        melody = Some((st, tracker));
+        model_labels = vec![id];
+    } else {
+        let resolved = resolve_members(ctx, &members, accept)?;
+        let mut produced: Vec<String> = Vec::new();
+        for r in &resolved {
+            let sel: Vec<(usize, String)> = r
+                .stems
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| {
+                    let c = canonical(s);
+                    ((r.member.stems.is_empty() || r.member.stems.contains(&c)) && !produced.contains(&c))
+                        .then_some((i, c))
+                })
+                .collect();
+            produced.extend(sel.iter().map(|(_, c)| c.clone()));
+            let store: Vec<(usize, String)> = sel.into_iter().filter(|(_, c)| wanted.contains(&c.as_str())).collect();
+            let model = open_model(ctx, r, mem.lean)?;
+            let mut tracks: Vec<Track> = store.iter().map(|_| Track::zeros(n, ch, spill)).collect::<Result<_>>()?;
+            if !store.is_empty() {
+                let cancel = ctx.cancel.clone();
+                let mut tick = |_f: f64| cancel.check();
+                let mut sink = |at: usize, blk: ferraus_ml::Block| -> Result<()> {
+                    for ((si, _), t) in store.iter().zip(tracks.iter_mut()) {
+                        t.write(at, &blk[*si])?;
+                    }
+                    Ok(())
+                };
+                stream::run_member(model.as_ref(), source, sr, run_opts, mem.block, &mut tick, &mut sink)?;
+            }
+            release_model(model, r);
+            keep.extend(store.into_iter().map(|(_, c)| c).zip(tracks));
         }
-        release_model(model, r);
-        keep.extend(store.into_iter().map(|(_, c)| c).zip(tracks));
+        missing = wanted.iter().copied().filter(|w| !produced.iter().any(|s| s == w)).collect();
+        model_labels = resolved.iter().map(|r| r.label.clone()).collect();
     }
-    let mut missing: Vec<&str> = wanted.iter().copied().filter(|w| !produced.iter().any(|s| s == w)).collect();
     if stage == "drum-split" && missing == ["hh"] {
         ctx.warn("drum_split_no_hihat", "the drum model has no separate hi-hat output; hi-hats are in cymbals");
         missing.clear();
@@ -1196,8 +1329,10 @@ fn run_cascade(
             let src = AudioBuffer { sample_rate: sr, data: source.read(ca, cb)? };
             peak = peak.max(assign_residual(&mut fin, target, &src, grid)?.peak);
         }
-        let monos: Vec<Vec<f32>> = fin.iter().map(|(_, b)| stream::mono_of(&b.data)).collect();
-        conf.feed(&monos, ca, start, end);
+        if melody.is_none() {
+            let monos: Vec<Vec<f32>> = fin.iter().map(|(_, b)| stream::mono_of(&b.data)).collect();
+            conf.feed(&monos, ca, start, end);
+        }
         for ((_, t), (_, b)) in keep.iter_mut().zip(&fin) {
             let part: Vec<Vec<f32>> = b.data.iter().map(|c| c[start - ca..end - ca].to_vec()).collect();
             t.write(start, &part)?;
@@ -1208,21 +1343,37 @@ fn run_cascade(
         Some(t) => json!({"target": t, "residual_peak_db": ferraus_core::lin_to_db(peak.max(1e-12))}),
         None => Value::Null,
     };
+    let best_effort = stage == "extended" || melody.is_some();
+    let scores = conf.scores();
     let mut written = Vec::new();
-    for ((s, t), c) in keep.iter().zip(conf.scores()) {
-        let q =
-            json!({"score": c, "method": "mask_confidence", "calibrated": false, "best_effort": stage == "extended"});
+    for (i, (s, t)) in keep.iter().enumerate() {
+        let q = match &melody {
+            Some((st, tracker)) => melody_quality(st, tracker, s),
+            None => {
+                json!({"score": scores.get(i).copied().unwrap_or(1.0), "method": "mask_confidence", "calibrated": false, "best_effort": best_effort})
+            }
+        };
         writer.write_track(ctx, s, t, sr, q)?;
         written.push(s.clone());
     }
-    Ok(json!({
+    let mut out = json!({
         "stage": stage,
-        "models": resolved.iter().map(|r| r.label.clone()).collect::<Vec<_>>(),
+        "models": model_labels,
         "stems": written,
         "unavailable": missing,
-        "best_effort": stage == "extended",
+        "best_effort": best_effort,
         "residual": residual,
-    }))
+    });
+    if let Some((st, tracker)) = &melody {
+        out["method"] = json!(vocal_split::METHOD);
+        out["pitch"] = json!({
+            "tracker": tracker,
+            "voiced_fraction": (st.voiced_fraction() * 1000.0).round() / 1000.0,
+            "mean_confidence": (st.mean_confidence * 1000.0).round() / 1000.0,
+        });
+        out["stft"] = json!({"n_fft": st.n_fft, "hop": st.hop, "stereo_cue": st.stereo});
+    }
+    Ok(out)
 }
 
 fn add_into(acc: &mut AudioBuffer, b: &AudioBuffer) {

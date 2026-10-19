@@ -299,8 +299,32 @@ fn dry_run_plans_without_writing() {
     let (v, _) = run(&r, &pairs, |c| c.globals.dry_run = true).unwrap();
     let c = v["cascades"].as_array().unwrap();
     assert_eq!(c.len(), 3);
-    assert_eq!((c[0]["stage"].as_str(), c[0]["available"].as_bool()), (Some("vocal-split"), Some(false)));
-    assert!(c[0]["hint"].as_str().unwrap().contains("--cascade-models vocal-split="));
+    // vocal-split runs the built-in melody mask: nothing to download, two best-effort outputs
+    assert_eq!((c[0]["stage"].as_str(), c[0]["available"].as_bool()), (Some("vocal-split"), Some(true)));
+    assert_eq!(c[0]["models"][0]["model"], "separate/melody-mask@1");
+    assert_eq!(
+        (c[0]["models"][0]["cached"].as_bool(), c[0]["models"][0]["builtin"].as_bool()),
+        (Some(true), Some(true))
+    );
+    assert_eq!((c[0]["method"].as_str(), c[0]["best_effort"].as_bool()), (Some("melody_mask"), Some(true)));
+    let vs_outs: Vec<&str> = c[0]["outputs"].as_array().unwrap().iter().map(|o| o["stem"].as_str().unwrap()).collect();
+    assert_eq!(vs_outs, vec!["lead", "backing"]);
+    assert!(c[0]["outputs"][0]["path"].as_str().unwrap().ends_with("song.lead.wav"));
+    // a model override replaces it; a built-in that cannot split vocals is reported
+    let (v, _) = run(
+        &r,
+        &[("tier", "fast"), ("vocal-split", "true"), ("cascade-models", "vocal-split=separate/mdx-kara-2")],
+        |c| c.globals.dry_run = true,
+    )
+    .unwrap();
+    assert_eq!(v["cascades"][0]["models"][0]["model"], "separate/mdx-kara-2");
+    assert_eq!(v["cascades"][0]["models"][0]["cached"], false);
+    let (v, _) =
+        run(&r, &[("tier", "fast"), ("vocal-split", "true"), ("cascade-models", "vocal-split=denoise/rnnoise")], |c| {
+            c.globals.dry_run = true
+        })
+        .unwrap();
+    assert_eq!(v["cascades"][0]["available"], false);
     assert_eq!(c[1]["stage"], "drum-split");
     assert_eq!(c[1]["models"][0]["model"], "separate/drumsep-inagoy@2022");
     let drum_outs: Vec<&str> =
@@ -410,8 +434,8 @@ fn max_memory_spills_to_temp_files_with_identical_results() {
     assert!(spill_dirs().is_empty(), "spill files removed after cancel");
 
     // failure in a cascade after the main stems: no spill files either
-    let e = run(&r, &[("model", a.to_str().unwrap()), ("vocal-split", "true")], small).err().unwrap();
-    assert_eq!(e.exit_code, 4);
+    let e = run(&r, &[("model", a.to_str().unwrap()), ("drum-split", "true")], small).err().unwrap();
+    assert_eq!(e.exit_code, 5);
     assert!(spill_dirs().is_empty(), "spill files removed after failure");
 }
 
@@ -480,6 +504,94 @@ fn streamed_input_and_stems_are_identical_to_whole_buffer_io() {
     assert!(spill_dirs().is_empty());
 }
 
+/// Two sung lines (harmonic tones with vibrato): a lead in the centre and a quieter harmony
+/// panned left.
+fn two_voices(secs: f64, sr: u32) -> AudioBuffer {
+    let n = (secs * sr as f64) as usize;
+    let notes = |t: f64, a: f64, b: f64| if t < secs / 2.0 { a } else { b };
+    let (mut pl, mut pb) = (0f64, 0f64);
+    let mut l = vec![0f32; n];
+    let mut r = vec![0f32; n];
+    for i in 0..n {
+        let t = i as f64 / sr as f64;
+        let vib = |rate: f64| 2f64.powf(20.0 * (2.0 * std::f64::consts::PI * rate * t).sin() / 1200.0);
+        pl += 2.0 * std::f64::consts::PI * notes(t, 220.0, 261.63) * vib(5.5) / sr as f64;
+        pb += 2.0 * std::f64::consts::PI * notes(t, 174.61, 207.65) * vib(4.8) / sr as f64;
+        let (mut lead, mut back) = (0f64, 0f64);
+        for h in 1..=16 {
+            lead += (h as f64 * pl).sin() / h as f64;
+            back += (h as f64 * pb).sin() / h as f64;
+        }
+        let (lead, back) = (0.15 * lead, 0.075 * back);
+        l[i] = (lead + 0.9 * back) as f32;
+        r[i] = (lead + 0.2 * back) as f32;
+    }
+    AudioBuffer::from_planar(sr, vec![l, r])
+}
+
+/// `--vocal-split` runs the built-in melody mask on the final vocal stem: lead and backing are
+/// written with their roles, add back to the vocal stem on the 24-bit grid, and report their
+/// method; `--cascade-models vocal-split=<onnx>` still runs a model instead.
+#[test]
+fn vocal_split_builtin_and_model_override() {
+    let m = two_voices(1.5, 44_100);
+    let r = setup("sep-vsplit", &m);
+    let dir = TempDir::new("sep-vsplit-model");
+    let model = toy_model(&dir, "toy", &kernels(), &["drums", "bass", "other", "vocals"]);
+    let mp = model.to_str().unwrap();
+    let (v, ctx) = run(&r, &[("model", mp), ("vocal-split", "true")], |_| {}).unwrap();
+    let c = &v["cascades"][0];
+    assert_eq!((c["stage"].as_str(), c["method"].as_str()), (Some("vocal-split"), Some("melody_mask")));
+    assert_eq!(c["models"], json!(["separate/melody-mask@1"]));
+    assert_eq!(c["stems"], json!(["lead", "backing"]));
+    assert_eq!((c["best_effort"].as_bool(), c["pitch"]["tracker"].as_str()), (Some(true), Some("pyin")));
+    assert_eq!(c["residual"]["target"], "backing");
+    let roles: Vec<&str> = ctx.outputs.iter().map(|o| o.role.as_deref().unwrap()).collect();
+    assert_eq!(roles, vec!["vocals", "drums", "bass", "other", "lead", "backing"]);
+    let lead_q = v["stems"].as_array().unwrap().iter().find(|s| s["stem"] == "lead").unwrap()["quality"].clone();
+    assert_eq!((lead_q["method"].as_str(), lead_q["best_effort"].as_bool()), (Some("melody_mask"), Some(true)));
+    assert!(lead_q["score"].as_f64().unwrap() > 0.0, "{lead_q}");
+    let (voc, lead, back) = (
+        testing::read_wav(&stem_path(&r, "vocals")),
+        testing::read_wav(&stem_path(&r, "lead")),
+        testing::read_wav(&stem_path(&r, "backing")),
+    );
+    let lsb = 1.0 / (1u32 << 23) as f32;
+    let mut lead_energy = 0f64;
+    for c in 0..2 {
+        for i in 0..voc.frames() {
+            let d = lead.data[c][i] + back.data[c][i] - voc.data[c][i];
+            assert!(d.abs() <= 1.5 * lsb, "lead + backing != vocals at {c}/{i}: {d}");
+            lead_energy += (lead.data[c][i] as f64).powi(2);
+        }
+    }
+    assert!(lead_energy > 0.0);
+    // the stems are identical when every signal spills to temp files with small blocks
+    let (v2, _) = run(&r, &[("model", mp), ("vocal-split", "true")], |c| {
+        c.globals.overwrite = true;
+        c.globals.max_memory = 1 << 20;
+    })
+    .unwrap();
+    assert_eq!(v2["memory"]["spilled"], true);
+    let lead2 = testing::read_wav(&stem_path(&r, "lead"));
+    for (x, y) in lead.data.iter().flatten().zip(lead2.data.iter().flatten()) {
+        assert!((x - y).abs() <= 2.0 * lsb, "{x} vs {y}");
+    }
+
+    // a user-supplied lead/backing model replaces the built-in stage
+    let kara = toy_model(&dir, "kara", &kernels()[2..], &["backing", "lead"]);
+    let ov = format!("vocal-split={}", kara.display());
+    let (v, _) =
+        run(&r, &[("model", mp), ("vocal-split", "true"), ("cascade-models", &ov)], |c| c.globals.overwrite = true)
+            .unwrap();
+    let c = &v["cascades"][0];
+    assert_eq!(c["models"], json!([kara.display().to_string()]));
+    assert_eq!(c["stems"], json!(["backing", "lead"]));
+    assert!(c.get("method").is_none());
+    let q = v["stems"].as_array().unwrap().iter().find(|s| s["stem"] == "lead").unwrap()["quality"].clone();
+    assert_eq!(q["method"], "mask_confidence");
+}
+
 #[test]
 fn cascades_extended_and_partial_results_survive_failure() {
     let m = mix(0.5, 44_100);
@@ -503,11 +615,14 @@ fn cascades_extended_and_partial_results_survive_failure() {
     let g = v["stems"].as_array().unwrap().iter().find(|s| s["stem"] == "guitar").unwrap();
     assert_eq!(g["quality"]["best_effort"], true);
 
-    // vocal-split has no license-clean registry model: the cascade fails (exit 4) but the
-    // main stems were already written
+    // a vocal-split model that cannot be found fails the cascade (exit 3), but the main
+    // stems were already written
     let r2 = setup("sep-partial", &m);
-    let e = run(&r2, &[("model", mp), ("vocal-split", "true")], |_| {}).err().unwrap();
-    assert_eq!(e.exit_code, 4, "{e}");
+    let e =
+        run(&r2, &[("model", mp), ("vocal-split", "true"), ("cascade-models", "vocal-split=/nope/kara.onnx")], |_| {})
+            .err()
+            .unwrap();
+    assert_eq!(e.exit_code, 3, "{e}");
     for s in STEMS_4 {
         assert!(stem_path(&r2, s).exists(), "{s} survives the failed cascade");
     }

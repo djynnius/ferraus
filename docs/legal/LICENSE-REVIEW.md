@@ -54,7 +54,9 @@ Research-only entries (e.g. RMVPE) are flagged and excluded.
 | pitch/swiftf0 | MIT | on request |
 | transcribe/basic-pitch | Apache-2.0 (Spotify) | poly mode |
 | omr/oemer, omr/oemer-seg | MIT (BreezeWhite/oemer `checkpoints` release) | builtin OMR (`score read`) |
-| Other RoFormer/SCNet community checkpoints, mdx-kara-2 (lead/backing split) | unclear / none | excluded |
+| separate/melody-mask@1 (lead/backing split) | built into ferraus (Apache-2.0 OR MIT), no weights | `--vocal-split` |
+| separate/mdx-kara-2 (UVR karaoke, lead/backing split; downloads verified by SHA-256) | none stated on the weights | opt-in only: `--cascade-models vocal-split=separate/mdx-kara-2`, with a `model_license_unclear` warning |
+| Other RoFormer/SCNet community checkpoints, RoFormer karaoke checkpoints | unclear / none (anvuew's BS-RoFormer karaoke: GPL-3.0) | excluded |
 
 Questions for counsel: whether model weights trained on datasets with research-only terms
 (e.g. MUSDB18-HQ) can be redistributed under the code license stated by their authors; whether
