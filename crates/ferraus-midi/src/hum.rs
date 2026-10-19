@@ -50,8 +50,11 @@ fn hum_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
     let ext = ctx.globals.format.clone().unwrap_or_else(|| "wav".into());
     let out = ctx.output_path(None, &ext)?;
-    let mid_path: PathBuf =
-        if out.as_os_str() == "-" { ctx.output_path(Some("midi"), "mid")? } else { out.with_extension("mid") };
+    if out.as_os_str() == "-" {
+        return Err(Error::usage("hum writes the MIDI part beside the audio, so -o must be a file path, not stdout")
+            .with_hint("ferraus hum voice.wav --to piano -o idea.wav"));
+    }
+    let mid_path: PathBuf = out.with_extension("mid");
     if mid_path == out {
         return Err(Error::usage(
             "the audio output must not have a .mid extension (the MIDI part is written beside it)",
