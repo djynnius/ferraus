@@ -1,0 +1,455 @@
+{
+  "command": "denoise",
+  "summary": "Remove steady background noise (hiss, hum, fan, room tone) or run a speech denoiser",
+  "category": "clean",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/denoise.args.json",
+    "title": "ferraus denoise arguments",
+    "description": "Remove steady background noise (hiss, hum, fan, room tone) or run a speech denoiser",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "profile": {
+        "type": "string",
+        "description": "Noise profile (.noiseprof JSON) learned with 'ferraus denoise profile' Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "noise_range": {
+        "type": "string",
+        "examples": [
+          "0s..2s"
+        ],
+        "description": "One shot: learn the noise from this noise-only region of the input, e.g. 0s..2s Type: range.",
+        "x-ferraus-kind": "range"
+      },
+      "auto": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "One shot: find the quietest spectrally stable 1 s region and learn the noise from it (reported as noise_region in --json) Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "profile",
+          "adaptive",
+          "ml",
+          "hybrid"
+        ],
+        "description": "profile: spectral gate from a noise profile; adaptive: minimum-statistics tracking with no profile; ml: speech model; hybrid: profile pass, then the model Type: choice.",
+        "default": "profile",
+        "x-ferraus-kind": "choice"
+      },
+      "adaptive": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Same as --mode adaptive Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "reduction": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "How far noise is pushed down, in dB (0dB leaves the input unchanged) Range: 0..60. Type: gain.",
+        "default": "12dB",
+        "x-ferraus-kind": "gain"
+      },
+      "sensitivity": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Gate threshold above the noise profile: threshold = mean + sensitivity × std, scaled so 6 means 6 dB above steady hiss; higher removes more Range: 0..48. Type: number.",
+        "default": "6",
+        "x-ferraus-kind": "float"
+      },
+      "smoothing": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Smooth the gain mask across ± this many frequency bins (fewer chirps, slightly softer edges) Range: 0..32. Type: integer.",
+        "default": "3",
+        "x-ferraus-kind": "int"
+      },
+      "attack": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "How fast the gate opens (a matching lookahead keeps onsets intact), e.g. 20ms Type: time.",
+        "default": "20ms",
+        "x-ferraus-kind": "time"
+      },
+      "release": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "How fast the gate closes after a sound ends, e.g. 120ms Type: time.",
+        "default": "120ms",
+        "x-ferraus-kind": "time"
+      },
+      "artifact_control": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Blend in a median-filtered mask and a steady noise floor: higher removes more chirping at the cost of a little more residual noise Type: percent.",
+        "default": "50%",
+        "x-ferraus-kind": "percent"
+      },
+      "link": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "on: one gain mask for all channels so the stereo image stays put; off: per-channel masks Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "preserve_transients": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Detect onsets and hold the gate open through them so attacks stay crisp Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "noisiness": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Adaptive mode: how much of the audio is noise; higher sets the threshold further above the tracked floor (20 dB × noisiness) Type: percent.",
+        "default": "30%",
+        "x-ferraus-kind": "percent"
+      },
+      "decay": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Adaptive mode: how slowly reduction relaxes after a sound (release = 200 ms × decay unless --release is given) Type: percent.",
+        "default": "65%",
+        "x-ferraus-kind": "percent"
+      },
+      "floor": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Adaptive mode: shift the tracked noise floor in dB (positive removes more) Type: gain.",
+        "default": "0dB",
+        "x-ferraus-kind": "gain"
+      },
+      "model": {
+        "type": "string",
+        "enum": [
+          "dfn3",
+          "rnnoise",
+          "music"
+        ],
+        "description": "ml/hybrid modes: dfn3 = DeepFilterNet 3 (48 kHz, speech, best quality; model denoise/dfn3, 8 MB download), rnnoise = RNNoise (fast, light, built in, no download, speech), music = music-aware slot denoise/music-* Type: choice.",
+        "default": "dfn3",
+        "x-ferraus-kind": "choice"
+      },
+      "strength": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "ml/hybrid modes: how much of the model's change to apply Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "residual": {
+        "type": "string",
+        "description": "Also write the removed component (input minus the fully processed output, before --mix) to this audio file Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "dereverb": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Add the best-effort de-reverb stage (model slot denoise/dereverb-*) Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/denoise.result.json",
+    "title": "ferraus denoise result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "denoise"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

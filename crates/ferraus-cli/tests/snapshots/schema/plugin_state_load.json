@@ -1,0 +1,190 @@
+{
+  "command": "plugin state load",
+  "summary": "Load a saved state into a plugin and show the resulting parameters",
+  "category": "plugins",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_state_load.args.json",
+    "title": "ferraus plugin state load arguments",
+    "description": "Load a saved state into a plugin and show the resulting parameters",
+    "type": "object",
+    "properties": {
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "name": {
+        "type": "string",
+        "description": "Plugin name, id, or path to a .clap/.vst3 bundle (path#plugin.id picks one plugin in a bundle) Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "state": {
+        "type": "string",
+        "description": "State file from 'plugin state save' (or a sidecar with a plugin stage) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "watchdog": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Stop the plugin host after this long without progress (default 60s, or FERRAUS_PLUGIN_WATCHDOG_S) Type: time.",
+        "x-ferraus-kind": "time"
+      }
+    },
+    "required": [
+      "name",
+      "state"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_state_load.result.json",
+    "title": "ferraus plugin state load result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "plugin state load"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

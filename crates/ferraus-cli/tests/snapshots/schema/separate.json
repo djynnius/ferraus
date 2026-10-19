@@ -1,0 +1,370 @@
+{
+  "command": "separate",
+  "summary": "Split a mix into stems (vocals, drums, bass, other, ...)",
+  "category": "separate",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/separate.args.json",
+    "title": "ferraus separate arguments",
+    "description": "Split a mix into stems (vocals, drums, bass, other, ...)",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "stems": {
+        "type": "string",
+        "enum": [
+          "2",
+          "4",
+          "6"
+        ],
+        "description": "2 = vocals + instrumental, 4 = vocals/drums/bass/other, 6 = adds guitar and piano Type: choice.",
+        "default": "4",
+        "x-ferraus-kind": "choice"
+      },
+      "tier": {
+        "type": "string",
+        "enum": [
+          "fast",
+          "balanced",
+          "quality",
+          "max"
+        ],
+        "description": "Model tier from the registry Type: choice.",
+        "default": "quality",
+        "x-ferraus-kind": "choice"
+      },
+      "only": {
+        "type": "string",
+        "description": "Write only these stems, e.g. vocals,drums Type: list.",
+        "x-ferraus-kind": "list"
+      },
+      "instrumental": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Write one file with the vocals removed Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "model": {
+        "type": "string",
+        "description": "Pin a registry model (name[@version]) or an ONNX file instead of a tier Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "ensemble": {
+        "type": "string",
+        "description": "Custom ensemble of models, e.g. a,b,c Type: list.",
+        "x-ferraus-kind": "list"
+      },
+      "weights": {
+        "type": "string",
+        "description": "Ensemble weights, e.g. 0.5,0.3,0.2 (default equal) Type: list.",
+        "x-ferraus-kind": "list"
+      },
+      "ensemble_mode": {
+        "type": "string",
+        "enum": [
+          "avg",
+          "max",
+          "min"
+        ],
+        "description": "avg = balanced, max = fuller (more bleed), min = cleaner (less bleed) Type: choice.",
+        "default": "avg",
+        "x-ferraus-kind": "choice"
+      },
+      "vocal_split": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Second stage on the vocals: lead and backing Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "drum_split": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Second stage on the drums: kick, snare, toms, hh, cymbals Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "extended": {
+        "type": "string",
+        "description": "Best-effort extraction from other: guitar,piano,keys,strings,brass Type: list.",
+        "x-ferraus-kind": "list"
+      },
+      "overlap": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Window overlap, crossfaded with a raised-cosine window Type: percent.",
+        "default": "25%",
+        "x-ferraus-kind": "percent"
+      },
+      "shifts": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Test-time augmentation passes with random sub-second offsets (max tier uses 2) Range: 1..10. Type: integer.",
+        "default": "1",
+        "x-ferraus-kind": "int"
+      },
+      "segment": {
+        "type": "string",
+        "description": "Window length: auto (the model's trained length), a duration such as 10s, or whole Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "sum_to_mix": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Assign the residual to other so stems add back to the input exactly Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "accept_license": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Accept a research-only model license (with --model) Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "cascade_models": {
+        "type": "string",
+        "description": "Override cascade models: vocal-split=<model>, drum-split=<model>, extended=<model> Type: list.",
+        "x-ferraus-kind": "list"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/separate.result.json",
+    "title": "ferraus separate result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "separate"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

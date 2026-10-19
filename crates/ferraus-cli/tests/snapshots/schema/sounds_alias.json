@@ -1,0 +1,192 @@
+{
+  "command": "sounds alias",
+  "summary": "Set what an instrument name resolves to",
+  "category": "plugins",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/sounds_alias.args.json",
+    "title": "ferraus sounds alias arguments",
+    "description": "Set what an instrument name resolves to",
+    "type": "object",
+    "properties": {
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "assignment": {
+        "description": "name=target pairs, e.g. piano=salamander-grand-piano Type: text. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "name=target pairs, e.g. piano=salamander-grand-piano Type: text.",
+            "x-ferraus-kind": "str"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "name=target pairs, e.g. piano=salamander-grand-piano Type: text.",
+              "x-ferraus-kind": "str"
+            }
+          }
+        ]
+      },
+      "remove": {
+        "type": "string",
+        "description": "Alias names to delete Type: list.",
+        "x-ferraus-kind": "list"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/sounds_alias.result.json",
+    "title": "ferraus sounds alias result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "sounds alias"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

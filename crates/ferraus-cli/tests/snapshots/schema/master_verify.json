@@ -1,0 +1,227 @@
+{
+  "command": "master verify",
+  "summary": "Pass or fail against a delivery spec",
+  "category": "mastering",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/master_verify.args.json",
+    "title": "ferraus master verify arguments",
+    "description": "Pass or fail against a delivery spec",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "target": {
+        "type": "string",
+        "enum": [
+          "streaming",
+          "apple",
+          "youtube",
+          "club",
+          "cd",
+          "broadcast",
+          "podcast",
+          "custom"
+        ],
+        "description": "Delivery target: streaming -14 LUFS/-1 dBTP, apple -16/-1, youtube -14/-1, club -8/-0.3, cd -10/-0.3 (16-bit 44.1 kHz), broadcast -23/-1 (EBU R128), podcast -16 stereo or -19 mono/-1, custom (--lufs, --true-peak) Type: choice.",
+        "default": "streaming",
+        "x-ferraus-kind": "choice"
+      },
+      "lufs": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Integrated loudness for --target custom (e.g. -12LUFS); overrides a named target's loudness Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "true_peak": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "True-peak ceiling for --target custom (e.g. -1dBTP, default -1dBTP); overrides a named target's ceiling Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "standard": {
+        "type": "string",
+        "enum": [
+          "ebu",
+          "atsc"
+        ],
+        "description": "Broadcast standard for --target broadcast: ebu (-23 LUFS, -1 dBTP) or atsc (-24 LKFS, -2 dBTP) Type: choice.",
+        "default": "ebu",
+        "x-ferraus-kind": "choice"
+      },
+      "tolerance": {
+        "type": "string",
+        "description": "Allowed distance from the target loudness (LU) Type: text.",
+        "default": "0.5LU",
+        "x-ferraus-kind": "str"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/master_verify.result.json",
+    "title": "ferraus master verify result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "master verify"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "command": "declip",
+  "summary": "Repair clipped peaks by autoregressive interpolation",
+  "category": "restoration",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/declip.args.json",
+    "title": "ferraus declip arguments",
+    "description": "Repair clipped peaks by autoregressive interpolation",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "threshold": {
+        "type": "string",
+        "description": "Clip level as a gain (-0.1dB, 0.98x), or 'auto' to detect flat-topped runs Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "max_gap": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Longest clipped run to repair (time, e.g. 10ms); longer runs are left alone Type: time.",
+        "default": "10ms",
+        "x-ferraus-kind": "time"
+      },
+      "headroom": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Output gain reduction in dB applied when clipping was repaired, so restored peaks fit Type: gain.",
+        "default": "3dB",
+        "x-ferraus-kind": "gain"
+      },
+      "order": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Autoregressive model order (higher follows complex material better, slower) Range: 2..128. Type: integer.",
+        "default": "32",
+        "x-ferraus-kind": "int"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/declip.result.json",
+    "title": "ferraus declip result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "declip"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

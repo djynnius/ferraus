@@ -1,0 +1,373 @@
+{
+  "command": "score",
+  "summary": "Notation from a recording or a MIDI file",
+  "category": "score",
+  "best_effort": true,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/score.args.json",
+    "title": "ferraus score arguments",
+    "description": "Notation from a recording or a MIDI file",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "layout": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "lead-sheet",
+          "grand",
+          "treble",
+          "bass",
+          "drums",
+          "solfa"
+        ],
+        "description": "auto: MIDI channel 10 becomes a drum score, wide-range parts a grand staff, others a lead sheet (bass clef when low); for audio, vocals → lead sheet, piano → grand staff, drums → drum score Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      },
+      "chords": {
+        "type": "string",
+        "enum": [
+          "on",
+          "off",
+          "diagrams"
+        ],
+        "description": "on: chord symbols above the staff (C, Am7, G/B); diagrams: also guitar fretboard diagrams (with a capo suggestion when --transpose is used) Type: choice.",
+        "default": "on",
+        "x-ferraus-kind": "choice"
+      },
+      "solfa": {
+        "type": "string",
+        "enum": [
+          "off",
+          "on",
+          "only",
+          "fixed",
+          "fixed-only"
+        ],
+        "description": "on: tonic sol-fa syllables (movable do) under the notes; only: write sol-fa text and no staff; fixed / fixed-only: fixed do (do = C) Type: choice.",
+        "default": "off",
+        "x-ferraus-kind": "choice"
+      },
+      "key": {
+        "type": "string",
+        "description": "Key of the input (before --transpose) such as G, Em, Bb major; auto uses the MIDI key signature (or analyze key for audio) or a Krumhansl estimate on the notes Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "time": {
+        "type": "string",
+        "description": "Time signature such as 3/4 or 6/8; auto uses the MIDI time signature (or analyze tempo for audio) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "tempo": {
+        "type": "string",
+        "description": "Tempo in quarter notes per minute; auto uses the MIDI tempo Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "quantize": {
+        "type": "string",
+        "examples": [
+          "1/16"
+        ],
+        "description": "Quantization grid (1/8, 1/16, 1/32; 1/8T forces triplets) Type: grid.",
+        "default": "1/16",
+        "x-ferraus-kind": "grid"
+      },
+      "triplets": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "on",
+          "off"
+        ],
+        "description": "Triplet detection per beat: auto picks triplets when they fit clearly better than the straight grid Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      },
+      "split": {
+        "type": "string",
+        "description": "Grand-staff hand split: auto (dynamic around middle C within a hand span) or a note such as C4 (that note and above go to the right hand) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "parts": {
+        "type": "string",
+        "description": "For audio: stems to notate, comma separated from vocals,piano,guitar,bass,drums (auto: all of them) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "lyrics": {
+        "type": "string",
+        "description": "Text file of lyrics, one syllable per melody note (hyphenate syllables: hel-lo; _ holds a syllable) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "transpose": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Transpose by semitones (e.g. -2, 5) Type: integer.",
+        "default": "0",
+        "x-ferraus-kind": "int"
+      },
+      "title": {
+        "type": "string",
+        "description": "Title Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "composer": {
+        "type": "string",
+        "description": "Composer Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "pickup": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Detect a pickup (anacrusis) bar Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "midi": {
+        "type": "string",
+        "description": "Also write the MIDI performance of the notation to this path (.mid) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "pdf": {
+        "type": "string",
+        "description": "Also engrave a PDF to this path (needs the ferraus-engrave helper or LilyPond) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "svg": {
+        "type": "string",
+        "description": "Also engrave SVG pages to this path (page 2 onward as <name>-2.svg, ...) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "png": {
+        "type": "string",
+        "description": "Also engrave PNG pages to this path (page 2 onward as <name>-2.png, ...) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "abc": {
+        "type": "string",
+        "description": "Also write ABC notation to this path Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "ly": {
+        "type": "string",
+        "description": "Also write LilyPond source to this path Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "mei": {
+        "type": "string",
+        "description": "Also write MEI to this path Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "solfa_txt": {
+        "type": "string",
+        "description": "Also write tonic sol-fa text to this path (.md writes Markdown) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "json_out": {
+        "type": "string",
+        "description": "Also write the agent-facing score JSON to this path (named json-out because --json is the global result flag) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "engraver": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "verovio",
+          "lilypond",
+          "native"
+        ],
+        "description": "Engraving engine for SVG/PDF/PNG: auto tries the Verovio helper, then LilyPond, then (SVG only) the minimal native renderer Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/score.result.json",
+    "title": "ferraus score result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "score"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

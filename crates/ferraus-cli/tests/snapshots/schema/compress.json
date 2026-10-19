@@ -1,0 +1,331 @@
+{
+  "command": "compress",
+  "summary": "Compress dynamic range (feed-forward, soft knee)",
+  "category": "dynamics",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/compress.args.json",
+    "title": "ferraus compress arguments",
+    "description": "Compress dynamic range (feed-forward, soft knee)",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "threshold": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Level above which gain is reduced (dBFS) Type: gain.",
+        "default": "-18dB",
+        "x-ferraus-kind": "gain"
+      },
+      "ratio": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "4:1"
+        ],
+        "description": "Input dB over threshold per output dB (4:1, or 4) Type: ratio.",
+        "default": "3:1",
+        "x-ferraus-kind": "ratio"
+      },
+      "attack": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Time to clamp down on a level rise Type: time.",
+        "default": "10ms",
+        "x-ferraus-kind": "time"
+      },
+      "release": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Time to recover after the level falls Type: time.",
+        "default": "100ms",
+        "x-ferraus-kind": "time"
+      },
+      "knee": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Soft-knee width centred on the threshold (0dB = hard knee) Type: gain.",
+        "default": "6dB",
+        "x-ferraus-kind": "gain"
+      },
+      "makeup": {
+        "type": "string",
+        "description": "Output gain in dB, or 'auto' Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "lookahead": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "How far ahead the detector looks (latency is compensated) Type: time.",
+        "default": "5ms",
+        "x-ferraus-kind": "time"
+      },
+      "detector": {
+        "type": "string",
+        "enum": [
+          "rms",
+          "peak"
+        ],
+        "description": "Level detector: rms (10 ms, smooth) or peak (fast) Type: choice.",
+        "default": "rms",
+        "x-ferraus-kind": "choice"
+      },
+      "sidechain_hpf": {
+        "type": "string",
+        "examples": [
+          "1kHz"
+        ],
+        "description": "High-pass on the detector so lows do not drive the gain (0Hz = off) Type: frequency.",
+        "default": "80Hz",
+        "x-ferraus-kind": "freq"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet: below 100% blends in the uncompressed signal (parallel compression); 0% returns the input Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "character": {
+        "type": "string",
+        "enum": [
+          "clean",
+          "tube"
+        ],
+        "description": "clean, or tube: adds a tube-style saturation stage after the gain Type: choice.",
+        "default": "clean",
+        "x-ferraus-kind": "choice"
+      },
+      "highpass": {
+        "type": "string",
+        "examples": [
+          "1kHz"
+        ],
+        "description": "Optional high-pass before compression, e.g. 60Hz (set by the tighten preset) Type: frequency.",
+        "x-ferraus-kind": "freq"
+      },
+      "deess": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "De-ess after compression (6.5 kHz, -20 dB, 6 dB range; set by the tighten preset) Type: on|off.",
+        "default": "off",
+        "x-ferraus-kind": "switch"
+      },
+      "lowpass": {
+        "type": "string",
+        "examples": [
+          "1kHz"
+        ],
+        "description": "Optional low-pass at the end of the chain, e.g. 16kHz (the tighten preset's optional top cut) Type: frequency.",
+        "x-ferraus-kind": "freq"
+      },
+      "preset": {
+        "type": "string",
+        "description": "Load a named preset (built-in or user); explicit flags override its values Type: text.",
+        "x-ferraus-kind": "str"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/compress.result.json",
+    "title": "ferraus compress result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "compress"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

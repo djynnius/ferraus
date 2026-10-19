@@ -1,0 +1,258 @@
+{
+  "command": "filter",
+  "summary": "Scientific filters: Butterworth, Chebyshev, Bessel, elliptic",
+  "category": "tone",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/filter.args.json",
+    "title": "ferraus filter arguments",
+    "description": "Scientific filters: Butterworth, Chebyshev, Bessel, elliptic",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "design": {
+        "type": "string",
+        "enum": [
+          "butterworth",
+          "chebyshev1",
+          "chebyshev2",
+          "bessel",
+          "elliptic"
+        ],
+        "description": "Filter family Type: choice.",
+        "default": "butterworth",
+        "x-ferraus-kind": "choice"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "lowpass",
+          "highpass",
+          "bandpass",
+          "bandstop"
+        ],
+        "description": "Response type Type: choice.",
+        "default": "lowpass",
+        "x-ferraus-kind": "choice"
+      },
+      "freq": {
+        "type": "string",
+        "description": "Cutoff (1kHz) or band (300Hz..3.4kHz); auto = 8 kHz LP, 80 Hz HP, 300 Hz-3.4 kHz BP, 50-70 Hz BS Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "order": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Prototype order (steepness) Range: 1..24. Type: integer.",
+        "default": "4",
+        "x-ferraus-kind": "int"
+      },
+      "ripple": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Passband ripple in dB (chebyshev1, elliptic) Type: gain.",
+        "default": "0.5dB",
+        "x-ferraus-kind": "gain"
+      },
+      "stopband": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Stopband attenuation in dB (chebyshev2, elliptic) Type: gain.",
+        "default": "60dB",
+        "x-ferraus-kind": "gain"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/filter.result.json",
+    "title": "ferraus filter result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "filter"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

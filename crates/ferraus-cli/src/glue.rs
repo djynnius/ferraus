@@ -84,9 +84,11 @@ impl ferraus_midi::transcribe::poly::PolyTranscriber for BasicPitch {
             ferraus_core::resample::Quality::High,
         );
         // the download policy comes from the environment the CLI set up (-y, config, --offline)
-        let mut g = ferraus_core::Globals::default();
-        g.yes = std::env::var("FERRAUS_AUTO_DOWNLOAD").map(|v| v == "1").unwrap_or(false);
-        g.offline = std::env::var("FERRAUS_OFFLINE").map(|v| v == "1").unwrap_or(false);
+        let g = ferraus_core::Globals {
+            yes: std::env::var("FERRAUS_AUTO_DOWNLOAD").map(|v| v == "1").unwrap_or(false),
+            offline: std::env::var("FERRAUS_OFFLINE").map(|v| v == "1").unwrap_or(false),
+            ..Default::default()
+        };
         let mut ctx = ferraus_core::OpCtx::new(
             "transcribe",
             vec![],

@@ -1,0 +1,231 @@
+{
+  "command": "trim",
+  "summary": "Keep one time range of the input",
+  "category": "edit",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/trim.args.json",
+    "title": "ferraus trim arguments",
+    "description": "Keep one time range of the input",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "range": {
+        "type": "string",
+        "examples": [
+          "0s..2s"
+        ],
+        "description": "Range to keep as start..end, e.g. 0s..30s, 1:00..end, -10s..end, 8b..24b Type: range.",
+        "x-ferraus-kind": "range"
+      },
+      "pad": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Silence added to both ends of the result (duration, e.g. 500ms); --pad-start/--pad-end override one side Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "pad_start": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Silence added before the result (duration, e.g. 1s) Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "pad_end": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Silence added after the result (duration, e.g. 2s) Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "snap": {
+        "type": "string",
+        "enum": [
+          "zero",
+          "off"
+        ],
+        "description": "zero: move cut points to the nearest zero crossing so the edges never click; off: cut at the exact sample Type: choice.",
+        "default": "zero",
+        "x-ferraus-kind": "choice"
+      },
+      "snap_window": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "How far (duration) a cut point may move when snapping to a zero crossing Type: time.",
+        "default": "5ms",
+        "x-ferraus-kind": "time"
+      }
+    },
+    "required": [
+      "inputs",
+      "range"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/trim.result.json",
+    "title": "ferraus trim result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "trim"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

@@ -1,0 +1,279 @@
+{
+  "command": "midi quantize",
+  "summary": "Snap notes to a grid",
+  "category": "midi",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/midi_quantize.args.json",
+    "title": "ferraus midi quantize arguments",
+    "description": "Snap notes to a grid",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (MIDI files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "grid": {
+        "type": "string",
+        "examples": [
+          "1/16"
+        ],
+        "description": "Grid step: 1/16, 1/8T (triplet), 1/8D (dotted), or auto to detect the dominant subdivision Type: grid.",
+        "default": "1/16",
+        "x-ferraus-kind": "grid"
+      },
+      "strength": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "How far notes move toward the grid: 100% lands exactly on it, 50% halves the error Range: 0..100%. Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "swing": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Delay of every second grid point as a percentage of one grid step (60% = 0.6 × 1/16) Range: 0..100%. Type: percent.",
+        "default": "0%",
+        "x-ferraus-kind": "percent"
+      },
+      "what": {
+        "type": "string",
+        "enum": [
+          "start",
+          "end",
+          "both",
+          "duration"
+        ],
+        "description": "start: snap note-ons, note-offs follow (durations kept); end: snap note-offs only; both: snap each independently; duration: snap note-ons and round lengths to whole grid steps Type: choice.",
+        "default": "start",
+        "x-ferraus-kind": "choice"
+      },
+      "humanize": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Standard deviation of Gaussian timing jitter added after quantizing (15ms); reproducible with --seed Type: time.",
+        "default": "0ms",
+        "x-ferraus-kind": "time"
+      },
+      "min_length": {
+        "type": "string",
+        "examples": [
+          "1/16"
+        ],
+        "description": "Notes shorter than this note value after quantizing are lengthened to it Type: grid.",
+        "default": "1/64",
+        "x-ferraus-kind": "grid"
+      },
+      "no_overlap": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Shorten notes that overlap the next note of the same pitch and channel; drop exact duplicates Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "groove": {
+        "type": "string",
+        "description": "Groove file from 'midi groove extract'; replaces --grid and --swing Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "tracks": {
+        "type": "string",
+        "description": "1-based track numbers to change, comma separated (default: every track) Type: list.",
+        "x-ferraus-kind": "list"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/midi_quantize.result.json",
+    "title": "ferraus midi quantize result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "midi quantize"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

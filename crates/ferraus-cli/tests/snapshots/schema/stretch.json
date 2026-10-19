@@ -1,0 +1,246 @@
+{
+  "command": "stretch",
+  "summary": "Change duration, keep pitch",
+  "category": "pitch",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/stretch.args.json",
+    "title": "ferraus stretch arguments",
+    "description": "Change duration, keep pitch",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "factor": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Duration multiplier: 2.0 is twice as long, 0.5 half as long Range: 0.05..20. Type: number.",
+        "default": "1.0",
+        "x-ferraus-kind": "float"
+      },
+      "to": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Target duration instead of a factor, e.g. 3:30 or 95s Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "bpm": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Source tempo for --to-bpm (also the global --bpm); estimated when omitted Type: number.",
+        "x-ferraus-kind": "float"
+      },
+      "to_bpm": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "Target tempo; the factor is bpm / to-bpm Type: number.",
+        "x-ferraus-kind": "float"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "tonal",
+          "percussive",
+          "speech"
+        ],
+        "description": "auto: per-segment vocoder/WSOLA hybrid; tonal: vocoder only; percussive: WSOLA with transient preservation; speech: hybrid with short windows Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      },
+      "quality": {
+        "type": "string",
+        "enum": [
+          "high",
+          "fast"
+        ],
+        "description": "high: hybrid as above; fast: WSOLA only (tonal mode: short vocoder) Type: choice.",
+        "default": "high",
+        "x-ferraus-kind": "choice"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/stretch.result.json",
+    "title": "ferraus stretch result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "stretch"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

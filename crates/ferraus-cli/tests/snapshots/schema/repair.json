@@ -1,0 +1,236 @@
+{
+  "command": "repair",
+  "summary": "Spectral repair of a time-frequency region from its neighbours",
+  "category": "restoration",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/repair.args.json",
+    "title": "ferraus repair arguments",
+    "description": "Spectral repair of a time-frequency region from its neighbours",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "range": {
+        "description": "Time range to repair (start..end, e.g. 1:02.50..1:02.70); repeatable Type: range. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "examples": [
+              "0s..2s"
+            ],
+            "description": "Time range to repair (start..end, e.g. 1:02.50..1:02.70); repeatable Type: range.",
+            "x-ferraus-kind": "range"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "examples": [
+                "0s..2s"
+              ],
+              "description": "Time range to repair (start..end, e.g. 1:02.50..1:02.70); repeatable Type: range.",
+              "x-ferraus-kind": "range"
+            }
+          }
+        ]
+      },
+      "freq": {
+        "type": "string",
+        "description": "Frequency band to repair (low..high, e.g. 2kHz..6kHz) or 'all' Type: text.",
+        "default": "all",
+        "x-ferraus-kind": "str"
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "interpolate",
+          "attenuate"
+        ],
+        "description": "Re-synthesise from neighbours, or only attenuate to their level Type: choice.",
+        "default": "interpolate",
+        "x-ferraus-kind": "choice"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs",
+      "range"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/repair.result.json",
+    "title": "ferraus repair result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "repair"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

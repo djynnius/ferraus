@@ -1,0 +1,399 @@
+{
+  "command": "master",
+  "summary": "Automatic master of a finished mix to a delivery target",
+  "category": "mastering",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/master.args.json",
+    "title": "ferraus master arguments",
+    "description": "Automatic master of a finished mix to a delivery target",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "target": {
+        "type": "string",
+        "enum": [
+          "streaming",
+          "apple",
+          "youtube",
+          "club",
+          "cd",
+          "broadcast",
+          "podcast",
+          "custom"
+        ],
+        "description": "Delivery target: streaming -14 LUFS/-1 dBTP, apple -16/-1, youtube -14/-1, club -8/-0.3, cd -10/-0.3 (16-bit 44.1 kHz), broadcast -23/-1 (EBU R128), podcast -16 stereo or -19 mono/-1, custom (--lufs, --true-peak) Type: choice.",
+        "default": "streaming",
+        "x-ferraus-kind": "choice"
+      },
+      "lufs": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Integrated loudness for --target custom (e.g. -12LUFS); overrides a named target's loudness Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "true_peak": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "True-peak ceiling for --target custom (e.g. -1dBTP, default -1dBTP); overrides a named target's ceiling Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "standard": {
+        "type": "string",
+        "enum": [
+          "ebu",
+          "atsc"
+        ],
+        "description": "Broadcast standard for --target broadcast: ebu (-23 LUFS, -1 dBTP) or atsc (-24 LKFS, -2 dBTP) Type: choice.",
+        "default": "ebu",
+        "x-ferraus-kind": "choice"
+      },
+      "reference": {
+        "type": "string",
+        "description": "Reference track whose tonal balance the corrective EQ moves toward (replaces the genre curve) Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "match_amount": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "How much of the measured tonal difference the corrective EQ corrects (each band is capped at 4 dB) Type: percent.",
+        "default": "50%",
+        "x-ferraus-kind": "percent"
+      },
+      "genre": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "pop",
+          "hiphop",
+          "edm",
+          "rock",
+          "acoustic",
+          "classical",
+          "jazz",
+          "podcast"
+        ],
+        "description": "Genre for the tonal curve and dynamics targets; auto guesses from tempo, spectral tilt, low-end share, and crest factor Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      },
+      "intensity": {
+        "type": "string",
+        "enum": [
+          "light",
+          "medium",
+          "heavy"
+        ],
+        "description": "How hard to push: bounds limiter gain reduction (light 2 dB, medium 4 dB, heavy 6 dB) and sets compression ratios; an input that already looks mastered defaults to light Type: choice.",
+        "default": "medium",
+        "x-ferraus-kind": "choice"
+      },
+      "width": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Stereo width of the side signal (100% unchanged); never narrower than mono bass or wider than broadband correlation 0.3 allows Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "bass_mono": {
+        "type": "string",
+        "examples": [
+          "1kHz"
+        ],
+        "description": "Side signal below this frequency is collapsed to mono Type: frequency.",
+        "default": "120Hz",
+        "x-ferraus-kind": "freq"
+      },
+      "warmth": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Tape saturation and exciter amount (0% skips the color stage) Type: percent.",
+        "default": "15%",
+        "x-ferraus-kind": "percent"
+      },
+      "no_eq": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Skip the corrective EQ Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "no_widen": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Skip the stereo stage Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "trim_silence": {
+        "type": "string",
+        "description": "Trim head and tail silence below this level (dBFS), or 'off' Type: text.",
+        "default": "-70dB",
+        "x-ferraus-kind": "str"
+      },
+      "report": {
+        "type": "string",
+        "description": "Write the before/after report (JSON) here Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "ab": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Also write a loudness-matched before/after pair (within 0.2 LU) for listening: <output>.ab-before.wav and <output>.ab-after.wav Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "plan": {
+        "type": "string",
+        "description": "Run this (edited) plan instead of planning: the JSON from 'master plan' Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "stems": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Best-effort stem-aware mastering: separate --tier quality, per-stem chains, then sum and master Type: flag.",
+        "x-ferraus-kind": "flag"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/master.result.json",
+    "title": "ferraus master result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "master"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

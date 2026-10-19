@@ -1,0 +1,266 @@
+{
+  "command": "normalize",
+  "summary": "Set loudness (LUFS), peak, or RMS level to a target",
+  "category": "edit",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/normalize.args.json",
+    "title": "ferraus normalize arguments",
+    "description": "Set loudness (LUFS), peak, or RMS level to a target",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "lufs": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Integrated loudness target in LUFS (default mode), e.g. -14, -16, -23 Type: gain.",
+        "default": "-14",
+        "x-ferraus-kind": "gain"
+      },
+      "peak": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Peak target: -1dBTP for true peak, -1dB for sample peak Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "rms": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "RMS level target in dBFS, e.g. -20dB Type: gain.",
+        "x-ferraus-kind": "gain"
+      },
+      "true_peak_limit": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "With --lufs/--rms: limit inter-sample peaks to --ceiling after the gain Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "ceiling": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "True-peak ceiling in dBTP for the limiter Type: gain.",
+        "default": "-1dBTP",
+        "x-ferraus-kind": "gain"
+      },
+      "lookahead": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Limiter lookahead (attack) duration Type: time.",
+        "default": "3ms",
+        "x-ferraus-kind": "time"
+      },
+      "release": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Limiter release time constant (duration) Type: time.",
+        "default": "80ms",
+        "x-ferraus-kind": "time"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/normalize.result.json",
+    "title": "ferraus normalize result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "normalize"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

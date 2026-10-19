@@ -1,0 +1,257 @@
+{
+  "command": "split",
+  "summary": "Split a file into parts at times, at silences, or into equal chunks",
+  "category": "edit",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/split.args.json",
+    "title": "ferraus split arguments",
+    "description": "Split a file into parts at times, at silences, or into equal chunks",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "at": {
+        "description": "Split point (time, repeatable), e.g. 1:30 or 64b Type: time. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "examples": [
+              "1.5s"
+            ],
+            "description": "Split point (time, repeatable), e.g. 1:30 or 64b Type: time.",
+            "x-ferraus-kind": "time"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "examples": [
+                "1.5s"
+              ],
+              "description": "Split point (time, repeatable), e.g. 1:30 or 64b Type: time.",
+              "x-ferraus-kind": "time"
+            }
+          }
+        ]
+      },
+      "every": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Split into equal chunks of this duration, e.g. 30s Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "on_silence": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Split in the middle of each silent gap Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "silence_threshold": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Level (dBFS) below which audio counts as silence for --on-silence Type: gain.",
+        "default": "-40dB",
+        "x-ferraus-kind": "gain"
+      },
+      "min_silence": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Shortest gap (duration) that counts as a split point for --on-silence Type: time.",
+        "default": "500ms",
+        "x-ferraus-kind": "time"
+      },
+      "snap": {
+        "type": "string",
+        "enum": [
+          "zero",
+          "off"
+        ],
+        "description": "zero: move split points to the nearest zero crossing (within 5 ms); off: exact samples Type: choice.",
+        "default": "zero",
+        "x-ferraus-kind": "choice"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/split.result.json",
+    "title": "ferraus split result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "split"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

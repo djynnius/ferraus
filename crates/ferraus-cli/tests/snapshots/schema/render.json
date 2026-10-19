@@ -1,0 +1,259 @@
+{
+  "command": "render",
+  "summary": "Render MIDI to audio with an instrument",
+  "category": "midi",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/render.args.json",
+    "title": "ferraus render arguments",
+    "description": "Render MIDI to audio with an instrument",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (MIDI files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "instrument": {
+        "type": "string",
+        "description": "Instrument name or source: piano, strings, \"String Ensemble 1\", gm:48, sf2:<path>, sfz:<path>, builtin:organ, plugin:\"Surge XT\"; gm follows the file's programs Type: text.",
+        "default": "gm",
+        "x-ferraus-kind": "str"
+      },
+      "map": {
+        "description": "Instruments per track or channel: \"1=piano,2=strings,10=drums\" (t2= forces a track, ch10= a channel; bare numbers are tracks in multitrack files, else channels) Type: list. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Instruments per track or channel: \"1=piano,2=strings,10=drums\" (t2= forces a track, ch10= a channel; bare numbers are tracks in multitrack files, else channels) Type: list.",
+            "x-ferraus-kind": "list"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Instruments per track or channel: \"1=piano,2=strings,10=drums\" (t2= forces a track, ch10= a channel; bare numbers are tracks in multitrack files, else channels) Type: list.",
+              "x-ferraus-kind": "list"
+            }
+          }
+        ]
+      },
+      "swap": {
+        "description": "Substitute by General MIDI family: piano=strings plays every piano-family channel with strings Type: list. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Substitute by General MIDI family: piano=strings plays every piano-family channel with strings Type: list.",
+            "x-ferraus-kind": "list"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Substitute by General MIDI family: piano=strings plays every piano-family channel with strings Type: list.",
+              "x-ferraus-kind": "list"
+            }
+          }
+        ]
+      },
+      "tail": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Time rendered after the last MIDI event so releases ring out (2s) Type: time.",
+        "default": "2s",
+        "x-ferraus-kind": "time"
+      },
+      "velocity_curve": {
+        "type": "string",
+        "enum": [
+          "linear",
+          "soft",
+          "hard"
+        ],
+        "description": "Velocity response: soft makes quiet notes louder, hard needs more velocity to get loud Type: choice.",
+        "default": "linear",
+        "x-ferraus-kind": "choice"
+      },
+      "fx": {
+        "description": "Effect stage applied after rendering, like the fx command: \"reverb:mix=0.2\" (repeatable, in order) Type: text. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Effect stage applied after rendering, like the fx command: \"reverb:mix=0.2\" (repeatable, in order) Type: text.",
+            "x-ferraus-kind": "str"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Effect stage applied after rendering, like the fx command: \"reverb:mix=0.2\" (repeatable, in order) Type: text.",
+              "x-ferraus-kind": "str"
+            }
+          }
+        ]
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/render.result.json",
+    "title": "ferraus render result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "render"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

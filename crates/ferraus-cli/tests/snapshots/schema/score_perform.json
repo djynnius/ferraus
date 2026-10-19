@@ -1,0 +1,338 @@
+{
+  "command": "score perform",
+  "summary": "One shot: read, play, render",
+  "category": "score",
+  "best_effort": true,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/score_perform.args.json",
+    "title": "ferraus score perform arguments",
+    "description": "One shot: read, play, render",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "tempo": {
+        "type": "string",
+        "description": "Tempo override in quarter notes per minute; auto follows the score's tempo marks (120 when none) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "repeats": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Unroll repeats and first/second endings Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "dynamics": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Map dynamics (pp..ff) to velocities Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "articulation": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Map articulations to note lengths: staccato 50%, staccatissimo 25%, tenuto and slurred (legato) 100%, other notes 95% (gap at most a 64th note); accents add velocity Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "humanize": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Random timing (up to ±20 ms) and velocity (up to ±12) variation, seeded by --seed Type: percent.",
+        "default": "0%",
+        "x-ferraus-kind": "percent"
+      },
+      "swing": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Delay off-beat eighths: 100% moves them to the triplet position (2:1) Type: percent.",
+        "default": "0%",
+        "x-ferraus-kind": "percent"
+      },
+      "instrument_map": {
+        "type": "string",
+        "description": "Programs per part, e.g. \"P1=piano,P2=strings\" (GM names, short names, or numbers 0-127) Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "click": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Add a metronome click track (channel 10) Type: on|off.",
+        "default": "off",
+        "x-ferraus-kind": "switch"
+      },
+      "instrument": {
+        "type": "string",
+        "description": "Instrument for render: an installed sound name, a .sf2/.sfz path, or plugin:<name> Type: text.",
+        "default": "piano",
+        "x-ferraus-kind": "str"
+      },
+      "pages": {
+        "type": "string",
+        "description": "Pages to read from a PDF (1-4); default all Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "dpi": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Rasterization resolution for PDF pages in dots per inch Type: integer.",
+        "default": "300",
+        "x-ferraus-kind": "int"
+      },
+      "engine": {
+        "type": "string",
+        "enum": [
+          "builtin",
+          "audiveris"
+        ],
+        "description": "OMR engine for PDF and image inputs Type: choice.",
+        "default": "builtin",
+        "x-ferraus-kind": "choice"
+      },
+      "fix": {
+        "type": "string",
+        "description": "Apply an edit list before performing Type: path.",
+        "x-ferraus-kind": "path"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/score_perform.result.json",
+    "title": "ferraus score perform result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "score perform"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

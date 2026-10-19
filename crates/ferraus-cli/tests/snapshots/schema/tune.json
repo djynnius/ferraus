@@ -1,0 +1,324 @@
+{
+  "command": "tune",
+  "summary": "Pitch correction (auto-tune) to a key, scale or written melody",
+  "category": "pitch",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/tune.args.json",
+    "title": "ferraus tune arguments",
+    "description": "Pitch correction (auto-tune) to a key, scale or written melody",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "key": {
+        "type": "string",
+        "description": "Key: auto (detect from the take), or C, F#, Bbm, 'A minor', 'Eb major' Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "scale": {
+        "type": "string",
+        "description": "Scale: auto (the key's mode), major, minor, chromatic, a mode (dorian, mixolydian, harmonic-minor, major-pentatonic, minor-pentatonic, blues, ...), or custom notes such as \"C,D,Eb,G,A\" Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "strength": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "How far each note moves toward its target (50% halves the error) Range: 0%..100%. Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "retune_speed": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Time constant of the correction within a note: 0ms snaps instantly, 100ms or more is gentle Type: time.",
+        "default": "25ms",
+        "x-ferraus-kind": "time"
+      },
+      "humanize": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Bounded random pitch drift (up to ±12 cents at 100%), seeded by --seed Range: 0%..100%. Type: percent.",
+        "default": "0%",
+        "x-ferraus-kind": "percent"
+      },
+      "vibrato_preserve": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Keep the 4-8 Hz vibrato out of the correction (on/off) Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "formant": {
+        "type": "string",
+        "enum": [
+          "preserve",
+          "shift"
+        ],
+        "description": "preserve keeps the voice's tone colour; shift lets formants move with the pitch Type: choice.",
+        "default": "preserve",
+        "x-ferraus-kind": "choice"
+      },
+      "range": {
+        "type": "string",
+        "description": "Pitch range searched by the tracker, low..high (Hz, kHz or note names) Type: text.",
+        "default": "60Hz..1.2kHz",
+        "x-ferraus-kind": "str"
+      },
+      "tracker": {
+        "type": "string",
+        "enum": [
+          "pyin",
+          "crepe",
+          "rmvpe",
+          "swiftf0"
+        ],
+        "description": "Pitch tracker: pyin (built in) or a model tracker (crepe, rmvpe, swiftf0; needs 'ferraus models pull pitch/<name>') Type: choice.",
+        "default": "pyin",
+        "x-ferraus-kind": "choice"
+      },
+      "notes_out": {
+        "type": "string",
+        "description": "Also write the per-note analysis (detected pitch, target, correction) as JSON to this file Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "target": {
+        "type": "string",
+        "description": "Pull notes to the melody in this MIDI file instead of a scale Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "tolerance": {
+        "type": "string",
+        "examples": [
+          "+200cents"
+        ],
+        "description": "With --target: notes farther than this from the written note are left alone and reported Type: cents|semitones.",
+        "default": "150cents",
+        "x-ferraus-kind": "pitch"
+      },
+      "effect": {
+        "type": "string",
+        "enum": [
+          "natural",
+          "hard"
+        ],
+        "description": "hard = robotic effect: --retune-speed 0ms --strength 100% --humanize 0% (and vibrato correction unless --vibrato-preserve is given) Type: choice.",
+        "default": "natural",
+        "x-ferraus-kind": "choice"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/tune.result.json",
+    "title": "ferraus tune result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "tune"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

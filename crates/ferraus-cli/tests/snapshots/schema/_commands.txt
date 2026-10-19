@@ -1,0 +1,183 @@
+accelerate install
+accelerate status
+analyze chords
+analyze clipping
+analyze key
+analyze loudness
+analyze pitch
+analyze problems
+analyze silence
+analyze similarity
+analyze spectrum
+analyze stats
+analyze stereo
+analyze tempo
+autopan
+band-split
+bench
+bitcrush
+center
+channels
+channels mix
+chorus
+clip
+compare
+completions
+compress
+concat
+convert
+cut
+dc-remove
+declick
+declip
+deess
+dehiss
+dehum
+delay
+denoise
+denoise profile
+denoise profile merge
+dereverb
+describe
+distort
+docs
+docs build-site
+doctor
+doppler
+dynamics
+echo
+enhance
+enhance-voice
+envelope
+eq
+expand
+fade
+ffmpeg
+ffprobe
+fft-filter
+filter
+flanger
+fx
+gain
+gate
+generate noise
+generate silence
+generate tone
+graphic-eq
+guitar
+highpass
+hum
+info
+invert-phase
+jobs cancel
+jobs list
+jobs logs
+jobs result
+jobs status
+jobs wait
+leveler
+licenses
+limit
+lowpass
+man
+master
+master analyze
+master deliver
+master plan
+master verify
+match-eq
+mcp serve
+media extract-audio
+media info
+media remux
+media replace-audio
+media streams
+midi from-json
+midi groove extract
+midi info
+midi legato
+midi merge
+midi quantize
+midi split-tracks
+midi tempo
+midi to-json
+midi transpose
+midi trim
+midi velocity
+mix
+models info
+models list
+models path
+models prune
+models pull
+models registry update
+models rm
+models verify
+multiband
+normalize
+notch
+pan
+phase-align
+phaser
+pipeline explain
+pipeline run
+pipeline validate
+pitch
+pitch-bend
+plugin info
+plugin list
+plugin presets list
+plugin run
+plugin scan
+plugin state load
+plugin state save
+presets list
+presets save
+presets show
+remove-sound
+render
+repair
+replay
+resample
+reverb
+reverse
+saturate
+schema
+score
+score check
+score convert
+score from-json
+score perform
+score play
+score read
+score to-json
+self-uninstall
+self-update
+separate
+silence detect
+silence pad
+silence trim
+sounds alias
+sounds info
+sounds install
+sounds list
+sounds remove
+sounds scan
+sounds search
+sounds update
+spectrogram
+speed
+split
+stretch
+tags
+tilt
+transcribe
+transient
+tremolo
+trim
+tune
+verify
+vibrato
+vocoder
+waveform
+widen

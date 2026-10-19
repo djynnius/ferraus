@@ -1,0 +1,257 @@
+{
+  "command": "pan",
+  "summary": "Place a source in the stereo field (static or keyframed)",
+  "category": "panning",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/pan.args.json",
+    "title": "ferraus pan arguments",
+    "description": "Place a source in the stereo field (static or keyframed)",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "position": {
+        "type": "string",
+        "description": "-100 (hard left) .. 100 (hard right), or left, center, right, L30, R60 Type: text.",
+        "default": "0",
+        "x-ferraus-kind": "str"
+      },
+      "law": {
+        "type": "string",
+        "enum": [
+          "-3dB",
+          "-4.5dB",
+          "-6dB",
+          "linear"
+        ],
+        "description": "Pan law: level of a centred source in each channel Type: choice.",
+        "default": "-3dB",
+        "x-ferraus-kind": "choice"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "pan",
+          "balance"
+        ],
+        "description": "pan: place a mono/mono-summed source; balance: scale the channels of a stereo source Type: choice.",
+        "default": "pan",
+        "x-ferraus-kind": "choice"
+      },
+      "points": {
+        "type": "string",
+        "description": "Keyframes time=position, e.g. 0s=-100,4s=0,8s=100 (time may be end or -2s) Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "curve": {
+        "type": "string",
+        "enum": [
+          "linear",
+          "spline"
+        ],
+        "description": "Interpolation between keyframes Type: choice.",
+        "default": "linear",
+        "x-ferraus-kind": "choice"
+      },
+      "from": {
+        "type": "string",
+        "description": "Start position of a sweep (with --to) Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "to": {
+        "type": "string",
+        "description": "End position of a sweep Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "over": {
+        "type": "string",
+        "examples": [
+          "0s..2s"
+        ],
+        "description": "Time range of the --from/--to sweep Type: range.",
+        "default": "0s..end",
+        "x-ferraus-kind": "range"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/pan.result.json",
+    "title": "ferraus pan result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "pan"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

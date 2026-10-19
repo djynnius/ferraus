@@ -1,0 +1,258 @@
+{
+  "command": "plugin run",
+  "summary": "Run an effect plugin over audio",
+  "category": "plugins",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_run.args.json",
+    "title": "ferraus plugin run arguments",
+    "description": "Run an effect plugin over audio",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "plugin": {
+        "type": "string",
+        "description": "Plugin name, id, or path to a .clap/.vst3 bundle (required) Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "param": {
+        "description": "Set a parameter: name=value, by display name or stable id; value in display units (cutoff=2.5kHz, mix=30%, gain=-6dB) or normalized (norm:0.3) Type: text. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Set a parameter: name=value, by display name or stable id; value in display units (cutoff=2.5kHz, mix=30%, gain=-6dB) or normalized (norm:0.3) Type: text.",
+            "x-ferraus-kind": "str"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Set a parameter: name=value, by display name or stable id; value in display units (cutoff=2.5kHz, mix=30%, gain=-6dB) or normalized (norm:0.3) Type: text.",
+              "x-ferraus-kind": "str"
+            }
+          }
+        ]
+      },
+      "preset": {
+        "type": "string",
+        "description": "Load one of the plugin's presets by name (see 'plugin presets list') before applying --param values Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "state": {
+        "type": "string",
+        "description": "Restore native plugin state from a file written by 'plugin state save' (or a sidecar) before the preset and --param values Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "tail": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Extra time to process after the input ends (e.g. 2s); default auto: the plugin's reported tail, or 2s when it reports none Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "block_size": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "Processing block size in samples Range: 16..16384. Type: integer.",
+        "default": "512",
+        "x-ferraus-kind": "int"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "watchdog": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Stop the plugin host after this long without progress (default 60s, or FERRAUS_PLUGIN_WATCHDOG_S) Type: time.",
+        "x-ferraus-kind": "time"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_run.result.json",
+    "title": "ferraus plugin run result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "plugin run"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

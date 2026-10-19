@@ -1,0 +1,304 @@
+{
+  "command": "transcribe",
+  "summary": "Turn singing, humming, or an instrument into MIDI",
+  "category": "midi",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/transcribe.args.json",
+    "title": "ferraus transcribe arguments",
+    "description": "Turn singing, humming, or an instrument into MIDI",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "mono",
+          "poly",
+          "auto"
+        ],
+        "description": "mono: one note at a time (voice, whistle, bass); poly: chords via the Basic Pitch model; auto: mono when the pitch tracker reports a single voiced line Type: choice.",
+        "default": "auto",
+        "x-ferraus-kind": "choice"
+      },
+      "tracker": {
+        "type": "string",
+        "enum": [
+          "pyin",
+          "crepe"
+        ],
+        "description": "Pitch tracker for mono mode; crepe needs the model pitch/crepe Type: choice.",
+        "default": "pyin",
+        "x-ferraus-kind": "choice"
+      },
+      "min_note": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Shortest note kept (60ms); shorter fragments merge into a neighbour or are dropped Type: time.",
+        "default": "60ms",
+        "x-ferraus-kind": "time"
+      },
+      "onset_sensitivity": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "How readily repeated or sliding notes are split: 50% splits on 80-cent pitch jumps and 9 dB energy dips, 100% on 40 cents and 3 dB, 0% on 120 cents and 15 dB (poly: onset threshold 1 − sensitivity) Range: 0..100%. Type: percent.",
+        "default": "50%",
+        "x-ferraus-kind": "percent"
+      },
+      "velocity": {
+        "type": "string",
+        "description": "from-rms: each note's peak loudness through a loudness curve (loudest note 112, −6 dB 79, −20 dB 35); fixed:<1-127> gives every note the same velocity Type: text.",
+        "default": "from-rms",
+        "x-ferraus-kind": "str"
+      },
+      "bpm": {
+        "type": "string",
+        "description": "Tempo of the written file in BPM: auto detects it from the note onsets and the recording (also set by the global --bpm) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "quantize": {
+        "type": "string",
+        "examples": [
+          "1/16"
+        ],
+        "description": "Quantize note starts in the same run: a grid such as 1/16 or 1/8T, auto to detect the subdivision, or off Type: grid.",
+        "default": "off",
+        "x-ferraus-kind": "grid"
+      },
+      "key_snap": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "When the detected key's confidence is above 0.6, move out-of-key notes onto the nearest key note (notes sung within 25 cents of a chromatic pitch are kept) Type: on|off.",
+        "default": "on",
+        "x-ferraus-kind": "switch"
+      },
+      "pitch_bend": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Encode slides (portamento up to 2 semitones) and pitch drift as pitch bend (±2 semitone range) instead of discrete notes (mono mode) Type: on|off.",
+        "default": "off",
+        "x-ferraus-kind": "switch"
+      },
+      "octave": {
+        "type": "string",
+        "description": "auto shifts by whole octaves so the median note lands in the comfortable range of --program (piano E2-C6, bass G1-D3, flute D4-G6); or a fixed shift in octaves (-1, +1, 0) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "program": {
+        "oneOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string",
+            "pattern": "^-?[0-9]+$"
+          }
+        ],
+        "description": "General MIDI program (0-based) written into the track; also picks the --octave auto range (0 piano, 33 bass, 40 violin) Range: 0..127. Type: integer.",
+        "default": "0",
+        "x-ferraus-kind": "int"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/transcribe.result.json",
+    "title": "ferraus transcribe result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "transcribe"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

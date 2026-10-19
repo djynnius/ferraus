@@ -1,0 +1,219 @@
+{
+  "command": "plugin scan",
+  "summary": "Find CLAP and VST3 plugins and cache their metadata",
+  "category": "plugins",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_scan.args.json",
+    "title": "ferraus plugin scan arguments",
+    "description": "Find CLAP and VST3 plugins and cache their metadata",
+    "type": "object",
+    "properties": {
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "paths": {
+        "description": "Extra folders (or bundles) to scan, comma-separated or repeated Type: list. Repeatable.",
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Extra folders (or bundles) to scan, comma-separated or repeated Type: list.",
+            "x-ferraus-kind": "list"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Extra folders (or bundles) to scan, comma-separated or repeated Type: list.",
+              "x-ferraus-kind": "list"
+            }
+          }
+        ]
+      },
+      "format": {
+        "type": "string",
+        "description": "Plugin formats to look for: clap, vst3 Type: list.",
+        "default": "clap,vst3",
+        "x-ferraus-kind": "list"
+      },
+      "rescan": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Probe every bundle again instead of trusting the cache Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
+      "watchdog": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Stop the plugin host after this long without progress (default 60s, or FERRAUS_PLUGIN_WATCHDOG_S) Type: time.",
+        "x-ferraus-kind": "time"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/plugin_scan.result.json",
+    "title": "ferraus plugin scan result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "plugin scan"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}
