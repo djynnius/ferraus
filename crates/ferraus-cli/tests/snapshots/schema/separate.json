@@ -37,13 +37,14 @@
       "tier": {
         "type": "string",
         "enum": [
+          "auto",
           "fast",
           "balanced",
           "quality",
           "max"
         ],
-        "description": "Model tier from the registry Type: choice.",
-        "default": "quality",
+        "description": "Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry (quality, then balanced, then fast) and reports the choice Type: choice.",
+        "default": "auto",
         "x-ferraus-kind": "choice"
       },
       "only": {

@@ -20,7 +20,7 @@ ferraus separate song.wav --tier fast -y --json
 ```
 
 **Decide:** read `result.stems[].quality.score`; skip or flag stems that score low (this test
-song has no vocals, hence 0.018). Use `--tier fast` in this release (other tiers' models are
+song has no vocals, hence 0.018). The default `--tier auto` picks `fast` in this release (other tiers' models are
 not downloadable yet; see [Stems and separation tiers](../concepts/stems.md)). For a long song,
 add `--async` and poll `ferraus jobs wait <job_id> --json`.
 

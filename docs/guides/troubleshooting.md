@@ -34,7 +34,8 @@ shows every model, its size and license, and which tiers use it.
 (or, for some entries, no download at all), so ferraus refuses to fetch it. In this release that
 affects the `balanced`, `quality`, and `max` separation tiers, 6-stem separation, the full-size
 CREPE model, and the sheet-music recognition models; see
-[Stems and separation tiers](concepts/stems.md). Use `separate --tier fast`. You can override
+[Stems and separation tiers](concepts/stems.md). `separate` with the default `--tier auto` uses the
+best verified tier (`fast` today). You can override
 the check for an entry that does have a download with the variable shown in the hint
 (`FERRAUS_ALLOW_UNVERIFIED=1`), at your own risk.
 

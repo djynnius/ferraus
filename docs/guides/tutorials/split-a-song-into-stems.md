@@ -11,10 +11,11 @@ the model, and a network connection the first time.
 ## Which tier works today
 
 Separation uses neural-network models from the ferraus model registry. In this release only
-the **`fast`** tier (Demucs v4 `htdemucs`, 166 MB, MIT license) has a verified download, so use
-`--tier fast` for now. The default tier, `quality`, needs a RoFormer model whose ONNX export is
-not hosted yet, and `balanced` uses fine-tuned Demucs files that are not yet checksum-verified;
-both fail with exit code 6 and say why. See [Stems and separation tiers](../concepts/stems.md)
+the **`fast`** tier (Demucs v4 `htdemucs`, 166 MB, MIT license) has a verified download. The
+default tier, `auto`, picks the best verified tier, which is `fast` today, and says so in a
+`tier_fallback` warning; the commands below name `--tier fast` explicitly. Asking for `quality`
+(a RoFormer model whose ONNX export is not hosted yet) or `balanced` (fine-tuned Demucs files
+not yet checksum-verified) fails with exit code 6 and says why. See [Stems and separation tiers](../concepts/stems.md)
 for the full table.
 
 ## 1. See what would happen

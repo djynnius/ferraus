@@ -240,7 +240,7 @@
             ]
           }
         ],
-        "description": "Best-effort stem-aware mastering: separate --tier quality, per-stem chains, then sum and master Type: flag.",
+        "description": "Best-effort stem-aware mastering: separate (best verified tier), per-stem chains, then sum and master Type: flag.",
         "x-ferraus-kind": "flag"
       }
     },

@@ -13,7 +13,7 @@ plans and `ferraus models list --task separate` reports in ferraus 0.1.0:
 | --- | --- | --- |
 | `fast` | Demucs v4 `htdemucs` (one model for all four stems) | **works**: verified, 166 MB, MIT |
 | `balanced` | Demucs v4 fine-tuned specialists `htdemucs-ft-drums`, `-bass`, `-other`, `-vocals` (one per stem) | blocked: files have no recorded SHA-256 yet (exit code 6; `FERRAUS_ALLOW_UNVERIFIED=1` overrides, 166 MB each) |
-| `quality` (default) | Mel-Band RoFormer `mel-roformer-kj` for vocals, plus the fine-tuned Demucs drums, bass, and other | blocked: the RoFormer ONNX export is not hosted yet, so it cannot be downloaded at all |
+| `quality` | Mel-Band RoFormer `mel-roformer-kj` for vocals, plus the fine-tuned Demucs drums, bass, and other | blocked: the RoFormer ONNX export is not hosted yet, so it cannot be downloaded at all |
 | `max` | weighted ensemble: RoFormer 0.6 + `htdemucs-ft-vocals` 0.4 for vocals; fine-tuned Demucs 0.6 + `htdemucs` 0.4 for drums, bass, and other; 2 test-time-augmentation shifts | blocked, as `quality` |
 
 * `--stems 6` uses `htdemucs-6s` in every tier (136 MB; not yet checksum-verified, so blocked
@@ -25,16 +25,18 @@ plans and `ferraus models list --task separate` reports in ferraus 0.1.0:
   `mdx-kim-vocal-2`, `mdx-kara-2`) are listed with the flag `no_clear_license` and belong to no
   tier; `--model` with `--accept-license` uses one explicitly.
 
-**Use `--tier fast` in this release.** The default tier stops with an error that says why:
+**The default tier is `auto`**: the best tier whose models are all verified, tried in the order
+quality → balanced → fast. In this release that is `fast`; the result says so:
 
 ```json
-{"ok": false, "error": {"code": "model_unverified",
-  "message": "separate/mel-roformer-kj@2024.08 has no verified download (status: unverified, no SHA-256 recorded); refusing to fetch an unchecked file",
-  "exit_code": 6}}
+{"params": {"tier": "fast (auto)"},
+ "warnings": [{"code": "tier_fallback", "message": "using the 'fast' tier: the models of the better tiers are not yet verified for download in this registry (see 'ferraus models list')"}]}
 ```
 
-Commands that separate internally (`score <audio>`, `master --stems`) use the `quality` tier
-and are blocked the same way until those models are published.
+Asking for a blocked tier explicitly (`--tier quality`) stops with an error that says why
+(exit code 6, `model_unverified`). Commands that separate internally (`score <audio>`,
+`master --stems`) use `auto` too. When verified `quality` checkpoints are added to the
+registry, `auto` picks them with no other change (ADR 0007).
 
 ## Quality
 
