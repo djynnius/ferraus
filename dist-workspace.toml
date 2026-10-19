@@ -14,10 +14,8 @@ tap = "djynnius/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
   "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
   "aarch64-unknown-linux-gnu",
   "x86_64-unknown-linux-gnu",
-  "x86_64-unknown-linux-musl",
   "aarch64-pc-windows-msvc",
   "x86_64-pc-windows-msvc",
 ]
@@ -38,3 +36,12 @@ include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
 # Sign and notarize macOS binaries in CI: off until a Developer ID certificate is set up
 # (CODESIGN_* secrets, docs/dev/RELEASE-SETUP.md section 4); then set this to true and run `dist generate`
 macos-sign = false
+
+# ONNX Runtime's prebuilt Linux libraries (ort) need glibc 2.38+, so Linux builds run on
+# Ubuntu 24.04 and the release supports Ubuntu 24.04+, Debian 13+, Fedora 39+. There is no
+# musl build: ort ships no musl library, and no Intel macOS library (Apple silicon only).
+[dist.github-custom-runners]
+global = "ubuntu-24.04"
+x86_64-unknown-linux-gnu = "ubuntu-24.04"
+aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
+aarch64-pc-windows-msvc = "windows-11-arm"

@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='ferraus: a cross-platform music editing CLI for people and AI agents'
+            Description='A command-line audio workstation for scripts and AI agents'
             Manufacturer='Sunday Ikpe'
             InstallerVersion='450'
             Languages='1033'

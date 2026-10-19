@@ -15,8 +15,17 @@ fn bin() -> Command {
     c
 }
 
+/// `bin()` run in `dir` with a home of its own: tests run in parallel and must not share the
+/// pipeline cache or the job list.
+fn bin_in(dir: &Path) -> Command {
+    let home = dir.join(".ferraus-home");
+    let mut c = bin();
+    c.env("FERRAUS_HOME", &home).env("FERRAUS_CONFIG", home.join("config.toml")).current_dir(dir);
+    c
+}
+
 fn run_json(dir: &Path, args: &[&str]) -> (i32, Value) {
-    let out = bin().current_dir(dir).args(args).arg("--json").output().unwrap();
+    let out = bin_in(dir).args(args).arg("--json").output().unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
     let v: Value = serde_json::from_str(text.trim()).unwrap_or_else(|e| {
         panic!("bad JSON from {args:?}: {e}\nstdout: {text}\nstderr: {}", String::from_utf8_lossy(&out.stderr))
@@ -147,11 +156,10 @@ fn null_test_through_fx_chain() {
 fn stdin_stdout_pipe() {
     let d = TempDir::new("cli-pipe");
     fixture(&d);
-    let first = bin().current_dir(&d.0).args(["gain", "tone.wav", "--by", "-6dB", "-o", "-"]).output().unwrap();
+    let first = bin_in(&d.0).args(["gain", "tone.wav", "--by", "-6dB", "-o", "-"]).output().unwrap();
     assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
     assert!(first.stdout.starts_with(b"RIFF"));
-    let mut child = bin()
-        .current_dir(&d.0)
+    let mut child = bin_in(&d.0)
         .args(["info", "-", "--input-format", "wav", "--json"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -228,7 +236,7 @@ fn help_json_and_schema() {
 fn progress_json_events() {
     let d = TempDir::new("cli-progress");
     fixture(&d);
-    let out = bin().current_dir(&d.0).args(["gain", "tone.wav", "--progress", "json"]).output().unwrap();
+    let out = bin_in(&d.0).args(["gain", "tone.wav", "--progress", "json"]).output().unwrap();
     let events: Vec<Value> =
         String::from_utf8_lossy(&out.stderr).lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
     assert!(events.iter().any(|e| e["event"] == "progress"));
@@ -282,11 +290,8 @@ fn deterministic_runs_are_bit_identical() {
 fn async_jobs_and_timeout() {
     let d = TempDir::new("cli-async");
     fixture(&d);
-    let out = bin()
-        .current_dir(&d.0)
-        .args(["gain", "tone.wav", "--by", "-3dB", "-o", "bg.wav", "--async", "--json"])
-        .output()
-        .unwrap();
+    let out =
+        bin_in(&d.0).args(["gain", "tone.wav", "--by", "-3dB", "-o", "bg.wav", "--async", "--json"]).output().unwrap();
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
     let id = v["job_id"].as_str().unwrap().to_string();
     let (code, v) = run_json(&d.0, &["jobs", "wait", &id]);
@@ -299,8 +304,7 @@ fn async_jobs_and_timeout() {
     // a job that cannot finish in time is cancelled with exit code 8
     let long = testing::stereo(testing::noise(44100, 30.0, 0.1, 1));
     testing::write_wav(&d.path("long.wav"), &long);
-    let out = bin()
-        .current_dir(&d.0)
+    let out = bin_in(&d.0)
         .args([
             "fx",
             "long.wav",

@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   verify-attestations:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/download-artifact@v4
@@ -41,7 +41,7 @@ jobs:
     needs: verify-attestations
     # opt in with the repository variable PUBLISH_APT_DNF=true once gh-pages and PACKAGE_SIGNING_KEY exist
     if: vars.PUBLISH_APT_DNF == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +83,7 @@ jobs:
     needs: verify-attestations
     # opt in with the repository variable PUBLISH_CONTAINERS=true
     if: vars.PUBLISH_CONTAINERS == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -135,7 +135,7 @@ jobs:
 
   crates-io:
     needs: verify-attestations
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # the first release waits out crates.io's new-crate rate limit (about 10 minutes per crate)
     timeout-minutes: 360
     environment: release

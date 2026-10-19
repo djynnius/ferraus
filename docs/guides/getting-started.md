@@ -14,9 +14,12 @@ repository is `crates/ferraus-cli`; see `docs/decisions/0005-binary-package-name
 clone of the repository, `cargo install --path crates/ferraus-cli` does the same. Either way
 the binary goes to `~/.cargo/bin`, which rustup puts on your `PATH`.
 
-**Release installers.** Releases are built, signed, and attested by the repository's GitHub
-Actions workflows and published on the
-[releases page](https://github.com/djynnius/ferraus/releases).
+**Release installers.** Releases are built and attested by the repository's GitHub Actions
+workflows and published on the [releases page](https://github.com/djynnius/ferraus/releases).
+Release builds exist for macOS on Apple silicon (macOS 13.4+), Linux with glibc 2.38 or newer
+(Ubuntu 24.04+, Debian 13+, Fedora 39+) on x86-64 and ARM64, and Windows on x86-64 and ARM64.
+Intel Macs, older Linux distributions, and musl-based systems such as Alpine have no release
+build, because the ONNX Runtime libraries ferraus links have none.
 
 macOS and Linux:
 
@@ -34,8 +37,8 @@ The installers put `ferraus` in `~/.ferraus/bin` (set `FERRAUS_INSTALL_DIR` to c
 never ask for administrator rights. Open a new terminal afterwards. Packages are also published
 for Homebrew (`brew install djynnius/tap/ferraus`), Debian and Ubuntu
 (`sudo apt install ./ferraus_<version>_amd64.deb`), Fedora and RHEL
-(`sudo dnf install ./ferraus-<version>.x86_64.rpm`), and Windows (`winget install djynnius.ferraus`,
-or the MSI from the releases page).
+(`sudo dnf install ./ferraus-<version>.x86_64.rpm`), and Windows (the MSI from the releases
+page). winget, scoop, and apt/dnf repositories follow in a later release.
 
 ## Check the installation
 
