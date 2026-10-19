@@ -562,7 +562,11 @@ dependencies = [
 name = "ferraus-master"
 version = "0.1.0"
 dependencies = [
+ "ferraus-analysis",
  "ferraus-core",
+ "ferraus-dsp",
+ "ferraus-edit",
+ "ferraus-pitch",
  "serde",
  "serde_json",
 ]
