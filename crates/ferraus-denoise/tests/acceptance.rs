@@ -9,10 +9,7 @@ use ferraus_denoise::metrics::{birdie_score, hard_gate, BIRDIE_THRESHOLD};
 use ferraus_denoise::profile;
 
 fn spec(name: &str) -> OpSpec {
-    ferraus_denoise::ops()
-        .into_iter()
-        .find(|o| o.name == name)
-        .unwrap()
+    ferraus_denoise::ops().into_iter().find(|o| o.name == name).unwrap()
 }
 
 const LEAD_S: f64 = 1.0;
@@ -46,14 +43,7 @@ fn run_case(signal: &'static str, kind: NoiseKind, snr: f64, pairs: &[(&str, &st
     let before = si_sdr(c, &noisy.data[0]);
     let after = si_sdr(c, &out.data[0]);
     let retained = retained_db(c, &out.data[0], &clean.voiced);
-    Row {
-        signal,
-        noise: kind,
-        snr,
-        before,
-        after,
-        retained,
-    }
+    Row { signal, noise: kind, snr, before, after, retained }
 }
 
 fn matrix(pairs: &[(&str, &str)], label: &str) -> Vec<Row> {
@@ -124,12 +114,9 @@ fn identity_at_zero_reduction() {
     let (noisy, _) = mix(&clean.buf, &nz, 10.0, 24_000);
     let stereo = testing::stereo(noisy.clone());
     for (buf, mode) in [(noisy, "profile"), (stereo, "adaptive")] {
-        let out = testing::run(
-            &spec("denoise"),
-            &[("reduction", "0dB"), ("mode", mode), ("auto", "true")],
-            buf.clone(),
-        )
-        .unwrap();
+        let out =
+            testing::run(&spec("denoise"), &[("reduction", "0dB"), ("mode", mode), ("auto", "true")], buf.clone())
+                .unwrap();
         let err = testing::rms_diff(&buf, &out);
         assert!(err == 0.0 || 20.0 * err.log10() < -120.0, "{mode}: {err}");
     }
@@ -137,10 +124,7 @@ fn identity_at_zero_reduction() {
 
 #[test]
 fn mix_zero_is_identity() {
-    let x = testing::add(
-        &testing::sine(SR, 440.0, 0.5, 0.3),
-        &testing::noise(SR, 0.5, 0.05, 1),
-    );
+    let x = testing::add(&testing::sine(SR, 440.0, 0.5, 0.3), &testing::noise(SR, 0.5, 0.05, 1));
     let out = testing::run(&spec("denoise"), &[("mix", "0%")], x.clone()).unwrap();
     assert_eq!(out, x);
 }
@@ -180,12 +164,7 @@ fn rnnoise_reduces_noise_on_speech() {
     let lead = 3 * SR as usize / 2;
     let nz = make_noise(NoiseKind::Fan, 3.0, 5);
     let (noisy, _) = mix(&clean.buf, &nz, 5.0, lead);
-    let out = testing::run(
-        &spec("denoise"),
-        &[("mode", "ml"), ("model", "rnnoise")],
-        noisy.clone(),
-    )
-    .unwrap();
+    let out = testing::run(&spec("denoise"), &[("mode", "ml"), ("model", "rnnoise")], noisy.clone()).unwrap();
     let c = &clean.buf.data[0];
     let before = si_sdr(c, &noisy.data[0]);
     let after = si_sdr(c, &out.data[0]);

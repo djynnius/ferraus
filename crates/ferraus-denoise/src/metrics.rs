@@ -68,12 +68,7 @@ pub fn birdie_score(x: &[f32], sample_rate: u32) -> f64 {
 
 /// Naive hard spectral gate: bins whose power is above `mean power + sensitivity × std /
 /// 5.57 dB` pass unchanged, every other bin is multiplied by `-reduction`. No smoothing.
-pub fn hard_gate(
-    buf: &AudioBuffer,
-    profile: &NoiseProfile,
-    reduction_db: f32,
-    sensitivity: f32,
-) -> AudioBuffer {
+pub fn hard_gate(buf: &AudioBuffer, profile: &NoiseProfile, reduction_db: f32, sensitivity: f32) -> AudioBuffer {
     let n = fft_size_for(buf.sample_rate);
     let hop = hop_for(n);
     let mut fft = Fft::new(n);

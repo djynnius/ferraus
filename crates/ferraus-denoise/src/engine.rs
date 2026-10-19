@@ -94,10 +94,13 @@ impl Default for GateConfig {
 /// Where the noise estimate comes from.
 #[derive(Clone, Debug)]
 pub enum NoiseModel {
-    Profile(NoiseProfile),
+    Profile(Box<NoiseProfile>),
     /// Minimum-statistics tracking with no profile. `noisiness` 0..1 raises the threshold
     /// above the tracked floor (20 dB × noisiness); `floor_db` shifts the tracked floor.
-    Adaptive { noisiness: f32, floor_db: f32 },
+    Adaptive {
+        noisiness: f32,
+        floor_db: f32,
+    },
 }
 
 /// Minimum-statistics noise power tracker (after Martin 2001): smoothed periodogram,
@@ -223,8 +226,14 @@ impl Frame {
 
 enum Thresholds {
     /// Per group: main threshold, lowered (transient) threshold, in dB.
-    Profile { main: Vec<Vec<f32>>, open: Vec<Vec<f32>> },
-    Adaptive { offset_db: f32, floor_db: f32 },
+    Profile {
+        main: Vec<Vec<f32>>,
+        open: Vec<Vec<f32>>,
+    },
+    Adaptive {
+        offset_db: f32,
+        floor_db: f32,
+    },
 }
 
 /// Statistics gathered while processing (for metrics).
@@ -272,6 +281,7 @@ pub struct Engine {
     excess: Vec<f32>,
     scratch: Vec<f32>,
     scratch2: Vec<f32>,
+    target: Vec<f32>,
     gain: Vec<Vec<f32>>,
     pub stats: EngineStats,
     gain_sum: f64,
@@ -296,8 +306,7 @@ impl Engine {
                 let mut open = Vec::new();
                 for (g, tracker) in trackers.iter_mut().enumerate() {
                     let (mean, std) = p.stats_for(g, cfg.link, channels);
-                    let mean_pow_db: Vec<f32> =
-                        mean.iter().zip(std).map(|(m, s)| m + log_bias_db(*s)).collect();
+                    let mean_pow_db: Vec<f32> = mean.iter().zip(std).map(|(m, s)| m + log_bias_db(*s)).collect();
                     main.push(
                         mean_pow_db
                             .iter()
@@ -305,22 +314,15 @@ impl Engine {
                             .map(|(m, s)| m + cfg.sensitivity * s.max(SPREAD_FLOOR_DB) / RAYLEIGH_STD_DB)
                             .collect(),
                     );
-                    let seed: Vec<f32> = mean_pow_db
-                        .iter()
-                        .map(|d| 10f32.powf(d / 10.0).max(FLOOR_POW))
-                        .collect();
+                    let seed: Vec<f32> = mean_pow_db.iter().map(|d| 10f32.powf(d / 10.0).max(FLOOR_POW)).collect();
                     tracker.seed(&seed);
                     open.push(mean_pow_db);
                 }
                 Thresholds::Profile { main, open }
             }
-            NoiseModel::Adaptive {
-                noisiness,
-                floor_db,
-            } => Thresholds::Adaptive {
-                offset_db: 20.0 * noisiness.clamp(0.0, 1.0),
-                floor_db: *floor_db,
-            },
+            NoiseModel::Adaptive { noisiness, floor_db } => {
+                Thresholds::Adaptive { offset_db: 20.0 * noisiness.clamp(0.0, 1.0), floor_db: *floor_db }
+            }
         };
         // attack/release as slew rates: the full reduction range per attack/release time
         let slew = |t: f32| {
@@ -373,6 +375,7 @@ impl Engine {
             excess: vec![0.0; bins],
             scratch: vec![0.0; bins],
             scratch2: vec![0.0; bins],
+            target: vec![0.0; bins],
             gain: vec![vec![1.0; bins]; groups],
             stats: EngineStats::default(),
             gain_sum: 0.0,
@@ -403,10 +406,7 @@ impl Engine {
             let src = input[c.min(input.len() - 1)];
             buf[n - hop..].copy_from_slice(&src[..hop]);
         }
-        let mut frame = self
-            .pool
-            .pop()
-            .unwrap_or_else(|| Frame::new(self.channels, self.groups, self.bins));
+        let mut frame = self.pool.pop().unwrap_or_else(|| Frame::new(self.channels, self.groups, self.bins));
         self.analyze(&mut frame);
         self.queue.push_back(frame);
         // stage B: blend (median) the frame before the newest
@@ -449,8 +449,8 @@ impl Engine {
                 }
             }
             // detector level: the bin's own power in dB (same statistic as the profile)
-            for k in 0..bins {
-                self.level[k] = pow_db(pow[k]);
+            for (l, p) in self.level.iter_mut().zip(pow.iter()) {
+                *l = pow_db(*p);
             }
             if full {
                 self.trackers[g].update(pow);
@@ -459,10 +459,7 @@ impl Engine {
             // thresholds → raw gains
             let (main_off, open_off) = match &self.thresholds {
                 Thresholds::Profile { .. } => (0.0, 0.0),
-                Thresholds::Adaptive {
-                    offset_db,
-                    floor_db,
-                } => (offset_db + floor_db, *floor_db),
+                Thresholds::Adaptive { offset_db, floor_db } => (offset_db + floor_db, *floor_db),
             };
             // main gate
             for k in 0..bins {
@@ -476,9 +473,9 @@ impl Engine {
             let mut flux = 0f32;
             if full {
                 let prev = &self.prev_level[g];
-                for k in 0..bins {
-                    if self.excess[k] > 0.0 && prev[k].is_finite() {
-                        flux += (self.level[k] - prev[k]).max(0.0);
+                for ((e, l), p) in self.excess.iter().zip(&self.level).zip(prev) {
+                    if *e > 0.0 && p.is_finite() {
+                        flux += (l - p).max(0.0);
                     }
                 }
                 flux /= bins as f32;
@@ -492,10 +489,16 @@ impl Engine {
                         Thresholds::Profile { open, .. } => open[g][k],
                         Thresholds::Adaptive { .. } => pow_db(frame.noise[g][k]) + open_off,
                     };
-                    self.excess[k] =
-                        (self.level[k] - thr).clamp(-EXCESS_CLAMP_DB, EXCESS_CLAMP_DB);
+                    self.excess[k] = (self.level[k] - thr).clamp(-EXCESS_CLAMP_DB, EXCESS_CLAMP_DB);
                 }
-                smooth_to_gain(&self.excess, &self.kernel, rdb, &mut frame.open[g], &mut self.scratch, &mut self.scratch2);
+                smooth_to_gain(
+                    &self.excess,
+                    &self.kernel,
+                    rdb,
+                    &mut frame.open[g],
+                    &mut self.scratch,
+                    &mut self.scratch2,
+                );
             }
         }
         frame.flux = max_flux;
@@ -558,17 +561,25 @@ impl Engine {
         let alpha = self.cfg.artifact_control.clamp(0.0, 1.0);
         let gmin = self.gmin;
         let floor_cap = (gmin * FLOOR_MAX_LIFT).min(1.0);
+        let mut target = std::mem::take(&mut self.target);
         for g in 0..self.groups {
+            // lookahead maximum of the blended mask
+            target.copy_from_slice(&self.queue[0].blended[g]);
+            for f in self.queue.iter().skip(1).take(la) {
+                for (t, b) in target.iter_mut().zip(&f.blended[g]) {
+                    if *b > *t {
+                        *t = *b;
+                    }
+                }
+            }
+            let f0 = &self.queue[0];
             let smooth = &mut self.smooth_db[g];
             let gain = &mut self.gain[g];
             for k in 0..bins {
-                let mut target = f32::NEG_INFINITY;
-                for f in self.queue.iter().take(la + 1) {
-                    target = target.max(f.blended[g][k]);
-                }
+                let target = target[k];
                 let s = smooth[k];
                 let ns = if transient {
-                    let t = target.max(self.queue[0].open[g][k]);
+                    let t = target.max(f0.open[g][k]);
                     if t > s {
                         t
                     } else {
@@ -580,13 +591,8 @@ impl Engine {
                     target.max(s - self.a_rel)
                 };
                 smooth[k] = ns;
-                let mut gl = if ns == 0.0 {
-                    1.0
-                } else {
-                    10f32.powf(ns / 20.0)
-                };
+                let mut gl = if ns == 0.0 { 1.0 } else { 10f32.powf(ns / 20.0) };
                 if alpha > 0.0 {
-                    let f0 = &self.queue[0];
                     let p = f0.pow[g][k].max(FLOOR_POW);
                     let gf = (gmin * (f0.noise[g][k] / p).sqrt()).min(floor_cap);
                     if gf > gl {
@@ -597,13 +603,13 @@ impl Engine {
                 self.gain_sum += (20.0 * gl.max(1e-6).log10()) as f64;
             }
         }
+        self.target = target;
         self.stats.frames += 1;
         let mut frame = self.queue.pop_front().expect("queue not empty");
         self.blended_count -= 1;
         let (n, hop) = (self.n, self.hop);
-        for c in 0..self.channels {
+        for (c, (spec, o)) in frame.spec.iter_mut().zip(out.iter_mut()).enumerate() {
             let g = if self.cfg.link { 0 } else { c };
-            let spec = &mut frame.spec[c];
             for (z, gl) in spec.iter_mut().zip(&self.gain[g]) {
                 *z *= *gl;
             }
@@ -612,7 +618,7 @@ impl Engine {
             for (a, x) in acc.iter_mut().zip(t) {
                 *a += x;
             }
-            out[c].extend_from_slice(&acc[..hop]);
+            o.extend_from_slice(&acc[..hop]);
             acc.copy_within(hop.., 0);
             acc[n - hop..].iter_mut().for_each(|v| *v = 0.0);
         }
@@ -635,23 +641,22 @@ impl Engine {
         let mut pos = 0usize;
         let mut tick = 0usize;
         while out[0].len() < skip + total {
-            for c in 0..ch {
+            for (c, dst) in chunk.iter_mut().enumerate() {
                 let src = &buf.data[c.min(buf.channels() - 1)];
-                for i in 0..hop {
-                    chunk[c][i] = src.get(pos + i).copied().unwrap_or(0.0);
+                for (i, d) in dst.iter_mut().enumerate() {
+                    *d = src.get(pos + i).copied().unwrap_or(0.0);
                 }
             }
             pos += hop;
             let refs: Vec<&[f32]> = chunk.iter().map(|c| c.as_slice()).collect();
             self.push_hop(&refs, &mut out);
             tick += 1;
-            if tick % 256 == 0 {
+            if tick.is_multiple_of(256) {
                 progress((pos as f64 / total.max(1) as f64).min(1.0))?;
             }
         }
         if self.stats.frames > 0 {
-            self.stats.mean_gain_db =
-                self.gain_sum / (self.stats.frames * self.bins * self.groups) as f64;
+            self.stats.mean_gain_db = self.gain_sum / (self.stats.frames * self.bins * self.groups) as f64;
         }
         let data = out
             .into_iter()
@@ -689,30 +694,30 @@ fn smooth_to_gain(
         return;
     }
     let to_lin = std::f32::consts::LN_10 / 20.0;
-    for k in 0..bins {
-        let sig = 1.0 / (1.0 + (-(excess[k] - SIGMOID_OFFSET_DB) / SIGMOID_WIDTH_DB).exp());
-        lin[k] = (-reduction_db * (1.0 - sig) * to_lin).exp();
+    for (l, e) in lin.iter_mut().zip(excess) {
+        let sig = 1.0 / (1.0 + (-(e - SIGMOID_OFFSET_DB) / SIGMOID_WIDTH_DB).exp());
+        *l = (-reduction_db * (1.0 - sig) * to_lin).exp();
     }
     if r == 0 {
-        for k in 0..bins {
-            out[k] = 20.0 * lin[k].max(1e-9).log10();
+        for (o, l) in out.iter_mut().zip(lin.iter()) {
+            *o = 20.0 * l.max(1e-9).log10();
         }
         return;
     }
     // opening = erosion then dilation, 3-bin structuring element; bins well above the
     // threshold are kept as they are (noise peaks never get there, weak narrow partials do)
-    for k in 0..bins {
+    for (k, t) in tmp.iter_mut().enumerate() {
         let lo = k.saturating_sub(1);
         let hi = (k + 1).min(bins - 1);
-        tmp[k] = lin[lo..=hi].iter().copied().fold(f32::INFINITY, f32::min);
+        *t = lin[lo..=hi].iter().copied().fold(f32::INFINITY, f32::min);
     }
-    for k in 0..bins {
+    for (k, o) in out.iter_mut().enumerate() {
         let lo = k.saturating_sub(1);
         let hi = (k + 1).min(bins - 1);
-        out[k] = tmp[lo..=hi].iter().copied().fold(0.0, f32::max);
+        *o = tmp[lo..=hi].iter().copied().fold(0.0, f32::max);
     }
-    for k in 0..bins {
-        tmp[k] = if excess[k] > OPENING_KEEP_DB { lin[k] } else { out[k] };
+    for ((t, e), (l, o)) in tmp.iter_mut().zip(excess).zip(lin.iter().zip(out.iter())) {
+        *t = if *e > OPENING_KEEP_DB { *l } else { *o };
     }
     for k in 0..bins {
         let lo = k.saturating_sub(r);
@@ -746,19 +751,8 @@ mod tests {
     #[test]
     fn unity_gain_reconstructs() {
         let x = ferraus_core::testing::add(&sine(48_000, 440.0, 0.5, 0.5), &noise(48_000, 0.5, 0.1, 3));
-        let cfg = GateConfig {
-            reduction_db: 0.0,
-            ..Default::default()
-        };
-        let mut e = Engine::new(
-            cfg,
-            &NoiseModel::Adaptive {
-                noisiness: 0.3,
-                floor_db: 0.0,
-            },
-            48_000,
-            1,
-        );
+        let cfg = GateConfig { reduction_db: 0.0, ..Default::default() };
+        let mut e = Engine::new(cfg, &NoiseModel::Adaptive { noisiness: 0.3, floor_db: 0.0 }, 48_000, 1);
         let y = e.process_buffer(&x, &mut |_| Ok(())).unwrap();
         assert_eq!(y.frames(), x.frames());
         let err = ferraus_core::testing::rms_diff(&x, &y);

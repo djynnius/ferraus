@@ -1,7 +1,6 @@
 //! Model-based denoising: RNNoise (pure-Rust `nnnoiseless`, weights embedded) and the
 //! model slots for DeepFilterNet 3, music-aware denoise, and de-reverb checkpoints.
 
-use ferraus_core::resample::{resample, Quality};
 use ferraus_core::{AudioBuffer, Error, ErrorKind, Result};
 use serde_json::{json, Value};
 
@@ -66,10 +65,7 @@ pub fn find_cached(prefix: &str) -> Option<std::path::PathBuf> {
     let fam = dir.join(family);
     let mut entries: Vec<_> = std::fs::read_dir(&fam).ok()?.filter_map(|e| e.ok()).collect();
     entries.sort_by_key(|e| e.file_name());
-    entries
-        .into_iter()
-        .find(|e| e.file_name().to_string_lossy().starts_with(stem))
-        .map(|e| e.path())
+    entries.into_iter().find(|e| e.file_name().to_string_lossy().starts_with(stem)).map(|e| e.path())
 }
 
 fn not_cached(name: &str, what: &str) -> Error {
@@ -119,6 +115,7 @@ pub const RNNOISE_RATE: u32 = 48_000;
 /// Run RNNoise on every channel independently (48 kHz internally, resampled in and out).
 #[cfg(feature = "rnnoise")]
 pub fn rnnoise(buf: &AudioBuffer) -> Result<AudioBuffer> {
+    use ferraus_core::resample::{resample, Quality};
     use nnnoiseless::DenoiseState;
     let frame = DenoiseState::FRAME_SIZE;
     let x = resample(buf, RNNOISE_RATE, Quality::High);
@@ -154,9 +151,7 @@ pub fn rnnoise(buf: &AudioBuffer) -> Result<AudioBuffer> {
 
 #[cfg(not(feature = "rnnoise"))]
 pub fn rnnoise(_buf: &AudioBuffer) -> Result<AudioBuffer> {
-    Err(Error::unsupported(
-        "--model rnnoise: this build was compiled without the 'rnnoise' feature",
-    ))
+    Err(Error::unsupported("--model rnnoise: this build was compiled without the 'rnnoise' feature"))
 }
 
 /// The JSON note attached to every model-path run.

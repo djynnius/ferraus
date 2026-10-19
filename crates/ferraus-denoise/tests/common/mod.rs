@@ -93,10 +93,7 @@ pub fn speech_like(lead_s: f64, secs: f64, amp: f32) -> Clean {
         voiced[n_lead + i] = env > 0.5;
     }
     normalize(&mut out, amp);
-    Clean {
-        buf: AudioBuffer::from_mono(SR, out),
-        voiced,
-    }
+    Clean { buf: AudioBuffer::from_mono(SR, out), voiced }
 }
 
 /// Music-like: chords of harmonic tones (8 partials, 1/h), a new chord every 0.5 s with a
@@ -129,10 +126,7 @@ pub fn music_like(lead_s: f64, secs: f64, amp: f32) -> Clean {
         voiced[n_lead + i] = env > 0.5;
     }
     normalize(&mut out, amp);
-    Clean {
-        buf: AudioBuffer::from_mono(SR, out),
-        voiced,
-    }
+    Clean { buf: AudioBuffer::from_mono(SR, out), voiced }
 }
 
 fn normalize(x: &mut [f32], peak: f32) {
@@ -157,12 +151,7 @@ pub enum NoiseKind {
 }
 
 impl NoiseKind {
-    pub const ALL: [NoiseKind; 4] = [
-        NoiseKind::Hiss,
-        NoiseKind::Fan,
-        NoiseKind::Hum,
-        NoiseKind::Street,
-    ];
+    pub const ALL: [NoiseKind; 4] = [NoiseKind::Hiss, NoiseKind::Fan, NoiseKind::Hum, NoiseKind::Street];
 }
 
 /// Unit-RMS stationary noise of `kind`.
@@ -172,13 +161,12 @@ pub fn make_noise(kind: NoiseKind, secs: f64, seed: u64) -> Vec<f32> {
     let mut x = match kind {
         NoiseKind::Hiss => w,
         NoiseKind::Fan => {
-            let (mut b0, mut b1, mut b2, mut b3, mut b4, mut b5, mut b6) =
-                (0f32, 0f32, 0f32, 0f32, 0f32, 0f32, 0f32);
+            let (mut b0, mut b1, mut b2, mut b3, mut b4, mut b5, mut b6) = (0f32, 0f32, 0f32, 0f32, 0f32, 0f32, 0f32);
             let mut out = Vec::with_capacity(n);
             for v in w.iter() {
                 b0 = 0.99886 * b0 + v * 0.0555179;
                 b1 = 0.99332 * b1 + v * 0.0750759;
-                b2 = 0.96900 * b2 + v * 0.1538520;
+                b2 = 0.96900 * b2 + v * 0.153_852;
                 b3 = 0.86650 * b3 + v * 0.3104856;
                 b4 = 0.55000 * b4 + v * 0.5329522;
                 b5 = -0.7616 * b5 - v * 0.0168980;

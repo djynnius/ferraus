@@ -113,22 +113,12 @@ impl NoiseProfile {
         }
         let bins = self.bins();
         if self.mean_db.len() != self.channels || self.std_db.len() != self.channels {
-            return Err(bad(format!(
-                "expected {} channel arrays in mean_db/std_db",
-                self.channels
-            )));
+            return Err(bad(format!("expected {} channel arrays in mean_db/std_db", self.channels)));
         }
-        let all = self
-            .mean_db
-            .iter()
-            .chain(&self.std_db)
-            .chain([&self.linked.mean_db, &self.linked.std_db]);
+        let all = self.mean_db.iter().chain(&self.std_db).chain([&self.linked.mean_db, &self.linked.std_db]);
         for a in all {
             if a.len() != bins {
-                return Err(bad(format!(
-                    "expected {bins} bins (fft_size/2+1), found {}",
-                    a.len()
-                )));
+                return Err(bad(format!("expected {bins} bins (fft_size/2+1), found {}", a.len())));
             }
             if a.iter().any(|v| !v.is_finite()) {
                 return Err(bad("non-finite values".into()));
@@ -265,22 +255,11 @@ impl ProfileLearner {
                 0.0
             }
         };
-        let mean_db: Vec<Vec<f32>> = self
-            .mean
-            .iter()
-            .map(|c| c.iter().map(|v| round3(v.max(FLOOR_DB as f64))).collect())
-            .collect();
-        let std_db: Vec<Vec<f32>> = self
-            .m2
-            .iter()
-            .map(|c| c.iter().map(|v| round3(std(*v))).collect())
-            .collect();
+        let mean_db: Vec<Vec<f32>> =
+            self.mean.iter().map(|c| c.iter().map(|v| round3(v.max(FLOOR_DB as f64))).collect()).collect();
+        let std_db: Vec<Vec<f32>> = self.m2.iter().map(|c| c.iter().map(|v| round3(std(*v))).collect()).collect();
         let linked = BinStats {
-            mean_db: self
-                .lmean
-                .iter()
-                .map(|v| round3(v.max(FLOOR_DB as f64)))
-                .collect(),
+            mean_db: self.lmean.iter().map(|v| round3(v.max(FLOOR_DB as f64))).collect(),
             std_db: self.lm2.iter().map(|v| round3(std(*v))).collect(),
         };
         let n = self.fft.n;
@@ -494,11 +473,7 @@ fn merge_stats(parts: &[(&[f32], &[f32], usize)], method: MergeMethod) -> BinSta
 }
 
 /// Merge two or more profiles. Returns the merged profile and any warnings.
-pub fn merge(
-    profiles: &[NoiseProfile],
-    names: &[String],
-    method: MergeMethod,
-) -> Result<(NoiseProfile, Vec<String>)> {
+pub fn merge(profiles: &[NoiseProfile], names: &[String], method: MergeMethod) -> Result<(NoiseProfile, Vec<String>)> {
     if profiles.len() < 2 {
         return Err(Error::usage("merge needs at least two profiles"));
     }
@@ -537,10 +512,8 @@ pub fn merge(
         mean_db.push(s.mean_db);
         std_db.push(s.std_db);
     }
-    let lparts: Vec<(&[f32], &[f32], usize)> = profiles
-        .iter()
-        .map(|p| (p.linked.mean_db.as_slice(), p.linked.std_db.as_slice(), p.frames))
-        .collect();
+    let lparts: Vec<(&[f32], &[f32], usize)> =
+        profiles.iter().map(|p| (p.linked.mean_db.as_slice(), p.linked.std_db.as_slice(), p.frames)).collect();
     let linked = merge_stats(&lparts, method);
     let merged = NoiseProfile {
         format: PROFILE_FORMAT.into(),

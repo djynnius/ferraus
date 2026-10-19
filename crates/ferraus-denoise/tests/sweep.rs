@@ -7,8 +7,8 @@ mod common;
 use common::*;
 use ferraus_core::testing::{self, si_sdr};
 use ferraus_core::AudioBuffer;
-use ferraus_denoise::stft::{fft_size_for, hop_for, Fft};
 use ferraus_denoise::stft::Complex32;
+use ferraus_denoise::stft::{fft_size_for, hop_for, Fft};
 
 fn oracle(clean: &[f32], nz: &[f32], gmin: f32) -> Vec<f32> {
     let n = fft_size_for(SR);
@@ -26,11 +26,8 @@ fn oracle(clean: &[f32], nz: &[f32], gmin: f32) -> Vec<f32> {
     let (c, z) = (padv(clean), padv(nz));
     let x: Vec<f32> = c.iter().zip(&z).map(|(a, b)| a + b).collect();
     let mut y = vec![0f32; x.len() + n];
-    let (mut sc, mut sz, mut sx) = (
-        vec![Complex32::default(); bins],
-        vec![Complex32::default(); bins],
-        vec![Complex32::default(); bins],
-    );
+    let (mut sc, mut sz, mut sx) =
+        (vec![Complex32::default(); bins], vec![Complex32::default(); bins], vec![Complex32::default(); bins]);
     let mut s = 0;
     while s + n <= x.len() {
         fft.forward(&c[s..s + n], &mut sc);
@@ -66,11 +63,7 @@ fn sweep() {
     ];
     let lead = SR as usize;
     for signal in ["speech", "music"] {
-        let clean = if signal == "speech" {
-            speech_like(1.0, 2.0, 0.5)
-        } else {
-            music_like(1.0, 2.0, 0.5)
-        };
+        let clean = if signal == "speech" { speech_like(1.0, 2.0, 0.5) } else { music_like(1.0, 2.0, 0.5) };
         for kind in NoiseKind::ALL {
             let nz = make_noise(kind, 3.0, 17);
             let (noisy, scaled) = mix(&clean.buf, &nz, 10.0, lead);

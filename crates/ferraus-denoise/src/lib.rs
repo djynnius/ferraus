@@ -149,20 +149,20 @@ fn profile_spec() -> OpSpec {
          0s..2s), let ferraus find the quietest spectrally stable second with --auto, or \
          learn from a separate noise-only recording with --from.",
     )
-    .inputs(Inputs {
-        min: 0,
-        max: Some(1),
-        kind: InputKind::Audio,
-    })
-    .param(param("range", ParamKind::Range).default("0s..2s").help(
-        "Noise-only region of the input, e.g. 0s..2s or 1:02..1:04",
-    ))
-    .param(param("auto", ParamKind::Flag).help(
-        "Find the quietest spectrally stable 1 s window and learn from it (the window is reported)",
-    ))
-    .param(param("from", ParamKind::Path).help(
-        "Learn from this whole noise-only recording instead of a region of the input",
-    ))
+    .inputs(Inputs { min: 0, max: Some(1), kind: InputKind::Audio })
+    .param(
+        param("range", ParamKind::Range)
+            .default("0s..2s")
+            .help("Noise-only region of the input, e.g. 0s..2s or 1:02..1:04"),
+    )
+    .param(
+        param("auto", ParamKind::Flag)
+            .help("Find the quietest spectrally stable 1 s window and learn from it (the window is reported)"),
+    )
+    .param(
+        param("from", ParamKind::Path)
+            .help("Learn from this whole noise-only recording instead of a region of the input"),
+    )
     .example(
         "ferraus denoise profile take.wav --range 0s..2s -o room.noiseprof",
         "Learn the room tone from the first two seconds",
@@ -189,11 +189,7 @@ fn merge_spec() -> OpSpec {
          keeps the louder noise of every bin (removes the worst noise seen in any take); \
          --method mean pools the statistics as if all the noise had been profiled at once.",
     )
-    .inputs(Inputs {
-        min: 2,
-        max: None,
-        kind: InputKind::Any,
-    })
+    .inputs(Inputs { min: 2, max: None, kind: InputKind::Any })
     .param(
         param("method", ParamKind::Choice)
             .choices(&["max", "mean"])
@@ -236,9 +232,7 @@ fn resolve_mode(a: &Args) -> Result<String> {
     let mode = a.choice("mode");
     if a.flag("adaptive") {
         if a.is_explicit("mode") && mode != "adaptive" {
-            return Err(Error::usage(format!(
-                "--adaptive conflicts with --mode {mode}; pass one of them"
-            )));
+            return Err(Error::usage(format!("--adaptive conflicts with --mode {mode}; pass one of them")));
         }
         return Ok("adaptive".into());
     }
@@ -277,9 +271,7 @@ fn load_profile(ctx: &mut OpCtx, path: &Path) -> Result<NoiseProfile> {
 fn resolve_profile(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<Option<NoiseProfile>> {
     let given = [a.has("profile"), a.has("noise-range"), a.flag("auto")];
     if given.iter().filter(|g| **g).count() > 1 {
-        return Err(Error::usage(
-            "choose one noise source: --profile, --noise-range, or --auto",
-        ));
+        return Err(Error::usage("choose one noise source: --profile, --noise-range, or --auto"));
     }
     if let Some(p) = a.path("profile") {
         let prof = load_profile(ctx, &p)?;
@@ -332,17 +324,10 @@ fn resolve_profile(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<Optio
             "no --profile, --noise-range, or --auto given: learning the noise from the quietest 1 s region (pass --auto to make this explicit)",
         );
     }
-    let window = if buf.duration_s() < 4.0 {
-        (buf.duration_s() / 4.0).clamp(0.25, 1.0)
-    } else {
-        1.0
-    };
+    let window = if buf.duration_s() < 4.0 { (buf.duration_s() / 4.0).clamp(0.25, 1.0) } else { 1.0 };
     match profile::find_quiet_region(buf, window) {
         None => {
-            ctx.warn(
-                "input_too_short",
-                "the input is too short to estimate the noise; it was left unchanged",
-            );
+            ctx.warn("input_too_short", "the input is too short to estimate the noise; it was left unchanged");
             Ok(None)
         }
         Some(r) => {
@@ -365,12 +350,7 @@ fn resolve_profile(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<Optio
     }
 }
 
-fn run_engine(
-    cfg: GateConfig,
-    model: &NoiseModel,
-    buf: &AudioBuffer,
-    ctx: &mut OpCtx,
-) -> Result<AudioBuffer> {
+fn run_engine(cfg: GateConfig, model: &NoiseModel, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     if cfg.reduction_db == 0.0 {
         // exact identity, bit for bit
         return Ok(buf.clone());
@@ -413,11 +393,7 @@ fn model_pass(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffe
         format!("--model {model} is a speech-tuned model; on music the default profile path (--mode profile) usually sounds better"),
     );
     ctx.note("model_domain", ml::speech_note(&model));
-    Ok(if strength >= 1.0 {
-        y
-    } else {
-        blend(buf, &y, strength)
-    })
+    Ok(if strength >= 1.0 { y } else { blend(buf, &y, strength) })
 }
 
 fn denoise(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
@@ -440,7 +416,7 @@ fn denoise(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
             None => buf.clone(),
             Some(p) => {
                 ctx.metric("noise_floor_db", (p.mean_level_db() * 10.0).round() / 10.0);
-                run_engine(cfg, &NoiseModel::Profile(p), &buf, ctx)?
+                run_engine(cfg, &NoiseModel::Profile(Box::new(p)), &buf, ctx)?
             }
         },
         "adaptive" => {
@@ -453,17 +429,15 @@ fn denoise(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
             if !a.is_explicit("release") {
                 cfg.release_s = 0.2 * a.percent("decay")?.clamp(0.0, 1.0) as f32;
             }
-            let model = NoiseModel::Adaptive {
-                noisiness: a.percent("noisiness")? as f32,
-                floor_db: a.db("floor")? as f32,
-            };
+            let model =
+                NoiseModel::Adaptive { noisiness: a.percent("noisiness")? as f32, floor_db: a.db("floor")? as f32 };
             run_engine(cfg, &model, &buf, ctx)?
         }
         "ml" => model_pass(a, &buf, ctx)?,
         "hybrid" => {
             let first = match resolve_profile(a, &buf, ctx)? {
                 None => buf.clone(),
-                Some(p) => run_engine(cfg, &NoiseModel::Profile(p), &buf, ctx)?,
+                Some(p) => run_engine(cfg, &NoiseModel::Profile(Box::new(p)), &buf, ctx)?,
             };
             model_pass(a, &first, ctx)?
         }
@@ -494,21 +468,12 @@ fn denoise_profile(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let auto = a.flag("auto");
     let from = a.path("from");
     let range_explicit = a.is_explicit("range");
-    if [auto, from.is_some(), range_explicit]
-        .iter()
-        .filter(|x| **x)
-        .count()
-        > 1
-    {
-        return Err(Error::usage(
-            "choose one noise source: --range, --auto, or --from",
-        ));
+    if [auto, from.is_some(), range_explicit].iter().filter(|x| **x).count() > 1 {
+        return Err(Error::usage("choose one noise source: --range, --auto, or --from"));
     }
     if from.is_none() && ctx.inputs.is_empty() {
-        return Err(Error::usage(
-            "'denoise profile' needs an input file (or --from <noise-only file>)",
-        )
-        .with_hint("ferraus denoise profile take.wav --range 0s..2s -o room.noiseprof"));
+        return Err(Error::usage("'denoise profile' needs an input file (or --from <noise-only file>)")
+            .with_hint("ferraus denoise profile take.wav --range 0s..2s -o room.noiseprof"));
     }
     let out_path = ctx.output_path(None, "noiseprof")?;
     let (prof, region) = if let Some(f) = &from {
@@ -540,16 +505,12 @@ fn denoise_profile(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         let buf = ctx.read_audio(0)?;
         let input = ctx.input(0)?.display().to_string();
         if auto {
-            let r = profile::find_quiet_region(&buf, 1.0).ok_or_else(|| {
-                Error::usage("the input is shorter than one analysis frame; nothing to learn from")
-            })?;
+            let r = profile::find_quiet_region(&buf, 1.0)
+                .ok_or_else(|| Error::usage("the input is shorter than one analysis frame; nothing to learn from"))?;
             if r.end_s - r.start_s < 0.99 {
                 ctx.warn(
                     "short_noise_region",
-                    format!(
-                        "the input is shorter than 1 s; learned from {:.2} s",
-                        r.end_s - r.start_s
-                    ),
+                    format!("the input is shorter than 1 s; learned from {:.2} s", r.end_s - r.start_s),
                 );
             }
             let src = ProfileSource {
@@ -564,9 +525,7 @@ fn denoise_profile(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             ctx.note("noise_region", region.clone());
             (p, region)
         } else {
-            let r = a
-                .range("range")?
-                .ok_or_else(|| Error::usage("missing --range"))?;
+            let r = a.range("range")?.ok_or_else(|| Error::usage("missing --range"))?;
             let (s, e) = r.frames(buf.sample_rate, buf.frames(), ctx.bpm())?;
             let src = ProfileSource {
                 method: "range".into(),

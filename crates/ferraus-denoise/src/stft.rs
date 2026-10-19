@@ -77,23 +77,15 @@ impl Fft {
         for ((t, x), w) in self.time.iter_mut().zip(frame).zip(&self.window) {
             *t = x * w;
         }
-        self.fwd
-            .process_with_scratch(&mut self.time, spec, &mut self.fwd_scratch)
-            .expect("fft sizes match");
+        self.fwd.process_with_scratch(&mut self.time, spec, &mut self.fwd_scratch).expect("fft sizes match");
     }
 
     /// Forward transform of a frame given as two pieces (ring-buffer order).
     pub fn forward_split(&mut self, a: &[f32], b: &[f32], spec: &mut [Complex32]) {
-        let n1 = a.len();
-        for i in 0..n1 {
-            self.time[i] = a[i] * self.window[i];
+        for ((t, x), w) in self.time.iter_mut().zip(a.iter().chain(b)).zip(&self.window) {
+            *t = x * w;
         }
-        for i in 0..b.len() {
-            self.time[n1 + i] = b[i] * self.window[n1 + i];
-        }
-        self.fwd
-            .process_with_scratch(&mut self.time, spec, &mut self.fwd_scratch)
-            .expect("fft sizes match");
+        self.fwd.process_with_scratch(&mut self.time, spec, &mut self.fwd_scratch).expect("fft sizes match");
     }
 
     /// Inverse transform `spec` (modified in place as scratch) and return the windowed,
@@ -103,9 +95,7 @@ impl Fft {
         spec[0].im = 0.0;
         let last = spec.len() - 1;
         spec[last].im = 0.0;
-        self.inv
-            .process_with_scratch(spec, &mut self.time, &mut self.inv_scratch)
-            .expect("fft sizes match");
+        self.inv.process_with_scratch(spec, &mut self.time, &mut self.inv_scratch).expect("fft sizes match");
         // periodic Hann: sum of w² at hop n/4 is exactly 1.5
         let norm = 1.0 / (self.n as f32 * 1.5);
         for (t, w) in self.time.iter_mut().zip(&self.window) {
@@ -153,9 +143,7 @@ mod tests {
         let sr = 48_000.0;
         let k = 100.0;
         let freq = k * sr / n as f64;
-        let x: Vec<f32> = (0..n)
-            .map(|i| (2.0 * std::f64::consts::PI * freq * i as f64 / sr).sin() as f32)
-            .collect();
+        let x: Vec<f32> = (0..n).map(|i| (2.0 * std::f64::consts::PI * freq * i as f64 / sr).sin() as f32).collect();
         let mut spec = vec![Complex32::new(0.0, 0.0); f.bins()];
         f.forward(&x, &mut spec);
         let db = 20.0 * (spec[100].norm() * f.mag_scale).log10();
