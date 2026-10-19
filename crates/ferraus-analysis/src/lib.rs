@@ -1,4 +1,14 @@
-//! ferraus-analysis
+//! # ferraus-analysis
+//!
+//! Reusable audio analysis: every public function takes an [`AudioBuffer`] and returns a
+//! serde-serialisable struct, so other crates (mastering, stretch, delay sync, scores)
+//! reuse the same numbers the `analyze` commands print.
+
+pub mod loudness;
+pub mod util;
+
+pub use ferraus_core::AudioBuffer;
+pub use loudness::{loudness, loudness_with, true_peak, LoudnessReport, LoudnessTimeline};
 
 use ferraus_core::OpSpec;
 
