@@ -87,10 +87,16 @@ impl MidiData {
         self.tick_to_seconds(end)
     }
 
+    /// The tempo that governs the music: the first tempo, except that a lead-in segment of at
+    /// most one beat (as `transcribe` writes to align its beat grid) is skipped.
     pub fn first_bpm(&self) -> Option<f64> {
         let mut t = self.tempos.clone();
         t.sort_by_key(|x| x.0);
-        t.first().map(|(_, us)| 60_000_000.0 / *us as f64)
+        let pick = match t.as_slice() {
+            [first, second, ..] if first.0 == 0 && second.0 > 0 && second.0 <= self.ppq as u64 => Some(second),
+            _ => t.first(),
+        };
+        pick.map(|(_, us)| 60_000_000.0 / *us as f64)
     }
 }
 

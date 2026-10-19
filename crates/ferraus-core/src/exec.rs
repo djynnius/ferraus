@@ -176,6 +176,16 @@ impl<'a> Runtime<'a> {
                     for t in &ctx.temp_files {
                         let _ = std::fs::remove_file(t);
                     }
+                    // a failed command leaves no partial outputs behind (a failed verification
+                    // keeps its report: that output is the point of the run)
+                    if !inv.globals.dry_run && e.kind != crate::error::ErrorKind::Verification {
+                        for o in &ctx.outputs {
+                            if o.path != "-" {
+                                let _ = std::fs::remove_file(&o.path);
+                            }
+                        }
+                        ctx.outputs.clear();
+                    }
                     if batch {
                         results.push(json!({"input": inputs[index].display().to_string(), "ok": false, "error": e}));
                         envelope.ok = false;
