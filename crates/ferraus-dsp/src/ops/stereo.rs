@@ -31,14 +31,18 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("phase", ParamKind::Str).default("0deg").help("Starting phase in degrees (90deg starts hard right)"))
             .param(param("law", ParamKind::Choice).choices(LAWS).default("-3dB").help("Pan law"))
             .example("ferraus autopan keys.wav -o keys_auto.wav", "Slow sine autopan")
-            .example("ferraus autopan hats.wav --rate 1/4 --bpm 124 --shape triangle --depth 60% -o hats_auto.wav", "Tempo-synced triangle autopan"),
+            .example("ferraus autopan hats.wav --rate 1/4 --bpm 124 --shape triangle --depth 60% -o hats_auto.wav", "Tempo-synced triangle autopan")
+            .example("ferraus autopan pad.wav --rate 0.1Hz --depth 40% -o pad_drift.wav", "Slow, narrow drift for a pad that never lands hard left or right")
+            .example("ferraus autopan gtr.wav --rate 1/8 --bpm 100 --shape square --phase 90deg -o gtr_pingpong.wav", "Hard eighth-note ping-pong that starts on the right"),
         OpSpec::transform("widen", Category::Panning, "Stereo widener (mid/side) with mono bass", widen)
             .about("Scales the side (L-R) signal by --amount while keeping everything below --mono-below in mono, so the low end stays solid and mono-compatible. --center-pan moves the centre (mid) image like Audition's Stereo Expander. A mono input has no side signal; only --center-pan affects it.")
             .param(param("amount", ParamKind::Percent).default("130%").help("Side level: 0% mono, 100% unchanged, 200% very wide"))
             .param(param("mono-below", ParamKind::Freq).default("120Hz").help("Collapse the side signal below this frequency (0Hz = off)"))
             .param(param("center-pan", ParamKind::Str).default("0").help("Pan of the centre image, -100..100 or L30/R60"))
             .example("ferraus widen mix.wav -o wider.wav", "Default 130% width with mono bass")
-            .example("ferraus widen pad.wav --amount 180% --mono-below 200Hz --center-pan R10 -o pad_wide.wav", "Extra-wide pad, centre nudged right"),
+            .example("ferraus widen pad.wav --amount 180% --mono-below 200Hz --center-pan R10 -o pad_wide.wav", "Extra-wide pad, centre nudged right")
+            .example("ferraus widen mix.wav --amount 0% -o mix_mono.wav", "Collapse to mono (no side signal) to check how a mix holds up in mono")
+            .example("ferraus widen gtrs.wav --amount 150% --mono-below 0Hz -o gtrs_wide.wav", "Widen doubled guitars across the whole spectrum, lows included"),
     ]
 }
 

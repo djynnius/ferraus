@@ -16,7 +16,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("mix", ParamKind::Percent).default("50%").help("Dry/wet: 0% returns the input"))
             .param(param("mode", ParamKind::Choice).choices(&["chorus", "flanger"]).default("chorus").help("chorus, or flanger for a chorus/flanger blend"))
             .example("ferraus chorus gtr.wav -o gtr_chorus.wav", "Classic two-voice chorus")
-            .example("ferraus chorus synth.wav --voices 4 --depth 5ms --rate 0.4Hz --mix 40% -o lush.wav", "Lush four-voice chorus"),
+            .example("ferraus chorus synth.wav --voices 4 --depth 5ms --rate 0.4Hz --mix 40% -o lush.wav", "Lush four-voice chorus")
+            .example("ferraus chorus bass.wav --voices 1 --depth 2ms --mix 30% -o bass_chorus.wav", "Single-voice, subtle chorus that keeps a bass solid")
+            .example("ferraus chorus keys.wav --mode flanger --rate 0.2Hz -o keys_swirl.wav", "Chorus/flanger blend for a swirling keyboard"),
         OpSpec::transform("flanger", Category::Tone, "Flanger", flanger)
             .about("A very short delay swept by an LFO and fed back, mixed with the dry signal for the jet-plane comb sweep.")
             .param(param("rate", ParamKind::Freq).default("0.3Hz").help("LFO rate"))
@@ -24,7 +26,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("feedback", ParamKind::Percent).default("50%").help("Resonance (-95%..95%)"))
             .param(param("mix", ParamKind::Percent).default("50%").help("Dry/wet: 0% returns the input"))
             .example("ferraus flanger drums.wav -o drums_flange.wav", "Default flanger")
-            .example("ferraus flanger gtr.wav --rate 0.1Hz --feedback 80% -o jet.wav", "Slow, resonant jet sweep"),
+            .example("ferraus flanger gtr.wav --rate 0.1Hz --feedback 80% -o jet.wav", "Slow, resonant jet sweep")
+            .example("ferraus flanger vox.wav --depth 1ms --feedback 20% --mix 25% -o vox_flange.wav", "Subtle flanging on a vocal")
+            .example("ferraus flanger synth.wav --rate 2Hz --feedback -70% -o hollow.wav", "Fast flanger with negative feedback for a hollow tone"),
         OpSpec::transform("phaser", Category::Tone, "Phaser", phaser)
             .about("A chain of swept all-pass filters mixed with the dry signal creates moving notches.")
             .param(param("stages", ParamKind::Int).default("4").range("1..24").help("All-pass stages (2 per notch)"))
@@ -33,33 +37,43 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("feedback", ParamKind::Percent).default("30%").help("Resonance (-95%..95%)"))
             .param(param("mix", ParamKind::Percent).default("50%").help("Dry/wet: 0% returns the input"))
             .example("ferraus phaser keys.wav -o keys_phase.wav", "Default phaser")
-            .example("ferraus phaser gtr.wav --stages 8 --rate 0.2Hz --feedback 60% -o deep.wav", "Deep eight-stage sweep"),
+            .example("ferraus phaser gtr.wav --stages 8 --rate 0.2Hz --feedback 60% -o deep.wav", "Deep eight-stage sweep")
+            .example("ferraus phaser vox.wav --stages 2 --depth 40% --mix 30% -o vox_phase.wav", "Gentle two-stage phasing on a vocal")
+            .example("ferraus phaser pad.wav --rate 0.05Hz --stages 12 --feedback 70% -o pad_sweep.wav", "A very slow, resonant twelve-stage sweep across a long pad"),
         OpSpec::transform("tremolo", Category::Tone, "Tremolo (amplitude modulation)", tremolo)
             .about("Modulates the level with an LFO; the gain swings between full and (1 - depth). --rate also accepts beat values like 1/8 with --bpm.")
             .param(param("rate", ParamKind::Str).default("5Hz").help("LFO rate in Hz, or a beat value (1/8)"))
             .param(param("depth", ParamKind::Percent).default("50%").help("Modulation depth"))
             .param(param("shape", ParamKind::Choice).choices(&["sine", "triangle", "square"]).default("sine").help("LFO waveform"))
             .example("ferraus tremolo gtr.wav -o gtr_trem.wav", "Classic amp tremolo")
-            .example("ferraus tremolo pad.wav --rate 1/8 --bpm 100 --shape square --depth 90% -o chop.wav", "Tempo-synced chop"),
+            .example("ferraus tremolo pad.wav --rate 1/8 --bpm 100 --shape square --depth 90% -o chop.wav", "Tempo-synced chop")
+            .example("ferraus tremolo keys.wav --rate 4Hz --depth 30% --shape triangle -o keys_trem.wav", "Soft, slow electric-piano tremolo")
+            .example("ferraus tremolo gtr.wav --rate 1/16 --bpm 128 --depth 100% --shape square -o gtr_stutter.wav", "Full-depth sixteenth-note stutter at 128 BPM"),
         OpSpec::transform("vibrato", Category::Tone, "Vibrato (pitch modulation)", vibrato)
             .about("Modulates pitch with a sinusoidally swept delay; --depth is the peak deviation in cents. The constant delay is compensated so the output lines up with the input.")
             .param(param("rate", ParamKind::Freq).default("5Hz").help("LFO rate"))
             .param(param("depth", ParamKind::Pitch).default("20cents").help("Peak pitch deviation (cents or semitones)"))
             .example("ferraus vibrato vox.wav -o vox_vib.wav", "Subtle vocal vibrato")
-            .example("ferraus vibrato synth.wav --rate 6.5Hz --depth 50cents -o wobble.wav", "Wider vibrato"),
+            .example("ferraus vibrato synth.wav --rate 6.5Hz --depth 50cents -o wobble.wav", "Wider vibrato")
+            .example("ferraus vibrato flute.wav --rate 4.5Hz --depth 15cents -o flute_vib.wav", "Slow, gentle vibrato on a held flute note")
+            .example("ferraus vibrato lead.wav --rate 7Hz --depth 100cents --mix 50% -o lead_detune.wav", "Fast one-semitone wobble blended with the dry lead for a detuned effect"),
         OpSpec::transform("saturate", Category::Tone, "Saturation (tape, tube, soft, hard)", saturate)
             .about("Drives the signal into a waveshaper with 2x oversampling. Small signals pass at unity gain; --drive pushes louder parts into the curve. tape is gentle with a slight top-end roll-off, tube is asymmetric (even harmonics), soft is tanh, hard clips. --tone tilts the result darker (negative) or brighter (positive), up to ±6 dB.")
             .param(param("drive", ParamKind::Gain).default("6dB").help("Gain into the saturator (removed afterwards)"))
             .param(param("type", ParamKind::Choice).choices(&["tape", "tube", "soft", "hard"]).default("tape").help("Saturation curve"))
             .param(param("tone", ParamKind::Float).default("0").range("-100..100").help("Post tilt: -100 darkest .. +100 brightest"))
             .example("ferraus saturate bass.wav -o bass_warm.wav", "Gentle tape warmth")
-            .example("ferraus saturate drums.wav --type tube --drive 12dB --mix 50% -o drums_dirty.wav", "Parallel tube grit"),
+            .example("ferraus saturate drums.wav --type tube --drive 12dB --mix 50% -o drums_dirty.wav", "Parallel tube grit")
+            .example("ferraus saturate vox.wav --type soft --drive 3dB --tone 20 -o vox_sat.wav", "Light soft saturation and a little brightness on a vocal")
+            .example("ferraus saturate synth.wav --type hard --drive 18dB --tone -40 -o synth_fuzz.wav", "Aggressive hard clipping, darkened afterwards"),
         OpSpec::transform("bitcrush", Category::Tone, "Bit-depth and sample-rate reduction", bitcrush)
             .about("Quantizes to --bits and holds samples at --rate for lo-fi aliasing and grit.")
             .param(param("bits", ParamKind::Int).default("8").range("1..24").help("Bit depth"))
             .param(param("rate", ParamKind::Freq).default("11025Hz").help("Sample-and-hold rate"))
             .example("ferraus bitcrush drums.wav -o crushed.wav", "8-bit, 11 kHz")
-            .example("ferraus bitcrush synth.wav --bits 4 --rate 4kHz --mix 30% -o grit.wav", "Heavy crush blended in"),
+            .example("ferraus bitcrush synth.wav --bits 4 --rate 4kHz --mix 30% -o grit.wav", "Heavy crush blended in")
+            .example("ferraus bitcrush vox.wav --bits 12 --rate 22050Hz -o vox_lofi.wav", "Mild lo-fi: 12 bits at 22 kHz, like an early sampler")
+            .example("ferraus bitcrush loop.wav --bits 24 --rate 6kHz -o loop_alias.wav", "Keep the full bit depth and only drop the sample rate, for metallic aliasing"),
     ]
 }
 

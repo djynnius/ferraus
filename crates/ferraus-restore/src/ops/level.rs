@@ -45,7 +45,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus leveler lecture.wav --target -16dB --amount 80% --boost-low on -o level.wav",
             "Stronger leveling for a distant speaker",
-        ),
+        )
+        .example("ferraus leveler panel.wav --gate -50dB --range -40dB -o level.wav", "Noisy room: freeze the gain below -50 dBFS so background noise is never pulled up")
+        .example("ferraus leveler audiobook.wav --target -20dB --amount 30% -o level.wav", "Light-touch leveling that keeps a narrator's natural dynamics"),
         OpSpec::transform(
             "dynamics",
             Category::Dynamics,
@@ -96,7 +98,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus dynamics drums.wav --curve \"-100:-100,-50:-100,-45:-45,0:0\" --spline off --detector peak -o gated.wav",
             "A gate at -50 dB from the same command",
-        ),
+        )
+        .example("ferraus dynamics bass.wav --curve \"-100:-100,-30:-30,0:-15\" --band 40Hz..250Hz --detector peak -o bass_comp.wav", "2:1 compression above -30 dB that only reacts to the low end (40-250 Hz)")
+        .example("ferraus dynamics vox.wav --curve \"-100:-100,-60:-70,-40:-40,0:0\" --attack 2ms --release 150ms -o vox_exp.wav", "Gentle downward expansion below -40 dB, with no compression above"),
     ]
 }
 

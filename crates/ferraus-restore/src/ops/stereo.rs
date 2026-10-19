@@ -44,6 +44,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus phase-align room.wav --mode shift --shift L=0smp,R=12smp -o aligned.wav",
             "Delay the right channel by 12 samples",
+        )
+        .example(
+            "ferraus phase-align xy_pair.wav --window 500ms --max-shift 2ms -o aligned.wav",
+            "Longer analysis windows and a 2 ms search limit for a close stereo mic pair",
+        )
+        .example(
+            "ferraus phase-align overheads.wav --mode shift --shift L=0.25ms,R=0smp -o aligned.wav",
+            "Delay the left channel by a quarter of a millisecond",
         ),
         OpSpec::transform(
             "center",
@@ -86,6 +94,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus center song.wav --mode extract --freq 200Hz..6kHz -o vocal.wav",
             "Pull out the centre vocal band",
+        )
+        .example(
+            "ferraus center song.wav --mode remove --mix 70% -o vocal_down.wav",
+            "Turn the lead vocal down instead of removing it completely",
+        )
+        .example(
+            "ferraus center song.wav --mode extract --pan -40 --width 15% -o left_gtr.wav",
+            "Extract an instrument panned 40% left",
         ),
         OpSpec::transform(
             "channels mix",
@@ -109,6 +125,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus channels mix in.wav --out \"L=R\" --out \"R=L\" --invert R -o swapped.wav",
             "Swap the channels and flip the new right channel's phase",
+        )
+        .example(
+            "ferraus channels mix interview.wav --out \"R=L\" -o host_both.wav",
+            "Copy the left channel (the host) over the right; the left passes through unchanged",
+        )
+        .example(
+            "ferraus channels mix in.wav --out \"L=0.5L+-0.5R\" --out \"R=0.5L+-0.5R\" -o side.wav",
+            "Put the side signal (left minus right) in both channels to hear what is out of phase",
         ),
     ]
 }

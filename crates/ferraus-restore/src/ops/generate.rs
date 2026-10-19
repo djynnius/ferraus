@@ -62,13 +62,17 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus generate noise --color brown --dur 30s --channels 2 --seed 7 -o rumble.wav",
                 "Reproducible stereo brown noise",
-            ),
+            )
+            .example("ferraus generate noise --dur 60s --amplitude -30dB -o hiss.wav", "A minute of quiet white noise, for example to test a noise gate or dehiss")
+            .example("ferraus generate noise --color pink --dur 10s --amplitude -20dB --sample-rate 44100 --channels 2 -o calib.wav", "Stereo pink noise at -20 dBFS RMS, the usual speaker-calibration signal"),
         OpSpec::custom("generate silence", Category::Edit, "Generate digital silence", gen_silence)
             .inputs(Inputs::NONE)
             .about("Writes silence of the given duration (useful as padding or a fixture). Without -o the file is silence.wav in the current directory.")
             .param(param("dur", ParamKind::Time).default("2s").help("Duration"))
             .example("ferraus generate silence -o gap.wav", "Two seconds of silence")
-            .example("ferraus generate silence --dur 500ms --channels 2 -o gap.wav", "Half a second of stereo silence"),
+            .example("ferraus generate silence --dur 500ms --channels 2 -o gap.wav", "Half a second of stereo silence")
+            .example("ferraus generate silence --dur 30s -o gap.flac", "Thirty seconds of silence as FLAC (the format follows the extension)")
+            .example("ferraus generate silence --dur 1:00 --sample-rate 44100 --bit-depth 16 -o minute.wav", "A minute of 16-bit, 44.1 kHz silence"),
         OpSpec::custom(
             "band-split",
             Category::Tone,
@@ -91,7 +95,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus band-split drums.wav --crossovers 200Hz -o drums.wav",
             "Two bands: drums.band1.wav (lows) and drums.band2.wav (highs)",
-        ),
+        )
+        .example("ferraus band-split vox.wav --crossovers 300Hz,5kHz --outdir bands/", "Three bands (body, mids, air) written into bands/ for separate processing")
+        .example("ferraus band-split mix.wav --crossovers 100Hz,500Hz,2kHz,6kHz --json", "Five bands, with every output path listed in the JSON result"),
     ]
 }
 

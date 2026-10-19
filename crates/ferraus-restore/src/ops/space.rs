@@ -36,7 +36,9 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus echo gtr.wav --taps 6 --time 375ms --feedback 55% --tap-eq highpass:300Hz,lowpass:3kHz --pingpong -o echo.wav",
                 "Telephone-like ping-pong repeats",
-            ),
+            )
+            .example("ferraus echo vox.wav --taps 1 --time 110ms --feedback 35% -o slap.wav", "A single slapback repeat, rockabilly style")
+            .example("ferraus echo announcer.wav --taps 8 --time 1/2 --bpm 80 --tap-eq none -o canyon.wav", "Long, bright half-note echoes with no darkening filter"),
         OpSpec::transform(
             "doppler",
             Category::Space,
@@ -77,7 +79,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus doppler tone.wav --path circle --velocity 30m/s --distance 5m --pass-by 3m -o orbit.wav",
             "Circling the listener off-centre",
-        ),
+        )
+        .example("ferraus doppler engine.wav --velocity 40m/s --distance 50m --pass-by 5m -o flyby.wav", "A fast fly-by that starts 50 m away and passes 5 m from the listener")
+        .example("ferraus doppler siren.wav --volume-by-distance off -o pitch_only.wav", "Only the Doppler pitch change, with the level kept constant"),
         OpSpec::transform(
             "distort",
             Category::Tone,
@@ -117,7 +121,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus distort bass.wav --curve-pos \"-20dB:-14dB,-6dB:-4dB,0dB:-3dB\" --curve-neg \"0.5:0.5,1:1\" -o dirty.wav",
             "Asymmetric: compress only the positive half-wave",
-        ),
+        )
+        .example("ferraus distort synth.wav --curve-pos \"0.2:0.5,0.5:0.8,1:0.9\" --smooth off -o hard.wav", "A hard, angular curve with straight segments for a gritty edge")
+        .example("ferraus distort vox.wav --mix 30% -o vox_dirty.wav", "Blend the default soft clipping in parallel for subtle grit"),
     ]
 }
 

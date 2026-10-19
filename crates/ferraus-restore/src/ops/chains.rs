@@ -33,7 +33,15 @@ pub fn ops() -> Vec<OpSpec> {
                 .help("Voice type the settings are tuned for"),
         )
         .example("ferraus enhance-voice podcast.wav -o vox.wav", "Clean up a male speaking voice")
-        .example("ferraus enhance-voice vocal.wav --mode music --mix 70% -o vox.wav", "Gentle polish for a sung vocal"),
+        .example("ferraus enhance-voice vocal.wav --mode music --mix 70% -o vox.wav", "Gentle polish for a sung vocal")
+        .example(
+            "ferraus enhance-voice host.wav --mode female -o host_clean.wav",
+            "Settings tuned for a higher speaking voice",
+        )
+        .example(
+            "ferraus enhance-voice episodes/*.wav --mode male --outdir enhanced/",
+            "Process every episode in a folder",
+        ),
         OpSpec::transform(
             "enhance",
             Category::Restoration,
@@ -75,6 +83,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus enhance song.wav --preset music --loudness -14LUFS --repair off -o master.wav",
             "Polish and level a music track",
+        )
+        .example(
+            "ferraus enhance room_tone.wav --preset ambience -o room.wav",
+            "Low cut and mid scoop for room tone, levelled to -23 LUFS",
+        )
+        .example(
+            "ferraus enhance vo.wav --preset dialogue --reverb 10% --loudness -19LUFS -o vo.mono-podcast.wav",
+            "Dialogue at -19 LUFS (a common mono podcast target) with a little room added",
         ),
         OpSpec::transform(
             "guitar",
@@ -109,6 +125,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus guitar di.wav --amp lead --cab 4x12.wav --drive 34dB --mix 80% -o lead.wav",
             "Lead tone through your own cabinet impulse response",
+        )
+        .example(
+            "ferraus guitar di.wav --amp clean --compress off -o clean.wav",
+            "Clean amp with no compressor, for open, dynamic chords",
+        )
+        .example(
+            "ferraus guitar di.wav --amp crunch --filter lowpass:4kHz,peak:800Hz:+2dB -o mid.wav",
+            "Crunch with a darker, mid-forward tone filter",
         ),
     ]
 }

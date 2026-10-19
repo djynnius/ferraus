@@ -40,7 +40,15 @@ pub fn ops() -> Vec<OpSpec> {
         .example("ferraus graphic-eq mix.wav --gains \"+3,+2,0,0,-2,0,0,+1,+2,+2\" -o eq.wav", "Ten-band smile curve")
         .example(
             "ferraus graphic-eq vox.wav --bands 30 --gains \"0,0,0,0,-3,-3\" --accuracy 500ms -o eq.wav",
-            "Third-octave cut around 40-63 Hz with a shorter filter",
+            "Third-octave cut at 63 and 80 Hz with a shorter filter",
+        )
+        .example(
+            "ferraus graphic-eq vox.wav --bands 20 --gains \"0,0,-4,-2,0,0,0,0,0,0,0,0,0,+2,+3\" -o vox_eq.wav",
+            "Half-octave EQ: cut mud at 63-88 Hz and lift presence at 2.8-4 kHz",
+        )
+        .example(
+            "ferraus graphic-eq tape.wav --gains \"0,0,0,0,0,0,0,0,-3,-6\" -o tape_eq.wav",
+            "Roll off the top two octave bands (8 and 16 kHz) to tame hiss",
         ),
         OpSpec::transform("fft-filter", Category::Tone, "Filter by a drawn magnitude curve", fft_filter)
             .about(
@@ -66,6 +74,14 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus fft-filter in.wav --curve \"200Hz:0dB,400Hz:-8dB,800Hz:0dB\" --fft 16384 -o out.wav",
                 "Narrow cut around 400 Hz with a long filter",
+            )
+            .example(
+                "ferraus fft-filter voice.wav --curve \"100Hz:-12dB,300Hz:0dB,3kHz:0dB,5kHz:-12dB\" -o radio.wav",
+                "A gentle radio-voice band shape",
+            )
+            .example(
+                "ferraus fft-filter mix.wav --curve \"40Hz:0dB,60Hz:-4dB,90Hz:0dB\" --fft 32768 -o mix_dip.wav",
+                "A shallow bass dip, with a long FFT for resolution in the low end",
             ),
         OpSpec::transform(
             "filter",

@@ -194,7 +194,15 @@ pub fn cut_spec() -> OpSpec {
         )
         .example(
             "ferraus cut song.wav --range 0s..4b --bpm 120 -o song_nointro.wav",
-            "Remove the first beat-bar of a 120 BPM song",
+            "Remove the first bar (four beats) of a 120 BPM song",
+        )
+        .example(
+            "ferraus cut lecture.wav --range 0s..12s --range 58:30..end -o lecture_core.wav",
+            "Drop the pre-roll chatter and everything after 58:30 in one pass",
+        )
+        .example(
+            "ferraus cut drums.wav --range 2.5s..3s --crossfade 0ms -o drums_cut.wav",
+            "Hard splice with no crossfade, for an edit that lands exactly on a drum hit",
         )
 }
 

@@ -37,7 +37,9 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus dehiss cassette.wav --reduction 18dB --range 3kHz..20kHz -o clean.wav",
                 "Stronger reduction, above 3 kHz only",
-            ),
+            )
+            .example("ferraus dehiss narration.wav --floor -66dB --reduction 8dB -o clean.wav", "Gentle reduction against a known hiss level of -66 dBFS")
+            .example("ferraus dehiss vinyl.wav --range 5kHz..20kHz --transition 10dB -o clean.wav", "Only above 5 kHz, with a wide soft knee to keep cymbals natural"),
         OpSpec::transform(
             "repair",
             Category::Restoration,
@@ -76,7 +78,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus repair take.wav --range 12.1s..12.4s --freq 2kHz..6kHz --method attenuate -o fixed.wav",
             "Turn down a squeak in one band only",
-        ),
+        )
+        .example("ferraus repair interview.wav --range 3:14.2..3:14.5 --range 7:02.0..7:02.3 -o fixed.wav", "Heal two separate phone pings in one pass")
+        .example("ferraus repair guitar.wav --range 0:45.10..0:45.35 --freq 50Hz..300Hz -o fixed.wav", "Fill in a low thump without touching the strings above 300 Hz"),
         OpSpec::transform(
             "remove-sound",
             Category::Restoration,
@@ -116,7 +120,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus remove-sound take2.wav --model buzz.json --strength 90% -o clean.wav",
             "Reuse a saved model of a buzz",
-        ),
+        )
+        .example("ferraus remove-sound kitchen.wav --learn 1:20..1:26 --save-model fridge.json -o clean.wav", "Learn a fridge hum, remove it, and save the model for the next take")
+        .example("ferraus remove-sound bed.wav --learn 0:02..0:05 --protect-speech off --complexity 32 --passes 3 -o clean.wav", "No dialogue here: subtract across the whole spectrum, with more templates and passes"),
     ]
 }
 
