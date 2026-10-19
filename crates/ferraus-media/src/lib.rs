@@ -61,4 +61,3 @@ pub fn ffmpeg_status() -> Value {
         "managed_build": install::managed_build_info(),
     })
 }
-

@@ -37,6 +37,16 @@ pub fn ops() -> Vec<OpSpec> {
             .inputs(Inputs::NONE)
             .example("ferraus licenses > THIRD-PARTY-LICENSES.md", "Save the attributions")
             .example("ferraus licenses | grep -i mpl", "Find copyleft-at-file-level components"),
+        OpSpec::custom("bench", Category::System, "Measure real-time factors of every effect on this machine", bench)
+            .about("Runs each single-input effect with its defaults on a synthetic stereo signal and reports how many times faster than real time it ran. With --baseline, fails (exit 9) when any effect is more than --tolerance slower than the saved numbers.")
+            .inputs(Inputs::NONE)
+            .param(param("only", ParamKind::List).help("Comma list of effects to measure (default: every fx-capable effect)"))
+            .param(param("duration", ParamKind::Time).default("10s").help("Length of the synthetic test signal"))
+            .param(param("save", ParamKind::Path).help("Write the results as a baseline JSON file"))
+            .param(param("baseline", ParamKind::Path).help("Compare against a baseline JSON file"))
+            .param(param("tolerance", ParamKind::Percent).default("15%").help("Allowed slowdown versus the baseline before failing"))
+            .example("ferraus bench --only compress,reverb,limit", "Measure three effects")
+            .example("ferraus bench --save bench.json && ferraus bench --baseline bench.json", "Detect performance regressions"),
         OpSpec::custom("self-update", Category::System, "Update ferraus to the latest release (opt-in, never automatic)", self_update)
             .inputs(Inputs::NONE)
             .param(param("version", ParamKind::Str).help("Install this version instead of the latest, e.g. 1.2.0"))
@@ -260,4 +270,75 @@ fn self_uninstall(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         "removed": existing,
         "note": "Remove the ~/.ferraus/bin line from your shell profile if the installer added one. Package-manager installs (brew, apt, dnf, winget) must be removed with that package manager."
     }))
+}
+
+fn bench(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
+    let reg = ctx.registry.ok_or_else(|| Error::internal("no registry"))?;
+    let secs = a.seconds("duration")?.max(0.5);
+    let sr = 48_000u32;
+    let n = (secs * sr as f64) as usize;
+    // pink-ish noise plus tones, stereo
+    let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+    let mut lp = 0.0f32;
+    let mut l = Vec::with_capacity(n);
+    let mut r = Vec::with_capacity(n);
+    for i in 0..n {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        let w = ((seed >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0) as f32;
+        lp = 0.97 * lp + 0.03 * w;
+        let t = i as f32 / sr as f32;
+        let tone = 0.2 * (2.0 * std::f32::consts::PI * 220.0 * t).sin()
+            + 0.1 * (2.0 * std::f32::consts::PI * 1760.0 * t).sin();
+        l.push(0.3 * lp + tone);
+        r.push(0.3 * lp - tone * 0.8);
+    }
+    let input = AudioBuffer::from_planar(sr, vec![l, r]);
+    let only = a.list("only");
+    let mut results = serde_json::Map::new();
+    let mut skipped = Vec::new();
+    for op in reg.transforms() {
+        if !only.is_empty() && !only.iter().any(|o| o == op.name) {
+            continue;
+        }
+        let args = match Args::build(op, vec![], &|_, _| None) {
+            Ok(a) => a,
+            Err(_) => {
+                skipped.push(op.name);
+                continue;
+            }
+        };
+        let mut child = ctx.child(op.name, vec![]);
+        let t0 = std::time::Instant::now();
+        let r = ferraus_core::exec::apply_spec(op, &args, input.clone(), &mut child);
+        let el = t0.elapsed().as_secs_f64().max(1e-9);
+        match r {
+            Ok(_) => {
+                results.insert(op.name.to_string(), json!((secs / el * 10.0).round() / 10.0));
+            }
+            Err(_) => skipped.push(op.name),
+        }
+    }
+    let mut regressions = Vec::new();
+    if let Some(b) = a.path("baseline") {
+        let base: Value = serde_json::from_slice(&std::fs::read(&b)?)?;
+        let tol = a.percent("tolerance")?;
+        for (k, v) in &results {
+            if let (Some(old), Some(new)) = (base["realtime_factor"][k].as_f64(), v.as_f64()) {
+                if new < old * (1.0 - tol) {
+                    regressions.push(json!({"effect": k, "baseline": old, "now": new}));
+                }
+            }
+        }
+    }
+    let out = json!({"signal_s": secs, "realtime_factor": results, "skipped": skipped, "regressions": regressions});
+    if let Some(p) = a.path("save") {
+        ctx.write_file(&p, serde_json::to_string_pretty(&out)?.as_bytes(), Some("baseline"))?;
+    }
+    if !regressions.is_empty() {
+        ctx.metric("regressions", &regressions);
+        return Err(Error::verification(format!("{} effects regressed by more than the tolerance", regressions.len())));
+    }
+    Ok(out)
 }

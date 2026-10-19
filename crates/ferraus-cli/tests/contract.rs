@@ -197,6 +197,9 @@ fn check_example(reg: &ferraus_core::Registry, cmd: &str) -> Result<(), String> 
     let mut i = 1;
     while i < argv.len() {
         let a = &argv[i];
+        if a == "--" {
+            break;
+        }
         if let Some(flag) = a.strip_prefix("--") {
             let (name, inline) = match flag.split_once('=') {
                 Some((n, v)) => (n.to_string(), Some(v.to_string())),
@@ -239,8 +242,13 @@ fn check_example(reg: &ferraus_core::Registry, cmd: &str) -> Result<(), String> 
         }
         i += 1;
     }
-    Args::build(op, pairs, &|_, _| None).map_err(|e| format!("{cmd}\n  {}", e.message))?;
-    Ok(())
+    let bare = argv.len() == 1 + nwords;
+    match Args::build(op, pairs, &|_, _| None) {
+        Ok(_) => Ok(()),
+        // a bare command name in prose ("ferraus jobs status") is not an invocation
+        Err(e) if bare && e.message.contains("requires") => Ok(()),
+        Err(e) => Err(format!("{cmd}\n  {}", e.message)),
+    }
 }
 
 /// Examples written into op specs (and so into --help and the docs) must all be valid.
@@ -291,7 +299,12 @@ fn prd_examples_parse() {
         if c.contains('<') || c.contains("...") || c.contains('…') || c.contains("\\|") || c.contains("|ferraus") {
             continue;
         }
-        if c.split_whitespace().nth(1).map(|w| w.contains('|')).unwrap_or(false) {
+        if c.split_whitespace().any(|w| w.contains('|')) {
+            continue;
+        }
+        // `ferraus --version`, and the `video` namespace reserved for v2
+        let second = c.split_whitespace().nth(1).unwrap_or("");
+        if second.starts_with('-') || second == "video" {
             continue;
         }
         checked += 1;

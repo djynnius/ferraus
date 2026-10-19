@@ -44,7 +44,11 @@ pub fn run(spec: &OpSpec, pairs: &[(&str, &str)], input: AudioBuffer) -> crate::
 }
 
 /// Run a transform spec and also return the context (to assert on metrics, notes, warnings).
-pub fn run_ctx(spec: &OpSpec, pairs: &[(&str, &str)], input: AudioBuffer) -> crate::error::Result<(AudioBuffer, OpCtx<'static>)> {
+pub fn run_ctx(
+    spec: &OpSpec,
+    pairs: &[(&str, &str)],
+    input: AudioBuffer,
+) -> crate::error::Result<(AudioBuffer, OpCtx<'static>)> {
     let a = args(spec, pairs);
     let mut c = ctx();
     let out = crate::exec::apply_spec(spec, &a, input, &mut c)?;
