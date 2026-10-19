@@ -53,6 +53,37 @@ fn md_escape(s: &str) -> String {
     s.replace('|', "\\|")
 }
 
+/// Escape `<` in Markdown prose (outside fenced blocks and code spans) so placeholders such
+/// as `sf2:<path>` in help text are not swallowed as HTML tags by the site renderer. Only
+/// the site gets this; `ferraus docs` prints the raw page to the terminal.
+fn site_escape(md: &str) -> String {
+    let mut out = String::with_capacity(md.len() + 64);
+    let mut fenced = false;
+    for line in md.split_inclusive('\n') {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            out.push_str(line);
+            continue;
+        }
+        if fenced {
+            out.push_str(line);
+            continue;
+        }
+        let mut in_code = false;
+        for c in line.chars() {
+            match c {
+                '`' => {
+                    in_code = !in_code;
+                    out.push(c);
+                }
+                '<' if !in_code => out.push_str("\\<"),
+                _ => out.push(c),
+            }
+        }
+    }
+    out
+}
+
 /// One reference page per command: people first, then the machine block.
 pub fn command_page(op: &OpSpec) -> String {
     let mut s = String::new();
@@ -276,10 +307,45 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
     // hand-written guides (copied verbatim); each top-level md file becomes a chapter
     let mut guides: Vec<std::path::PathBuf> =
         std::fs::read_dir(guides_dir).map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default();
-    guides.sort();
+    // top-level pages first (getting started, glossary, ...), then the sections in reading
+    // order: tutorials for people, the agent cookbook, background concepts, anything else
+    let section_rank = |p: &std::path::Path| -> (u8, String) {
+        let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let rank = if !p.is_dir() {
+            match name.as_str() {
+                "getting-started.md" => 0,
+                _ => 1,
+            }
+        } else {
+            match name.as_str() {
+                "tutorials" => 2,
+                "cookbook" => 3,
+                "concepts" => 4,
+                _ => 5,
+            }
+        };
+        (rank, name)
+    };
+    guides.sort_by_key(|p| section_rank(p));
+    // generated pages listed with the top-level guides: the agent guide and the error catalog
+    let catalog = ferraus_core::builtin::agent_catalog(reg);
+    let mut agents = String::from("# Agent guide\n\nThe whole command surface, one line per command. The same text is printed by `ferraus describe --agent`.\n\n```text\n");
+    for (_, l) in &catalog {
+        agents.push_str(l);
+        agents.push('\n');
+    }
+    agents.push_str("```\n");
+    std::fs::write(src.join("agents.md"), agents)?;
+    std::fs::write(src.join("errors.md"), site_escape(&error_catalog()))?;
+    let extras = "- [Agent guide](agents.md)\n- [Error catalog](errors.md)\n";
+    let mut extras_listed = false;
     let mut intro_written = false;
     for g in &guides {
         if g.is_dir() {
+            if !extras_listed {
+                summary.push_str(extras);
+                extras_listed = true;
+            }
             let section = g.file_name().unwrap().to_string_lossy().to_string();
             std::fs::create_dir_all(src.join(&section))?;
             let mut files: Vec<_> = std::fs::read_dir(g)?
@@ -307,24 +373,15 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
             let _ = writeln!(summary, "- [{}]({})", t, name);
         }
     }
+    if !extras_listed {
+        summary.push_str(extras);
+    }
     if !intro_written {
         std::fs::write(
             src.join("README.md"),
             "# ferraus\n\nA cross-platform music editing CLI for people and AI agents.\n",
         )?;
     }
-    // agent guide
-    let catalog = ferraus_core::builtin::agent_catalog(reg);
-    let mut agents = String::from("# Agent guide\n\nThe whole command surface, one line per command. The same text is printed by `ferraus describe --agent`.\n\n```text\n");
-    for (_, l) in &catalog {
-        agents.push_str(l);
-        agents.push('\n');
-    }
-    agents.push_str("```\n");
-    std::fs::write(src.join("agents.md"), agents)?;
-    let _ = writeln!(summary, "- [Agent guide](agents.md)");
-    std::fs::write(src.join("errors.md"), error_catalog())?;
-    let _ = writeln!(summary, "- [Error catalog](errors.md)");
     let _ = writeln!(summary, "\n# Command reference\n");
     let mut by_cat: BTreeMap<_, Vec<&OpSpec>> = BTreeMap::new();
     for op in reg.ops() {
@@ -334,7 +391,7 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
     for (cat, ops) in by_cat {
         let _ = writeln!(summary, "- [{}]()", cat.title());
         for op in ops {
-            std::fs::write(src.join("commands").join(format!("{}.md", op.id())), command_page(op))?;
+            std::fs::write(src.join("commands").join(format!("{}.md", op.id())), site_escape(&command_page(op)))?;
             let _ = writeln!(summary, "  - [{}](commands/{}.md)", op.name, op.id());
             n += 1;
         }
