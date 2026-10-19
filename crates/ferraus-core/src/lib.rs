@@ -29,7 +29,7 @@ pub mod units;
 pub mod wav;
 
 pub use buffer::{db_to_lin, lin_to_db, AudioBuffer, MediaBuffer};
-pub use ctx::{AudioIo, EncodeOptions, Globals, OpCtx, Progress, SourceInfo};
+pub use ctx::{AudioIo, AudioReader, AudioWriter, EncodeOptions, Globals, OpCtx, Progress, SourceInfo};
 pub use envelope::{Envelope, Sidecar, FERRAUS_VERSION, SCHEMA_VERSION};
 pub use error::{Error, ErrorKind, Result};
 pub use op::{param, Args, Category, InputKind, Inputs, OpSpec, ParamKind, ParamSpec, Runner};

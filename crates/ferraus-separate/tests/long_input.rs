@@ -171,9 +171,10 @@ fn sixty_minute_input_stays_within_the_memory_budget() {
     eprintln!("{}", serde_json::to_string_pretty(&report).unwrap());
     assert_eq!(ctx.outputs.len(), 4);
     assert_eq!(v["memory"]["spilled"], minutes >= 30.0, "{report}");
-    // Decoding the input (file bytes + samples) and encoding one stem (samples + file bytes)
-    // dominate: the AudioIo API takes whole buffers. Separation itself streams.
-    let one_stem = (frames * 2 * 4) as f64;
-    assert!((peak as f64) < 1.9 * one_stem + 256.0 * (1 << 20) as f64, "{report}");
+    // The input streams into a spill file and every stem streams out of one, so the heap holds
+    // a few blocks, not the song (one stem alone would be 1.27 GB at 60 minutes).
+    if minutes >= 30.0 {
+        assert!(peak < 400 << 20, "{report}");
+    }
     assert!(peak < 4 << 30, "PRD: a 60-minute input under 4 GB; {report}");
 }

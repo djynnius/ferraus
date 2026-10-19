@@ -27,7 +27,7 @@ pub use encode::{EncodeReport, Format};
 pub use ops::ops;
 
 use encode::{native_encoder, SharedBuf, StreamSpec};
-use ferraus_core::ctx::{AudioIo, EncodeOptions, SourceInfo};
+use ferraus_core::ctx::{AudioIo, AudioReader, AudioWriter, EncodeOptions, SourceInfo};
 use ferraus_core::resample::{resample, Quality};
 use ferraus_core::{AudioBuffer, Error, ErrorKind, Result};
 use std::path::Path;
@@ -53,6 +53,76 @@ impl AudioIo for CodecIo {
     }
     fn can_encode(&self, ext: &str) -> bool {
         can_encode(ext)
+    }
+    fn open_reader(&self, path: &Path) -> Result<Option<Box<dyn AudioReader>>> {
+        match DecodeStream::open(path, None) {
+            Ok(ds) => Ok(Some(Box::new(StreamReader { ds, channels: 0 }))),
+            // read() falls back to FFmpeg for these; so does the caller of a `None`
+            Err(e) if e.kind == ErrorKind::Unsupported && ffmpeg_bridge::locate().is_some() => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+    fn open_writer(
+        &self,
+        path: &Path,
+        sample_rate: u32,
+        channels: usize,
+        frames: u64,
+        opts: &EncodeOptions,
+    ) -> Result<Option<Box<dyn AudioWriter>>> {
+        let fmt = resolve_format(Some(path), opts)?;
+        let rate = fmt.target_rate(sample_rate);
+        if rate != sample_rate || needs_bridge(&fmt, rate)? {
+            return Ok(None);
+        }
+        let file = std::fs::File::create(path)?;
+        let spec = StreamSpec { sample_rate, channels, total_frames: Some(frames) };
+        let enc = native_encoder(&fmt, Box::new(file), spec, opts)?;
+        Ok(Some(Box::new(StreamWriter { enc, path: path.to_path_buf(), tags: opts.tags.clone() })))
+    }
+}
+
+/// [`DecodeStream`] as an `AudioReader`: chunks converted to the first chunk's channel count,
+/// exactly as [`DecodeStream::read_all`] concatenates them.
+struct StreamReader {
+    ds: DecodeStream,
+    channels: usize,
+}
+
+impl AudioReader for StreamReader {
+    fn info(&self) -> &SourceInfo {
+        &self.ds.info
+    }
+    fn frames_hint(&self) -> Option<u64> {
+        self.ds.n_frames
+    }
+    fn next_chunk(&mut self) -> Result<Option<AudioBuffer>> {
+        let Some(b) = self.ds.next_chunk()? else { return Ok(None) };
+        if self.channels == 0 {
+            self.channels = b.channels();
+        }
+        Ok(Some(if b.channels() != self.channels { b.with_channels(self.channels) } else { b }))
+    }
+}
+
+/// A native encoder as an `AudioWriter` (what [`write_file`] does, block by block).
+struct StreamWriter {
+    enc: Box<dyn encode::StreamEncoder>,
+    path: std::path::PathBuf,
+    tags: std::collections::BTreeMap<String, String>,
+}
+
+impl AudioWriter for StreamWriter {
+    fn write(&mut self, planes: &[&[f32]]) -> Result<()> {
+        self.enc.write(planes)
+    }
+    fn finish(self: Box<Self>) -> Result<()> {
+        let StreamWriter { enc, path, tags } = *self;
+        enc.finish()?;
+        if !tags.is_empty() {
+            let _ = tags::apply(&path, &tags);
+        }
+        Ok(())
     }
 }
 

@@ -14,5 +14,6 @@ ferraus-models.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 realfft.workspace = true
+rayon.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
