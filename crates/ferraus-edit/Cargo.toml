@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-edit"
+description = "Editing commands for ferraus: trim, cut, split, concat, gain, normalize, channels, silence, mix, waveform, spectrogram"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,9 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+realfft.workspace = true
+ebur128 = "0.1.10"
+png = "0.17"
+
+[dev-dependencies]
+proptest = "1"
