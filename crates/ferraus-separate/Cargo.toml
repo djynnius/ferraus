@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-separate"
+description = "ferraus stem separation: model tiers, ensembles, test-time augmentation, residual reassignment, cascades"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,5 +9,10 @@ authors.workspace = true
 
 [dependencies]
 ferraus-core.workspace = true
+ferraus-ml.workspace = true
+ferraus-models.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+realfft.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true

@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-models"
+description = "ferraus model registry: signed manifest, resumable verified downloads, cache layout, license policy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,11 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+
+[[example]]
+name = "registry_sign"
+path = "examples/registry_sign.rs"
