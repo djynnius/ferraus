@@ -114,27 +114,34 @@ with a fixed hand split, `--layout drums`, `--layout bass`, `--layout lead-sheet
 
 ## 3. From a recording
 
-### The one-command route (needs the quality separation tier)
+### The one-command route
 
 ```bash
 ferraus score take.wav --parts vocals,bass,drums -o take.musicxml --midi take.mid -y
 ```
 
 This runs `analyze tempo`, `analyze key`, `analyze chords`, `separate`, `transcribe` per
-stem, and a native drum transcription, then notates. `--dry-run` shows that plan. **In this
-release it stops with exit code 6**: `score` separates with the default `quality` tier,
-whose RoFormer model is not downloadable yet (see [Stems and separation tiers](../concepts/stems.md)):
+stem, and a native drum transcription, then notates. `--dry-run` shows that plan. It separates
+with the default `quality` tier, so the first run downloads about 960 MB of models (the
+Mel-Band RoFormer and three fine-tuned Demucs models; see
+[Stems and separation tiers](../concepts/stems.md)). On a 7-second excerpt of a MUSDB18 test
+song it took 52 s on a laptop CPU and peaked at 3.2 GB of memory:
 
 ```json
-{"ok": false, "error": {"code": "model_unverified",
-  "message": "separate/mel-roformer-kj@2024.08 has no verified download (status: unverified, no SHA-256 recorded); refusing to fetch an unchecked file",
-  "exit_code": 6}}
+{"parts": [{"id": "P1", "name": "Vocals"}, {"id": "P2", "name": "Bass"}, {"id": "P3", "name": "Drums", "percussion": true}],
+ "measures": 6, "check": {"ok": true, "errors": 0, "warnings": 0},
+ "audio": {"stems": [{"role": "vocals", "notes": 20, "mode": "mono"}, {"role": "bass", "notes": 16, "mode": "mono"},
+                     {"role": "drums", "notes": 67, "method": "native onset drum transcription"}]}}
 ```
 
-### The step-by-step route (works today, pitched parts)
+A stem with nothing pitched in it (a part the song does not have) is reported with a
+`no_notes` warning and left out of the score.
 
-Do the same steps yourself with the `fast` tier. Measure the tempo first and pass it to
-every transcription, so all the parts share one tempo map:
+### The step-by-step route (faster, pitched parts)
+
+Do the same steps yourself with the `fast` tier, which needs one 166 MB model.
+Measure the tempo first and pass it to every transcription, so all the parts share one tempo
+map:
 
 ```bash
 ferraus analyze tempo song.wav                       # "bpm": 100.0, "confidence": 1.0
