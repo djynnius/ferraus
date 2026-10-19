@@ -398,6 +398,9 @@ pub fn render_events(
     Ok((l, r))
 }
 
+/// Longest render accepted (seconds).
+pub const MAX_RENDER_S: f64 = 6.0 * 3600.0;
+
 /// What a render produced.
 #[derive(Clone, Debug, Serialize)]
 pub struct RenderReport {
@@ -425,6 +428,14 @@ pub fn render_with_report(
         return Err(Error::usage(format!("sample rate {} is out of range 8000..384000", opts.sample_rate)));
     }
     let frames = output_frames(midi, opts.sample_rate, opts.tail_s);
+    let secs = frames as f64 / opts.sample_rate as f64;
+    if secs > MAX_RENDER_S {
+        return Err(Error::usage(format!(
+            "the MIDI file lasts {:.0} minutes; render is limited to {} hours",
+            secs / 60.0,
+            MAX_RENDER_S / 3600.0
+        )));
+    }
     let groups = plan(midi, instrument, opts);
     let mut l = vec![0.0f32; frames];
     let mut r = vec![0.0f32; frames];

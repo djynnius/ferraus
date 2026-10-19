@@ -1115,6 +1115,7 @@ impl MidiFile {
                 } else {
                     return Err(Error::input(format!("{w}: needs duration_beats, duration_ticks, or duration_s")));
                 };
+                check(duration <= MAX_TICK, &w, "duration is beyond the supported range")?;
                 let pitch = match (n.pitch, &n.name) {
                     (Some(p), _) => p,
                     (None, Some(name)) => units::parse_note_name(name)
@@ -1260,7 +1261,18 @@ fn ctxerr(what: &str, msg: impl std::fmt::Display) -> Error {
     Error::input(format!("{what}: {msg}"))
 }
 
+/// Largest tick accepted from JSON (keeps tick arithmetic far from overflow).
+pub const MAX_TICK: u64 = 1 << 40;
+
 fn resolve_at(at: &AtJson, map: &TempoMap) -> std::result::Result<u64, String> {
+    let t = resolve_at_inner(at, map)?;
+    if t > MAX_TICK {
+        return Err(format!("position is beyond the supported range ({MAX_TICK} ticks)"));
+    }
+    Ok(t)
+}
+
+fn resolve_at_inner(at: &AtJson, map: &TempoMap) -> std::result::Result<u64, String> {
     if let Some(b) = at.beat {
         if !b.is_finite() || b < 0.0 {
             return Err("beat must be a non-negative number".into());

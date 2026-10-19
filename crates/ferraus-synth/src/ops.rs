@@ -160,6 +160,16 @@ fn render_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     if tail > 600.0 {
         return Err(Error::usage("--tail is limited to 600s"));
     }
+    // stereo f32 output plus one engine buffer pair and the encoder copy
+    let need = (midi.duration_seconds() + tail) * sr as f64 * 2.0 * 4.0 * 3.0;
+    if need > ctx.globals.max_memory as f64 {
+        return Err(Error::new(
+            ErrorKind::Cancelled,
+            "memory_limit",
+            format!("rendering needs about {:.0} MB, above --max-memory", need / 1e6),
+        )
+        .with_hint("ferraus midi trim <part.mid> --range 0s..10:00 -o part-10min.mid"));
+    }
     let opts = RenderOptions {
         sample_rate: sr,
         tail_s: tail,
