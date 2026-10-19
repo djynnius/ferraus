@@ -40,7 +40,8 @@ jobs:
   model-parity:
     # Needs the PyTorch reference environment and licensed evaluation data.
     runs-on: [self-hosted, gpu]
-    if: github.repository == 'djynnius/ferraus'
+    # opt in with the repository variable GPU_RUNNER=true once a self-hosted GPU runner exists
+    if: github.repository == 'djynnius/ferraus' && vars.GPU_RUNNER == 'true'
     steps:
       - uses: actions/checkout@v4
       - name: ONNX vs PyTorch parity (max abs error < 1e-4)
