@@ -448,7 +448,7 @@ fn compute_stage(
     Ok((files, result))
 }
 
-fn resolve_path(base: &Path, p: &str) -> PathBuf {
+pub(crate) fn resolve_path(base: &Path, p: &str) -> PathBuf {
     let pb = PathBuf::from(p);
     if pb.is_absolute() {
         pb

@@ -95,6 +95,25 @@ fn read_pipeline(args: &Args, ctx: &OpCtx) -> Result<(crate::pipeline::PipelineF
 
 fn pipeline_run(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let (p, base) = read_pipeline(args, ctx)?;
+    if ctx.globals.dry_run {
+        // Plan only. Running the stages in dry-run mode would give later stages no audio to
+        // read and leave empty entries in the stage cache.
+        let registry = ctx.registry.ok_or_else(|| Error::internal("no registry"))?;
+        let stages = crate::pipeline::validate(&p, registry)?;
+        let order: Vec<String> = crate::pipeline::topo_order(&p)?.into_iter().map(|i| p.stages[i].id.clone()).collect();
+        let mut outputs = Vec::new();
+        for o in &p.outputs {
+            let dest = crate::pipeline::resolve_path(&base, &o.path);
+            ctx.prepare_output(&dest)?;
+            outputs.push(json!({"from": o.from, "path": dest.display().to_string()}));
+        }
+        return Ok(json!({
+            "pipeline": ctx.input(0)?.display().to_string(),
+            "order": order,
+            "stages": stages,
+            "outputs": outputs,
+        }));
+    }
     let started = std::time::Instant::now();
     let report = crate::pipeline::run(&p, &base, ctx, !args.flag("no-cache"))?;
     let job = json!({

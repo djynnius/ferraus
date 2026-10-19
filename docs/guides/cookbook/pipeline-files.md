@@ -76,7 +76,8 @@ ferraus pipeline validate job.yaml
 
 `pipeline explain job.yaml` prints the same plan with every default filled in. Both catch
 unknown ops, unknown or invalid arguments, unknown references, and cycles before anything
-runs.
+runs. `pipeline run job.yaml --dry-run --json` returns the same plan plus the output paths it
+would write, and refuses outputs that already exist unless `--overwrite` is given.
 
 ## Run
 
