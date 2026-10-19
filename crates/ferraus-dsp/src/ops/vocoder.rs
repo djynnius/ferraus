@@ -52,15 +52,12 @@ fn carrier_signal(a: &Args, modulator: &[f32], rate: u32, ctx: &mut OpCtx) -> Re
             for (k, f) in frames.iter().enumerate() {
                 let t0 = k as f64 * hop as f64 / fs;
                 let t1 = (k + 1) as f64 * hop as f64 / fs;
-                match f {
-                    Some(hz) => {
-                        let key = (69.0 + 12.0 * (hz / 440.0).log2()).round().clamp(0.0, 127.0) as u8;
-                        match notes.last_mut() {
-                            Some(last) if last.key == key && (last.end_s - t0).abs() < 1e-6 => last.end_s = t1,
-                            _ => notes.push(MidiNote { start_s: t0, end_s: t1, key, velocity: 100 }),
-                        }
+                if let Some(hz) = f {
+                    let key = (69.0 + 12.0 * (hz / 440.0).log2()).round().clamp(0.0, 127.0) as u8;
+                    match notes.last_mut() {
+                        Some(last) if last.key == key && (last.end_s - t0).abs() < 1e-6 => last.end_s = t1,
+                        _ => notes.push(MidiNote { start_s: t0, end_s: t1, key, velocity: 100 }),
                     }
-                    None => {}
                 }
             }
             notes.retain(|n| n.end_s - n.start_s >= 0.03);
