@@ -200,6 +200,10 @@ fn plugin_and_sounds_commands() {
     assert_eq!(search["results"][0]["id"], "salamander-grand-piano");
     let search = c.ok("sounds search", &[("query", ""), ("type", "ir"), ("license", "CC0")], &[]);
     assert!(search["count"].as_u64().unwrap() >= 2);
+    let info = c.ok("sounds info", &[("id", "piano")], &[]);
+    assert_eq!(info["id"], "salamander-grand-piano", "registry alias suggestions resolve");
+    let e = c.run("plugin run", &[], &[&input]);
+    assert_eq!(e.error.unwrap().exit_code, 2);
     let e = c.run("sounds install", &[("id", "salamander-grand-piano")], &[]);
     assert_eq!(e.error.unwrap().code, "sound_unverified");
     let e = c.run("sounds install", &[("id", "vital")], &[]);

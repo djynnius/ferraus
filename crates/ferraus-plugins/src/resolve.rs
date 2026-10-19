@@ -342,6 +342,12 @@ fn has_ext(p: &Path, exts: &[&str]) -> bool {
 /// Files (not plugins) under `root`: `.sf2`, `.sfz`, and IR audio files. Samples inside a
 /// folder that holds `.sfz` files belong to that library and are not listed as IRs.
 pub fn discover_files(root: &Path, origin: &str) -> Vec<Sound> {
+    discover_files_with(root, origin, false)
+}
+
+/// Like [`discover_files`]; with `all_ir`, every audio file outside SFZ libraries is an
+/// impulse response (used for installed IR packs).
+pub fn discover_files_with(root: &Path, origin: &str, all_ir: bool) -> Vec<Sound> {
     let mut out = Vec::new();
     if root.is_file() {
         if let Some(s) = file_sound(root, root.parent().unwrap_or(root), origin, true) {
@@ -349,7 +355,7 @@ pub fn discover_files(root: &Path, origin: &str) -> Vec<Sound> {
         }
         return out;
     }
-    walk_files(root, root, origin, 0, false, &mut out);
+    walk_files(root, root, origin, 0, false, all_ir, &mut out);
     out
 }
 
@@ -392,7 +398,7 @@ fn file_sound(p: &Path, root: &Path, origin: &str, ir_ok: bool) -> Option<Sound>
     })
 }
 
-fn walk_files(dir: &Path, root: &Path, origin: &str, depth: usize, in_sfz: bool, out: &mut Vec<Sound>) {
+fn walk_files(dir: &Path, root: &Path, origin: &str, depth: usize, in_sfz: bool, all_ir: bool, out: &mut Vec<Sound>) {
     if depth > 8 || out.len() > 20000 {
         return;
     }
@@ -407,9 +413,9 @@ fn walk_files(dir: &Path, root: &Path, origin: &str, depth: usize, in_sfz: bool,
             if PluginFormat::from_path(p).is_some() || has_ext(p, &["component", "app", "lv2"]) {
                 continue;
             }
-            walk_files(p, root, origin, depth + 1, here_sfz, out);
+            walk_files(p, root, origin, depth + 1, here_sfz, all_ir, out);
         } else {
-            let ir_ok = !here_sfz && is_ir_context(p, root);
+            let ir_ok = !here_sfz && (all_ir || is_ir_context(p, root));
             if let Some(s) = file_sound(p, root, origin, ir_ok) {
                 out.push(s);
             }
@@ -505,7 +511,7 @@ pub fn discover(env: &SoundsEnv, sound_paths: &[PathBuf], watchdog: Duration) ->
             if rec.kind.is_plugin() {
                 continue;
             }
-            for mut s in discover_files(p, "installed") {
+            for mut s in discover_files_with(p, "installed", rec.kind == SoundKind::Ir) {
                 s.registry_id = Some(rec.id.clone());
                 for t in &rec.tags {
                     if !s.tags.contains(t) {
@@ -516,7 +522,7 @@ pub fn discover(env: &SoundsEnv, sound_paths: &[PathBuf], watchdog: Duration) ->
                     s.category = rec.category.clone();
                 }
                 // a single-sound install answers to the registry id and name too
-                if rec.paths.len() == 1 && discover_files(p, "installed").len() == 1 {
+                if rec.paths.len() == 1 && discover_files_with(p, "installed", rec.kind == SoundKind::Ir).len() == 1 {
                     s.id = rec.id.clone();
                     s.name = rec.name.clone();
                 }

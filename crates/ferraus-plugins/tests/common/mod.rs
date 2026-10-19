@@ -78,6 +78,23 @@ pub fn clap_bundle(dir: &Path, name: &str) -> PathBuf {
     dst
 }
 
+/// A real VST3 bundle around the test library (which also exports a VST3 factory).
+pub fn vst3_bundle(dir: &Path, name: &str) -> PathBuf {
+    let lib = ensure_built();
+    let b = dir.join(format!("{name}.vst3"));
+    let bin = if cfg!(target_os = "macos") {
+        b.join("Contents/MacOS").join(name)
+    } else if cfg!(windows) {
+        b.join("Contents/x86_64-win").join(format!("{name}.vst3"))
+    } else {
+        let arch = if std::env::consts::ARCH == "aarch64" { "aarch64" } else { "x86_64" };
+        b.join(format!("Contents/{arch}-linux")).join(format!("{name}.so"))
+    };
+    std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
+    std::fs::copy(&lib, &bin).unwrap();
+    b
+}
+
 /// A fake VST3 bundle directory with a moduleinfo.json (no binary).
 pub fn fake_vst3(dir: &Path, name: &str, instrument: bool) -> PathBuf {
     let b = dir.join(format!("{name}.vst3"));

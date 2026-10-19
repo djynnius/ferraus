@@ -74,7 +74,7 @@ fn plugin_ops() -> Vec<OpSpec> {
         OpSpec::custom("plugin run", Category::Plugins, "Run an effect plugin over audio", plugin_run)
             .about("Processes the input through an effect plugin in a separate host process, offline in fixed blocks. The plugin's reported latency is compensated so every sample stays at its original position; --tail keeps processing after the input ends so reverbs and delays can ring out. The resolved parameters, preset, and native state are written to the sidecar so the run can be reproduced.")
             .inputs(Inputs::ONE_AUDIO)
-            .param(param("plugin", ParamKind::Str).required().help("Plugin name, id, or path to a .clap/.vst3 bundle"))
+            .param(param("plugin", ParamKind::Str).help("Plugin name, id, or path to a .clap/.vst3 bundle (required)"))
             .param(param_param())
             .param(preset_param())
             .param(state_param())
@@ -244,7 +244,9 @@ fn plugin_list(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 }
 
 fn resolve(a: &Args, key: &str, ctx: &OpCtx) -> Result<PluginRef> {
-    let name = a.str(key).ok_or_else(|| Error::usage(format!("missing --{key}")))?;
+    let name = a.str(key).ok_or_else(|| {
+        Error::usage(format!("missing --{key}: name the plugin to use")).with_hint("ferraus plugin list")
+    })?;
     scan::resolve_plugin(&name, &ctx.globals.sound_paths, watchdog(a)?)
 }
 

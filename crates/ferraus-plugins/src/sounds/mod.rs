@@ -135,12 +135,21 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// Look up by id, then name, then a suggested alias (`piano`), preferring entries
+    /// that are verified for this platform.
     pub fn get(&self, id: &str) -> Option<&Entry> {
         self.entries
             .iter()
             .find(|e| e.id == id)
             .or_else(|| self.entries.iter().find(|e| e.id.eq_ignore_ascii_case(id)))
             .or_else(|| self.entries.iter().find(|e| e.name.eq_ignore_ascii_case(id)))
+            .or_else(|| {
+                let os = current_os();
+                let mut hits: Vec<&Entry> =
+                    self.entries.iter().filter(|e| e.aliases.iter().any(|a| a.eq_ignore_ascii_case(id))).collect();
+                hits.sort_by_key(|e| (!e.verified_for(os), e.is_vendor_only()));
+                hits.first().copied()
+            })
     }
 
     /// Entries matching every word of `query` in id, name, tags, category, aliases, type,
@@ -405,6 +414,9 @@ fn sounds_install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         Error::usage("name a registry id, or pass --from <file>").with_hint("ferraus sounds search piano")
     })?;
     let e = find_entry(&m, &id)?.clone();
+    if e.id != id {
+        ctx.note("resolved_id", e.id.clone());
+    }
     ctx.progress.log(&license_block(&e));
     let opts = install::InstallOptions {
         yes: ctx.globals.yes || std::env::var("FERRAUS_AUTO_DOWNLOAD").map(|v| v == "1").unwrap_or(false),
@@ -418,8 +430,17 @@ fn sounds_install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let command = ctx.command.clone();
     let rec = install::install_entry(&env, &e, &opts, &mut |f| progress.progress(&command, f))?;
     if let Some(r) = &rec {
-        for p in &r.paths {
-            ctx.record_output(p, Some("installed"));
+        // installed paths are reported in the result, not as outputs: a sidecar has no
+        // place inside the sounds folder
+        ctx.metric("installed_paths", r.paths.len());
+        // `sounds install piano` also makes `piano` resolve to what was installed
+        if e.aliases.iter().any(|a| a.eq_ignore_ascii_case(&id)) && !id.eq_ignore_ascii_case(&e.id) {
+            let mut aliases = resolve::read_aliases(&env);
+            if !aliases.contains_key(&id) {
+                aliases.insert(id.clone(), e.id.clone());
+                resolve::write_aliases(&env, &aliases)?;
+                ctx.note("alias_set", format!("{id}={}", e.id));
+            }
         }
     }
     Ok(json!({

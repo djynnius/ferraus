@@ -679,6 +679,7 @@ name = "ferraus-test-plugin"
 version = "0.1.0"
 dependencies = [
  "clap-sys",
+ "vst3",
 ]
 
 [[package]]

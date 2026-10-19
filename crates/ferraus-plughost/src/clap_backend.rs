@@ -1381,3 +1381,34 @@ impl Backend for ClapBackend {
         (self.main_in.map(|i| self.in_ports[i]).unwrap_or(0), self.main_out.map(|i| self.out_ports[i]).unwrap_or(0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_the_executable_in_a_macos_style_bundle() {
+        let dir = std::env::temp_dir().join(format!("ferraus-clapbundle-{}", std::process::id()));
+        let b = dir.join("Foo.clap");
+        std::fs::create_dir_all(b.join("Contents/MacOS")).unwrap();
+        std::fs::write(
+            b.join("Contents/Info.plist"),
+            "<plist><dict><key>CFBundleExecutable</key>\n  <string>FooBin</string></dict></plist>",
+        )
+        .unwrap();
+        std::fs::write(b.join("Contents/MacOS/FooBin"), b"x").unwrap();
+        assert_eq!(clap_binary(&b).unwrap(), b.join("Contents/MacOS/FooBin"));
+        assert!(clap_binary(&dir.join("Missing.clap")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn loading_garbage_is_an_error_not_a_crash() {
+        let f = std::env::temp_dir().join(format!("ferraus-garbage-{}.clap", std::process::id()));
+        std::fs::write(&f, b"not a library").unwrap();
+        let mut b = ClapBackend::new();
+        let e = b.probe(&f).unwrap_err();
+        assert_eq!(e.code, "load_failed");
+        let _ = std::fs::remove_file(&f);
+    }
+}

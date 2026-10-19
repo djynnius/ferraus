@@ -11,9 +11,13 @@
 //! * `ferraus.test.hang` — sleeps forever in `process()` when `hang_on_process` is on (default).
 //!
 //! Every plugin implements the `state` extension (parameter values as bytes), so state
-//! save/load round-trips can be tested. This crate is a test fixture, never shipped.
+//! save/load round-trips can be tested. The same library also exports a VST3 factory with
+//! one gain effect (see `vst3_gain`), so the VST3 host is tested too. This crate is a test
+//! fixture, never shipped.
 
 #![allow(clippy::missing_safety_doc)]
+
+mod vst3_gain;
 
 use clap_sys::entry::clap_plugin_entry;
 use clap_sys::events::*;
