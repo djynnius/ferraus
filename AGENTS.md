@@ -60,9 +60,9 @@ ferraus separate song.mp3 --stems 4 --tier fast -y --json
 # hummed idea to an instrument
 ferraus hum idea.wav --to piano -o idea.piano.wav --json
 
-# score from MIDI / perform a MusicXML or ABC file
-# (score from audio and reading PDFs need models that are not downloadable in this release)
+# score from MIDI / read printed sheet music (PDF/PNG) / perform a score
 ferraus score song.mid --chords diagrams -o song.musicxml --json
+ferraus score read minuet.pdf -o minuet.musicxml --review -y --json
 ferraus score perform sonata.musicxml --instrument piano -o sonata.wav --json
 ```
 

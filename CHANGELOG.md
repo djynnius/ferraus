@@ -28,7 +28,9 @@ along the way).
 - MIDI: lossless JSON model, quantize, groove, editing utilities, transcribe (mono and Basic
   Pitch polyphonic), hum, render through the built-in synth, SF2, SFZ, or CLAP/VST3 plugins.
 - Scores: lead sheets, grand staff, drum scores, solfa; MusicXML/ABC/LilyPond/MEI writers and
-  readers; score play and perform; Verovio engraving helper; Audiveris bridge.
+  readers; score play and perform; Verovio engraving helper; Audiveris bridge; builtin
+  optical music recognition (`score read` on PNG/JPG/PDF) on oemer's MIT segmentation networks,
+  100% pitch-plus-duration on the engraved test set (`tests/omr_accuracy.rs`).
 - Plugins: out-of-process CLAP and VST3 hosting with a watchdog, sounds registry.
 - Mastering: master, master analyze/plan/verify/deliver.
 - Agents: JSON envelope and schemas, MCP server (stdio and HTTP) with jobs, resources, and
