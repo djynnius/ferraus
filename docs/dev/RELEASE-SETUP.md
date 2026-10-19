@@ -34,13 +34,19 @@ cargo run -q -p ferraus-models --example registry_sign -- keygen ~/model-registr
   > crates/ferraus-models/registry/registry.pub
 gh secret set MODEL_REGISTRY_SIGNING_KEY --env release < ~/model-registry.secret
 # sounds registry
-cargo run -q -p ferraus-plugins --example sign_registry -- --generate ~/sounds-registry.secret
-#   → prints the public key: put it in crates/ferraus-plugins/sounds/registry-public-key.txt
-gh secret set SOUNDS_REGISTRY_SIGNING_KEY --env release < ~/sounds-registry.secret
+cargo run -q -p ferraus-plugins --example sign_registry -- --generate > ~/sounds-registry.secret
+sed -n 's/^public key  (commit): *//p' ~/sounds-registry.secret \
+  > crates/ferraus-plugins/sounds/registry-public-key.txt
+# re-sign the embedded registry so it verifies with the new public key
+cargo run -q -p ferraus-plugins --example sign_registry -- crates/ferraus-plugins/sounds/registry.json \
+  --key-file ~/sounds-registry.secret
+sed -n 's/^private seed (keep secret): *//p' ~/sounds-registry.secret | tr -d '\n' \
+  | gh secret set SOUNDS_REGISTRY_SIGNING_KEY --env release
 git commit -am "Release registry public keys" && git push
 ```
 
-The committed public keys are development keys until you do this.
+Done for djynnius/ferraus on 2026-10-19; the private keys are kept outside the repository by
+the maintainer. Repeat this section only to rotate the keys.
 
 ## 3. Homebrew tap
 
