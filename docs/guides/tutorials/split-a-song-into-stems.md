@@ -8,15 +8,15 @@ what ferraus 0.1.0 printed for a 21-second test song.
 **You need:** a song (`song.wav`; MP3, FLAC, and M4A work too), about 170 MB of disk space for
 the model, and a network connection the first time.
 
-## Which tier works today
+## Which tier to use
 
-Separation uses neural-network models from the ferraus model registry. In this release only
-the **`fast`** tier (Demucs v4 `htdemucs`, 166 MB, MIT license) has a verified download. The
-default tier, `auto`, picks the best verified tier, which is `fast` today, and says so in a
-`tier_fallback` warning; the commands below name `--tier fast` explicitly. Asking for `quality`
-(a RoFormer model whose ONNX export is not hosted yet) or `balanced` (fine-tuned Demucs files
-not yet checksum-verified) fails with exit code 6 and says why. See [Stems and separation tiers](../concepts/stems.md)
-for the full table.
+Separation uses neural-network models from the ferraus model registry, and every tier has a
+verified download. The default tier, `auto`, picks `quality` (a Mel-Band RoFormer for the
+vocals plus fine-tuned Demucs for drums, bass, and other: about 960 MB of models, about 16
+minutes for a 4-minute song on a laptop CPU). The commands below use **`--tier fast`** (Demucs
+v4 `htdemucs`, 166 MB, MIT license, about 2 minutes for a 4-minute song) to keep the first run
+quick; drop `--tier fast` for the cleanest vocals. See
+[Stems and separation tiers](../concepts/stems.md) for all tiers and their measured quality.
 
 ## 1. See what would happen
 
@@ -95,21 +95,33 @@ ferraus compare song.wav sum.wav
 ferraus separate song.wav --tier fast --stems 2 --outdir two         # vocals + instrumental
 ferraus separate song.wav --tier fast --instrumental --outdir karaoke # one file with the vocals removed
 ferraus separate song.wav --tier fast --only drums,bass --outdir rhythm
+ferraus separate song.wav --tier fast --stems 6 --outdir six         # adds guitar and piano
+ferraus separate song.wav --tier fast --drum-split --outdir kit      # drums → kick, snare, toms, cymbals
 ```
 
 ```text
 two/song.vocals.wav  two/song.instrumental.wav
 karaoke/song.instrumental.wav
 rhythm/song.drums.wav  rhythm/song.bass.wav
+six/song.vocals.wav  six/song.drums.wav  six/song.bass.wav  six/song.guitar.wav  six/song.piano.wav  six/song.other.wav
+kit/song.vocals.wav ... kit/song.kick.wav  kit/song.snare.wav  kit/song.cymbals.wav  kit/song.toms.wav
 ```
+
+`--stems 2 --tier quality` runs only the RoFormer vocal model, so a clean karaoke track costs
+about two thirds of a full `quality` run. `--drum-split` downloads the DrumSep model (335 MB) on
+first use; it has no separate hi-hat output (hi-hats land in cymbals), and `--dry-run` lists
+the extra outputs before anything runs.
 
 `--outdir` keeps each run's files apart; without it, a second run stops with
 `output_exists` instead of overwriting (pass `--overwrite` to replace).
 
 ## 5. Long songs, agents, and batches
 
-Separation is the slowest command in ferraus. Run it in the background and collect the result
-later:
+Separation is the slowest command in ferraus. Memory does not grow with the song: models run
+one at a time over the song window by window, and an hour-long input spills its intermediate
+signals to temporary files (removed afterwards) so it stays under 4 GB. `--max-memory 8GB`
+lets ferraus keep everything in memory and load models in their fastest mode when you have the
+RAM. Run long jobs in the background and collect the result later:
 
 ```bash
 ferraus separate song.wav --tier fast --outdir stems --async --json

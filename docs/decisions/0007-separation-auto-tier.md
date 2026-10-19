@@ -1,6 +1,9 @@
 # ADR 0007: `separate --tier auto` is the default
 
-Status: accepted (2026-10-19)
+Status: accepted (2026-10-19). Update 2026-10-19: every tier is now verified (the fine-tuned
+Demucs specialists, `htdemucs-6s`, and an MIT-licensed hosted ONNX export of Kimberley
+Jensen's Mel-Band RoFormer), so `auto` resolves to `quality`, the PRD's intended default; the
+fallback below still applies to registries that lack a tier's models.
 
 ## Context
 The PRD makes `quality` (RoFormer-class) the default separation tier. The best open RoFormer
@@ -17,6 +20,7 @@ when it is below `quality`. `--tier quality|balanced|max` stay available and fai
 (exit 5/6 with the exact `models pull` hint) until their models are verified.
 
 ## Consequences
-* Separation works out of the box today with the MIT-licensed htdemucs ONNX export (`fast`).
-* As soon as the registry pins verified `quality` checkpoints, `auto` picks them with no code
-  change, which restores the PRD's intended default.
+* Separation worked out of the box from the start with the MIT-licensed htdemucs ONNX export
+  (`fast`).
+* When the registry pinned verified `quality` checkpoints, `auto` picked them with no code
+  change, which restored the PRD's intended default.
