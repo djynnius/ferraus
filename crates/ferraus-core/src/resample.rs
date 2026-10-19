@@ -69,7 +69,7 @@ pub fn resample_channel(input: &[f32], from: u32, to: u32, q: Quality) -> Vec<f3
     let cutoff = (to as f64 / from as f64).min(1.0) * 0.97;
     let beta = q.beta();
     let i0b = bessel_i0(beta);
-    let out_len = ((input.len() as u64 * to as u64 + from as u64 - 1) / from as u64) as usize;
+    let out_len = (input.len() as u64 * to as u64).div_ceil(from as u64) as usize;
     // Polyphase filter bank: for each phase p in 0..up, taps at input offsets.
     let width = (half as f64 / cutoff).ceil() as isize;
     let ntaps = (2 * width + 1) as usize;
@@ -85,11 +85,7 @@ pub fn resample_channel(input: &[f32], from: u32, to: u32, q: Quality) -> Vec<f3
                 (std::f64::consts::PI * x * cutoff).sin() / (std::f64::consts::PI * x * cutoff)
             };
             let r = x / (width as f64 + 1.0);
-            let w = if r.abs() >= 1.0 {
-                0.0
-            } else {
-                bessel_i0(beta * (1.0 - r * r).sqrt()) / i0b
-            };
+            let w = if r.abs() >= 1.0 { 0.0 } else { bessel_i0(beta * (1.0 - r * r).sqrt()) / i0b };
             let v = sinc * w * cutoff;
             *t = v as f32;
             sum += v;
@@ -125,15 +121,8 @@ pub fn resample(buf: &AudioBuffer, to: u32, q: Quality) -> AudioBuffer {
         return buf.clone();
     }
     use rayon::prelude::*;
-    let data: Vec<Vec<f32>> = buf
-        .data
-        .par_iter()
-        .map(|c| resample_channel(c, buf.sample_rate, to, q))
-        .collect();
-    AudioBuffer {
-        sample_rate: to,
-        data,
-    }
+    let data: Vec<Vec<f32>> = buf.data.par_iter().map(|c| resample_channel(c, buf.sample_rate, to, q)).collect();
+    AudioBuffer { sample_rate: to, data }
 }
 
 #[cfg(test)]
@@ -153,9 +142,7 @@ mod tests {
         assert_eq!(y.len(), 24000);
         let reference = sine(48000, 1000.0, 0.5);
         // compare the middle (edges have filter transients)
-        let err: f64 = (2000..22000)
-            .map(|i| (y[i] - reference[i]).abs() as f64)
-            .fold(0.0, f64::max);
+        let err: f64 = (2000..22000).map(|i| (y[i] - reference[i]).abs() as f64).fold(0.0, f64::max);
         assert!(err < 1e-3, "max err {err}");
     }
 
@@ -170,12 +157,7 @@ mod tests {
         // 20 kHz at 48k → 16k must be removed (above new Nyquist 8 kHz)
         let x = sine(48000, 20000.0, 0.5);
         let y = resample_channel(&x, 48000, 16000, Quality::High);
-        let rms: f64 = (y[1000..7000]
-            .iter()
-            .map(|v| (*v as f64).powi(2))
-            .sum::<f64>()
-            / 6000.0)
-            .sqrt();
+        let rms: f64 = (y[1000..7000].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / 6000.0).sqrt();
         assert!(rms < 1e-3, "alias rms {rms}");
     }
 }

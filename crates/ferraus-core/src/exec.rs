@@ -4,9 +4,7 @@
 
 use crate::buffer::AudioBuffer;
 use crate::ctx::{AudioIo, CancelToken, Globals, OpCtx, OutputRecord, Progress};
-use crate::envelope::{
-    sha256_file, Envelope, HashedFile, HostInfo, Sidecar, FERRAUS_VERSION, SCHEMA_VERSION,
-};
+use crate::envelope::{sha256_file, Envelope, HashedFile, HostInfo, Sidecar, FERRAUS_VERSION, SCHEMA_VERSION};
 use crate::error::{Error, Result};
 use crate::op::{parse_stage_string, Args, OpSpec, Runner};
 use crate::registry::Registry;
@@ -74,10 +72,9 @@ impl<'a> Runtime<'a> {
         let start = Instant::now();
         match self.invoke_inner(inv.clone(), start) {
             Ok(o) => o,
-            Err(e) => Outcome {
-                envelope: Envelope::error(&inv.command, e, start.elapsed().as_millis() as u64),
-                stdout: None,
-            },
+            Err(e) => {
+                Outcome { envelope: Envelope::error(&inv.command, e, start.elapsed().as_millis() as u64), stdout: None }
+            }
         }
     }
 
@@ -97,30 +94,15 @@ impl<'a> Runtime<'a> {
         let batch = matches!(spec.inputs.max, Some(1)) && inputs.len() > 1;
         if let Some(max) = spec.inputs.max {
             if !batch && inputs.len() > max {
-                return Err(Error::usage(format!(
-                    "'{}' takes at most {max} input(s)",
-                    spec.name
-                )));
+                return Err(Error::usage(format!("'{}' takes at most {max} input(s)", spec.name)));
             }
         }
-        if batch
-            && inv
-                .globals
-                .output
-                .as_deref()
-                .map(|o| !o.contains('{'))
-                .unwrap_or(false)
-        {
-            return Err(Error::usage(
-                "several inputs need --outdir or an -o template such as '{name}.out.wav'",
-            ));
+        if batch && inv.globals.output.as_deref().map(|o| !o.contains('{')).unwrap_or(false) {
+            return Err(Error::usage("several inputs need --outdir or an -o template such as '{name}.out.wav'"));
         }
 
-        let groups: Vec<Vec<PathBuf>> = if batch {
-            inputs.iter().map(|i| vec![i.clone()]).collect()
-        } else {
-            vec![inputs.clone()]
-        };
+        let groups: Vec<Vec<PathBuf>> =
+            if batch { inputs.iter().map(|i| vec![i.clone()]).collect() } else { vec![inputs.clone()] };
         let mut envelope = Envelope {
             ok: true,
             command: spec.name.to_string(),
@@ -135,25 +117,14 @@ impl<'a> Runtime<'a> {
             result: Value::Null,
             error: None,
             timing_ms: 0,
-            dry_run: if inv.globals.dry_run {
-                Some(true)
-            } else {
-                None
-            },
+            dry_run: if inv.globals.dry_run { Some(true) } else { None },
         };
         let mut results = Vec::new();
         let mut stdout: Option<Vec<u8>> = None;
-        let mut deterministic =
-            !matches!(spec.runner, Runner::Custom(_)) || inv.globals.deterministic;
+        let mut deterministic = !matches!(spec.runner, Runner::Custom(_)) || inv.globals.deterministic;
         for (index, group) in groups.into_iter().enumerate() {
             let item_start = Instant::now();
-            let mut ctx = OpCtx::new(
-                spec.name,
-                group,
-                inv.globals.clone(),
-                self.io,
-                self.progress,
-            );
+            let mut ctx = OpCtx::new(spec.name, group, inv.globals.clone(), self.io, self.progress);
             ctx.registry = Some(self.registry);
             ctx.cancel = self.cancel.clone();
             ctx.index = index;
@@ -165,20 +136,14 @@ impl<'a> Runtime<'a> {
             match res {
                 Ok(v) => {
                     if !inv.globals.dry_run && inv.globals.sidecar {
-                        self.write_sidecars(
-                            spec,
-                            &args,
-                            &ctx,
-                            &inv.argv,
-                            item_start.elapsed().as_millis() as u64,
-                        )?;
+                        self.write_sidecars(spec, &args, &ctx, &inv.argv, item_start.elapsed().as_millis() as u64)?;
                     }
                     if ctx.deterministic == Some(false) {
                         deterministic = false;
                     }
-                    envelope.inputs.extend(ctx.input_records.drain(..));
-                    envelope.outputs.extend(ctx.outputs.drain(..));
-                    envelope.warnings.extend(ctx.warnings.drain(..));
+                    envelope.inputs.append(&mut ctx.input_records);
+                    envelope.outputs.append(&mut ctx.outputs);
+                    envelope.warnings.append(&mut ctx.warnings);
                     for m in ctx.models.drain(..) {
                         if !envelope.models.contains(&m) {
                             envelope.models.push(m);
@@ -226,13 +191,10 @@ impl<'a> Runtime<'a> {
         }
         let _ = deterministic;
         if inv.globals.explain {
-            envelope
-                .metrics
-                .insert("explain".into(), explain(spec, &args));
+            envelope.metrics.insert("explain".into(), explain(spec, &args));
         }
         envelope.timing_ms = start.elapsed().as_millis() as u64;
-        self.progress
-            .log(&format!("done in {} ms", envelope.timing_ms));
+        self.progress.log(&format!("done in {} ms", envelope.timing_ms));
         Ok(Outcome { envelope, stdout })
     }
 
@@ -260,11 +222,7 @@ impl<'a> Runtime<'a> {
                     return Ok(plan);
                 }
                 // idempotent outputs: same command, params, and inputs → reuse
-                if !ctx.globals.force
-                    && !ctx.globals.overwrite
-                    && out_path.as_os_str() != "-"
-                    && out_path.exists()
-                {
+                if !ctx.globals.force && !ctx.globals.overwrite && out_path.as_os_str() != "-" && out_path.exists() {
                     if let Some(v) = self.reuse_existing(spec, args, ctx, &out_path) {
                         return Ok(v);
                     }
@@ -291,13 +249,7 @@ impl<'a> Runtime<'a> {
         }
     }
 
-    fn reuse_existing(
-        &self,
-        spec: &OpSpec,
-        args: &Args,
-        ctx: &mut OpCtx,
-        out: &Path,
-    ) -> Option<Value> {
+    fn reuse_existing(&self, spec: &OpSpec, args: &Args, ctx: &mut OpCtx, out: &Path) -> Option<Value> {
         let sc_path = Sidecar::path_for(out);
         let sc: Sidecar = serde_json::from_slice(&std::fs::read(&sc_path).ok()?).ok()?;
         if sc.command != spec.name || sc.ferraus_version != FERRAUS_VERSION {
@@ -334,13 +286,7 @@ impl<'a> Runtime<'a> {
                 extra: Map::new(),
             });
         }
-        ctx.warn(
-            "reused_output",
-            format!(
-                "{} already matches this command; pass --force to recompute",
-                out.display()
-            ),
-        );
+        ctx.warn("reused_output", format!("{} already matches this command; pass --force to recompute", out.display()));
         // keep the existing sidecar untouched
         ctx.globals.sidecar = false;
         Some(json!({"reused": true}))
@@ -357,14 +303,7 @@ impl<'a> Runtime<'a> {
         Ok(buf)
     }
 
-    fn write_sidecars(
-        &self,
-        spec: &OpSpec,
-        args: &Args,
-        ctx: &OpCtx,
-        argv: &[String],
-        timing_ms: u64,
-    ) -> Result<()> {
+    fn write_sidecars(&self, spec: &OpSpec, args: &Args, ctx: &OpCtx, argv: &[String], timing_ms: u64) -> Result<()> {
         if ctx.outputs.is_empty() || !ctx.globals.sidecar {
             return Ok(());
         }
@@ -373,11 +312,7 @@ impl<'a> Runtime<'a> {
             .iter()
             .map(|r| HashedFile {
                 path: r.path.clone(),
-                sha256: if r.path == "-" {
-                    None
-                } else {
-                    sha256_file(Path::new(&r.path)).ok()
-                },
+                sha256: if r.path == "-" { None } else { sha256_file(Path::new(&r.path)).ok() },
                 duration_s: r.duration_s,
                 role: None,
             })
@@ -410,19 +345,11 @@ impl<'a> Runtime<'a> {
             params,
             inputs,
             outputs: outputs.clone(),
-            models: ctx
-                .models
-                .iter()
-                .map(|m| serde_json::to_value(m).unwrap())
-                .collect(),
+            models: ctx.models.iter().map(|m| serde_json::to_value(m).unwrap()).collect(),
             plugins: ctx.plugins.clone(),
             host: HostInfo::current(&ctx.globals.device, ctx.threads()),
             deterministic,
-            warnings: ctx
-                .warnings
-                .iter()
-                .map(|w| serde_json::to_value(w).unwrap())
-                .collect(),
+            warnings: ctx.warnings.iter().map(|w| serde_json::to_value(w).unwrap()).collect(),
             timing_ms,
         };
         let text = serde_json::to_vec_pretty(&sc)?;
@@ -439,7 +366,7 @@ impl<'a> Runtime<'a> {
 }
 
 /// Default output extension: same as the input when this build can encode it, else wav.
-fn default_ext(ctx: &OpCtx) -> String {
+pub fn default_ext(ctx: &OpCtx) -> String {
     if let Some(f) = &ctx.globals.format {
         return f.clone();
     }
@@ -472,20 +399,10 @@ pub fn conform_output(mut buf: AudioBuffer, g: &Globals) -> AudioBuffer {
 }
 
 /// Run a Transform spec with generic dry/wet handling.
-pub fn apply_spec(
-    spec: &OpSpec,
-    args: &Args,
-    input: AudioBuffer,
-    ctx: &mut OpCtx,
-) -> Result<AudioBuffer> {
+pub fn apply_spec(spec: &OpSpec, args: &Args, input: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     let f = match spec.runner {
         Runner::Transform(f) => f,
-        _ => {
-            return Err(Error::usage(format!(
-                "'{}' cannot be used as an effect stage",
-                spec.name
-            )))
-        }
+        _ => return Err(Error::usage(format!("'{}' cannot be used as an effect stage", spec.name))),
     };
     let generic_mix = spec.auto_mix && spec.find_param("mix").is_none();
     if generic_mix {
@@ -505,11 +422,7 @@ pub fn apply_spec(
 
 /// `dry + m·(wet − dry)`, matching lengths and channels to the wet signal.
 pub fn blend(dry: &AudioBuffer, wet: &AudioBuffer, m: f32) -> AudioBuffer {
-    let dry = if dry.channels() != wet.channels() {
-        dry.with_channels(wet.channels())
-    } else {
-        dry.clone()
-    };
+    let dry = if dry.channels() != wet.channels() { dry.with_channels(wet.channels()) } else { dry.clone() };
     let mut out = wet.clone();
     for (oc, dc) in out.data.iter_mut().zip(&dry.data) {
         for (i, o) in oc.iter_mut().enumerate() {
@@ -537,9 +450,7 @@ pub fn chain_stages(args: &Args) -> Result<Vec<(String, Vec<(String, String)>)>>
         }
     }
     if stages.is_empty() {
-        return Err(Error::usage(
-            "fx needs at least one --fx stage, e.g. --fx \"fade:in=1s\"",
-        ));
+        return Err(Error::usage("fx needs at least one --fx stage, e.g. --fx \"fade:in=1s\""));
     }
     Ok(stages)
 }
@@ -549,10 +460,8 @@ pub fn stage_from_json(v: &Value) -> Result<(String, Vec<(String, String)>)> {
     match v {
         Value::String(s) => parse_stage_string(s),
         Value::Object(o) => {
-            let op = o
-                .get("op")
-                .and_then(|x| x.as_str())
-                .ok_or_else(|| Error::usage("each chain stage needs an 'op'"))?;
+            let op =
+                o.get("op").and_then(|x| x.as_str()).ok_or_else(|| Error::usage("each chain stage needs an 'op'"))?;
             let mut pairs = Vec::new();
             for (k, val) in o {
                 if k == "op" || k == "id" {
@@ -605,36 +514,17 @@ pub fn run_transform_pairs(
 }
 
 /// Convenience for composite ops: `run_transform(ctx, "compress", &[("ratio", "1.5:1")], buf)`.
-pub fn run_transform(
-    ctx: &mut OpCtx,
-    name: &str,
-    pairs: &[(&str, &str)],
-    buf: AudioBuffer,
-) -> Result<AudioBuffer> {
-    let registry = ctx
-        .registry
-        .ok_or_else(|| Error::internal("no registry in context"))?;
-    let pairs = pairs
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+pub fn run_transform(ctx: &mut OpCtx, name: &str, pairs: &[(&str, &str)], buf: AudioBuffer) -> Result<AudioBuffer> {
+    let registry = ctx.registry.ok_or_else(|| Error::internal("no registry in context"))?;
+    let pairs = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
     run_transform_pairs(registry, &|_, _| None, name, pairs, buf, ctx)
 }
 
 /// Build Args for a named op from pairs (defaults applied), for composite ops.
 pub fn build_args(ctx: &OpCtx, name: &str, pairs: &[(&str, &str)]) -> Result<Args> {
-    let registry = ctx
-        .registry
-        .ok_or_else(|| Error::internal("no registry in context"))?;
+    let registry = ctx.registry.ok_or_else(|| Error::internal("no registry in context"))?;
     let spec = registry.require(name)?;
-    Args::build(
-        spec,
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect(),
-        &|_, _| None,
-    )
+    Args::build(spec, pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), &|_, _| None)
 }
 
 /// Run any registered op as a nested step, with its own inputs and output path. Returns
@@ -646,18 +536,9 @@ pub fn run_nested(
     inputs: Vec<PathBuf>,
     output: Option<&Path>,
 ) -> Result<(Value, Vec<OutputRecord>)> {
-    let registry = ctx
-        .registry
-        .ok_or_else(|| Error::internal("no registry in context"))?;
+    let registry = ctx.registry.ok_or_else(|| Error::internal("no registry in context"))?;
     let spec = registry.require(name)?;
-    let args = Args::build(
-        spec,
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect(),
-        &|_, _| None,
-    )?;
+    let args = Args::build(spec, pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), &|_, _| None)?;
     let mut child = ctx.child(spec.name, inputs);
     child.globals.output = output.map(|p| p.display().to_string());
     child.globals.outdir = None;

@@ -55,7 +55,11 @@ fn schema_snapshots() {
     } else if std::fs::read_to_string(&ipath).ok().as_deref() != Some(index.as_str()) {
         failures.push("the command list changed".into());
     }
-    assert!(failures.is_empty(), "schema contract changed (re-run with UPDATE_SNAPSHOTS=1 if intended):\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "schema contract changed (re-run with UPDATE_SNAPSHOTS=1 if intended):\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -74,7 +78,10 @@ fn agent_catalog_under_budget_and_in_sync() {
         std::fs::write(&path, &generated).unwrap();
     } else {
         let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
-        assert_eq!(on_disk, generated, "docs/agents/catalog.md is stale; run UPDATE_SNAPSHOTS=1 cargo test -p ferraus-cli --test contract");
+        assert_eq!(
+            on_disk, generated,
+            "docs/agents/catalog.md is stale; run UPDATE_SNAPSHOTS=1 cargo test -p ferraus-cli --test contract"
+        );
     }
 }
 
@@ -84,7 +91,9 @@ fn render_markdown_catalog(reg: &ferraus_core::Registry) -> String {
     let mut ctx = ferraus_core::OpCtx::new("describe", vec![], Default::default(), &io, &progress);
     ctx.registry = Some(reg);
     let spec = reg.get("describe").unwrap();
-    let args = Args::build(spec, vec![("agent".into(), "true".into()), ("format".into(), "markdown".into())], &|_, _| None).unwrap();
+    let args =
+        Args::build(spec, vec![("agent".into(), "true".into()), ("format".into(), "markdown".into())], &|_, _| None)
+            .unwrap();
     let f = match spec.runner {
         ferraus_core::Runner::Custom(f) => f,
         _ => unreachable!(),
@@ -173,7 +182,9 @@ fn check_example(reg: &ferraus_core::Registry, cmd: &str) -> Result<(), String> 
     let Some((op, nwords)) = resolve_command(reg, &words) else {
         return Err(format!("unknown command in: {cmd}"));
     };
-    let m = ferraus_cli::cli::build_command(reg).try_get_matches_from(&argv).map_err(|e| format!("{cmd}\n  {}", e.to_string().lines().next().unwrap_or("")))?;
+    let m = ferraus_cli::cli::build_command(reg)
+        .try_get_matches_from(&argv)
+        .map_err(|e| format!("{cmd}\n  {}", e.to_string().lines().next().unwrap_or("")))?;
     let _ = m;
     // validate op values through Args::build (units, choices)
     let mut pairs = Vec::new();
@@ -206,7 +217,23 @@ fn check_example(reg: &ferraus_core::Registry, cmd: &str) -> Result<(), String> 
                 }
             } else if !ferraus_cli::cli::GLOBAL_FLAGS.contains(&name.as_str()) {
                 return Err(format!("{cmd}\n  unknown flag --{name}"));
-            } else if !matches!(name.as_str(), "json" | "dry-run" | "overwrite" | "in-place" | "deterministic" | "offline" | "yes" | "explain" | "force" | "quiet" | "verbose" | "async" | "sidecar" | "no-sidecar") {
+            } else if !matches!(
+                name.as_str(),
+                "json"
+                    | "dry-run"
+                    | "overwrite"
+                    | "in-place"
+                    | "deterministic"
+                    | "offline"
+                    | "yes"
+                    | "explain"
+                    | "force"
+                    | "quiet"
+                    | "verbose"
+                    | "async"
+                    | "sidecar"
+                    | "no-sidecar"
+            ) {
                 i += 1;
             }
         }

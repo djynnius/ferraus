@@ -42,11 +42,7 @@ impl StderrProgress {
         StderrProgress {
             mode,
             verbosity,
-            state: Mutex::new(State {
-                started: Instant::now(),
-                last_draw: None,
-                drew_bar: false,
-            }),
+            state: Mutex::new(State { started: Instant::now(), last_draw: None, drew_bar: false }),
         }
     }
 
@@ -71,9 +67,7 @@ impl StderrProgress {
 impl Progress for StderrProgress {
     fn stage(&self, stage: &str, index: usize, of: usize) {
         match self.mode {
-            Mode::Json => {
-                self.emit(json!({"event": "stage_start", "stage": stage, "index": index, "of": of}))
-            }
+            Mode::Json => self.emit(json!({"event": "stage_start", "stage": stage, "index": index, "of": of})),
             Mode::Bar if self.verbosity > 0 => {
                 let mut st = self.state.lock().unwrap();
                 self.clear_bar(&mut st);
@@ -88,23 +82,14 @@ impl Progress for StderrProgress {
             Mode::Json => {
                 let st = self.state.lock().unwrap();
                 let el = st.started.elapsed().as_secs_f64();
-                let eta = if fraction > 0.01 {
-                    Some(((el / fraction) - el).max(0.0).round() as u64)
-                } else {
-                    None
-                };
+                let eta = if fraction > 0.01 { Some(((el / fraction) - el).max(0.0).round() as u64) } else { None };
                 drop(st);
                 self.emit(json!({"event": "progress", "stage": stage, "percent": (fraction * 1000.0).round() / 10.0, "eta_s": eta}));
             }
             Mode::Bar => {
                 let mut st = self.state.lock().unwrap();
                 let now = Instant::now();
-                if fraction < 1.0
-                    && st
-                        .last_draw
-                        .map(|t| now.duration_since(t).as_millis() < 100)
-                        .unwrap_or(false)
-                {
+                if fraction < 1.0 && st.last_draw.map(|t| now.duration_since(t).as_millis() < 100).unwrap_or(false) {
                     return;
                 }
                 st.last_draw = Some(now);

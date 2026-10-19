@@ -72,16 +72,12 @@ impl ParamKind {
     pub fn validate(self, raw: &str, choices: &[&str]) -> Result<()> {
         match self {
             ParamKind::Flag | ParamKind::Switch => parse_bool(raw).map(|_| ()),
-            ParamKind::Int => raw
-                .trim()
-                .parse::<i64>()
-                .map(|_| ())
-                .map_err(|_| Error::usage(format!("'{raw}' is not an integer"))),
-            ParamKind::Float => raw
-                .trim()
-                .parse::<f64>()
-                .map(|_| ())
-                .map_err(|_| Error::usage(format!("'{raw}' is not a number"))),
+            ParamKind::Int => {
+                raw.trim().parse::<i64>().map(|_| ()).map_err(|_| Error::usage(format!("'{raw}' is not an integer")))
+            }
+            ParamKind::Float => {
+                raw.trim().parse::<f64>().map(|_| ()).map_err(|_| Error::usage(format!("'{raw}' is not a number")))
+            }
             ParamKind::Str | ParamKind::Path | ParamKind::List => Ok(()),
             ParamKind::Time => {
                 if raw.contains('/') {
@@ -107,10 +103,7 @@ impl ParamKind {
                 if choices.is_empty() || choices.contains(&raw) {
                     Ok(())
                 } else {
-                    Err(Error::usage(format!(
-                        "'{raw}' is not one of: {}",
-                        choices.join(", ")
-                    )))
+                    Err(Error::usage(format!("'{raw}' is not one of: {}", choices.join(", "))))
                 }
             }
         }
@@ -268,47 +261,15 @@ pub enum InputKind {
 }
 
 impl Inputs {
-    pub const NONE: Inputs = Inputs {
-        min: 0,
-        max: Some(0),
-        kind: InputKind::None,
-    };
-    pub const ONE_AUDIO: Inputs = Inputs {
-        min: 1,
-        max: Some(1),
-        kind: InputKind::Audio,
-    };
-    pub const MANY_AUDIO: Inputs = Inputs {
-        min: 1,
-        max: None,
-        kind: InputKind::Audio,
-    };
-    pub const ONE_MIDI: Inputs = Inputs {
-        min: 1,
-        max: Some(1),
-        kind: InputKind::Midi,
-    };
-    pub const ONE_ANY: Inputs = Inputs {
-        min: 1,
-        max: Some(1),
-        kind: InputKind::Any,
-    };
-    pub const MANY_ANY: Inputs = Inputs {
-        min: 1,
-        max: None,
-        kind: InputKind::Any,
-    };
-    pub const OPTIONAL_ANY: Inputs = Inputs {
-        min: 0,
-        max: None,
-        kind: InputKind::Any,
-    };
+    pub const NONE: Inputs = Inputs { min: 0, max: Some(0), kind: InputKind::None };
+    pub const ONE_AUDIO: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Audio };
+    pub const MANY_AUDIO: Inputs = Inputs { min: 1, max: None, kind: InputKind::Audio };
+    pub const ONE_MIDI: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Midi };
+    pub const ONE_ANY: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Any };
+    pub const MANY_ANY: Inputs = Inputs { min: 1, max: None, kind: InputKind::Any };
+    pub const OPTIONAL_ANY: Inputs = Inputs { min: 0, max: None, kind: InputKind::Any };
     pub fn exactly(n: usize, kind: InputKind) -> Inputs {
-        Inputs {
-            min: n,
-            max: Some(n),
-            kind,
-        }
+        Inputs { min: n, max: Some(n), kind }
     }
 }
 
@@ -384,12 +345,7 @@ pub struct OpSpec {
 }
 
 impl OpSpec {
-    pub fn new(
-        name: &'static str,
-        category: Category,
-        summary: &'static str,
-        runner: Runner,
-    ) -> OpSpec {
+    pub fn new(name: &'static str, category: Category, summary: &'static str, runner: Runner) -> OpSpec {
         let inputs = match runner {
             Runner::Transform(_) | Runner::Chain => Inputs::ONE_AUDIO,
             Runner::Custom(_) => Inputs::ONE_ANY,
@@ -411,21 +367,11 @@ impl OpSpec {
         }
     }
 
-    pub fn transform(
-        name: &'static str,
-        category: Category,
-        summary: &'static str,
-        f: TransformFn,
-    ) -> OpSpec {
+    pub fn transform(name: &'static str, category: Category, summary: &'static str, f: TransformFn) -> OpSpec {
         OpSpec::new(name, category, summary, Runner::Transform(f))
     }
 
-    pub fn custom(
-        name: &'static str,
-        category: Category,
-        summary: &'static str,
-        f: CustomFn,
-    ) -> OpSpec {
+    pub fn custom(name: &'static str, category: Category, summary: &'static str, f: CustomFn) -> OpSpec {
         OpSpec::new(name, category, summary, Runner::Custom(f))
     }
 
@@ -496,16 +442,17 @@ impl OpSpec {
         let mut ps = self.params.clone();
         if self.auto_mix && self.find_param("mix").is_none() {
             ps.push(
-                param("mix", ParamKind::Percent).default("100%").help(
-                    "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed",
-                ),
+                param("mix", ParamKind::Percent)
+                    .default("100%")
+                    .help("Dry/wet balance: 0% returns the input unchanged, 100% is fully processed"),
             );
         }
         if !self.presets.is_empty() && self.find_param("preset").is_none() {
             let _names: Vec<&str> = self.presets.iter().map(|p| p.name).collect();
-            ps.push(param("preset", ParamKind::Str).help(
-                "Load a named preset (built-in or user); explicit flags override its values",
-            ));
+            ps.push(
+                param("preset", ParamKind::Str)
+                    .help("Load a named preset (built-in or user); explicit flags override its values"),
+            );
         }
         ps
     }
@@ -516,9 +463,7 @@ pub fn parse_bool(s: &str) -> Result<bool> {
     match s.trim().to_ascii_lowercase().as_str() {
         "" | "on" | "true" | "yes" | "1" => Ok(true),
         "off" | "false" | "no" | "0" => Ok(false),
-        other => Err(Error::usage(format!(
-            "'{other}' is not on/off or true/false"
-        ))),
+        other => Err(Error::usage(format!("'{other}' is not on/off or true/false"))),
     }
 }
 
@@ -550,17 +495,10 @@ impl Args {
             let name = k.replace('_', "-");
             let p = params.iter().find(|p| p.name == name).ok_or_else(|| {
                 let known: Vec<&str> = params.iter().map(|p| p.name).collect();
-                Error::usage(format!(
-                    "'{}' does not accept '{}'. Accepted: {}",
-                    spec.name,
-                    name,
-                    known.join(", ")
-                ))
-                .with_hint(format!("ferraus schema {}", spec.name))
+                Error::usage(format!("'{}' does not accept '{}'. Accepted: {}", spec.name, name, known.join(", ")))
+                    .with_hint(format!("ferraus schema {}", spec.name))
             })?;
-            p.kind
-                .validate(&v, p.choices)
-                .map_err(|e| Error::usage(format!("--{}: {}", p.name, e.message)))?;
+            p.kind.validate(&v, p.choices).map_err(|e| Error::usage(format!("--{}: {}", p.name, e.message)))?;
             let entry = explicit.entry(name.clone()).or_default();
             if p.repeatable {
                 entry.push(v);
@@ -570,23 +508,19 @@ impl Args {
         }
         // presets: explicit flags override preset values
         if let Some(pname) = explicit.get("preset").and_then(|v| v.first()).cloned() {
-            let values: Vec<(String, String)> =
-                if let Some(p) = spec.presets.iter().find(|p| p.name == pname) {
-                    p.values
-                        .iter()
-                        .map(|(k, v)| (k.to_string(), v.to_string()))
-                        .collect()
-                } else if let Some(u) = user_presets(spec.name, &pname) {
-                    u
-                } else {
-                    let names: Vec<&str> = spec.presets.iter().map(|p| p.name).collect();
-                    return Err(Error::usage(format!(
-                        "unknown preset '{pname}' for '{}'; built-in presets: {}",
-                        spec.name,
-                        names.join(", ")
-                    ))
-                    .with_hint(format!("ferraus presets list {}", spec.name)));
-                };
+            let values: Vec<(String, String)> = if let Some(p) = spec.presets.iter().find(|p| p.name == pname) {
+                p.values.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+            } else if let Some(u) = user_presets(spec.name, &pname) {
+                u
+            } else {
+                let names: Vec<&str> = spec.presets.iter().map(|p| p.name).collect();
+                return Err(Error::usage(format!(
+                    "unknown preset '{pname}' for '{}'; built-in presets: {}",
+                    spec.name,
+                    names.join(", ")
+                ))
+                .with_hint(format!("ferraus presets list {}", spec.name)));
+            };
             for (k, v) in values {
                 let name = k.replace('_', "-");
                 if !explicit.contains_key(&name) {
@@ -606,10 +540,8 @@ impl Args {
                 if let Some(d) = p.default {
                     args.values.insert(p.name.to_string(), vec![d.to_string()]);
                 } else if p.required {
-                    return Err(
-                        Error::usage(format!("'{}' requires --{}", spec.name, p.name))
-                            .with_hint(format!("ferraus docs {}", spec.name)),
-                    );
+                    return Err(Error::usage(format!("'{}' requires --{}", spec.name, p.name))
+                        .with_hint(format!("ferraus docs {}", spec.name)));
                 }
             }
         }
@@ -618,8 +550,7 @@ impl Args {
 
     /// Set a raw value directly (used by ops composing other ops and by tests).
     pub fn set(&mut self, name: &str, value: impl Into<String>) -> &mut Self {
-        self.values
-            .insert(name.replace('_', "-"), vec![value.into()]);
+        self.values.insert(name.replace('_', "-"), vec![value.into()]);
         self
     }
 
@@ -641,10 +572,7 @@ impl Args {
     }
 
     pub fn raw(&self, name: &str) -> Option<&str> {
-        self.values
-            .get(name)
-            .and_then(|v| v.last())
-            .map(|s| s.as_str())
+        self.values.get(name).and_then(|v| v.last()).map(|s| s.as_str())
     }
 
     pub fn all(&self, name: &str) -> Vec<String> {
@@ -653,10 +581,7 @@ impl Args {
 
     /// Every value of a repeatable param, also splitting comma lists.
     pub fn list(&self, name: &str) -> Vec<String> {
-        self.all(name)
-            .iter()
-            .flat_map(|v| units::split_list(v))
-            .collect()
+        self.all(name).iter().flat_map(|v| units::split_list(v)).collect()
     }
 
     pub fn str(&self, name: &str) -> Option<String> {
@@ -668,8 +593,7 @@ impl Args {
     }
 
     fn need<'a>(&'a self, name: &str) -> Result<&'a str> {
-        self.raw(name)
-            .ok_or_else(|| Error::usage(format!("missing --{name}")))
+        self.raw(name).ok_or_else(|| Error::usage(format!("missing --{name}")))
     }
 
     fn ctx<T>(&self, name: &str, r: Result<T>) -> Result<T> {
@@ -677,26 +601,17 @@ impl Args {
     }
 
     pub fn flag(&self, name: &str) -> bool {
-        self.raw(name)
-            .map(|v| parse_bool(v).unwrap_or(false))
-            .unwrap_or(false)
+        self.raw(name).map(|v| parse_bool(v).unwrap_or(false)).unwrap_or(false)
     }
 
     /// `on`/`off` switch; missing means `default`.
     pub fn switch(&self, name: &str, default: bool) -> bool {
-        self.raw(name)
-            .map(|v| parse_bool(v).unwrap_or(default))
-            .unwrap_or(default)
+        self.raw(name).map(|v| parse_bool(v).unwrap_or(default)).unwrap_or(default)
     }
 
     pub fn f64(&self, name: &str) -> Result<f64> {
         let v = self.need(name)?;
-        self.ctx(
-            name,
-            v.trim()
-                .parse::<f64>()
-                .map_err(|_| Error::usage(format!("'{v}' is not a number"))),
-        )
+        self.ctx(name, v.trim().parse::<f64>().map_err(|_| Error::usage(format!("'{v}' is not a number"))))
     }
 
     pub fn opt_f64(&self, name: &str) -> Result<Option<f64>> {
@@ -708,12 +623,7 @@ impl Args {
 
     pub fn int(&self, name: &str) -> Result<i64> {
         let v = self.need(name)?;
-        self.ctx(
-            name,
-            v.trim()
-                .parse::<i64>()
-                .map_err(|_| Error::usage(format!("'{v}' is not an integer"))),
-        )
+        self.ctx(name, v.trim().parse::<i64>().map_err(|_| Error::usage(format!("'{v}' is not an integer"))))
     }
 
     pub fn usize(&self, name: &str) -> Result<usize> {
@@ -755,10 +665,7 @@ impl Args {
     }
 
     pub fn ranges(&self, name: &str) -> Result<Vec<TimeRange>> {
-        self.all(name)
-            .iter()
-            .map(|v| self.ctx(name, TimeRange::parse(v)))
-            .collect()
+        self.all(name).iter().map(|v| self.ctx(name, TimeRange::parse(v))).collect()
     }
 
     pub fn gain(&self, name: &str) -> Result<Gain> {
@@ -839,10 +746,7 @@ impl Args {
             if v.len() == 1 {
                 m.insert(key, Value::String(v[0].clone()));
             } else {
-                m.insert(
-                    key,
-                    Value::Array(v.iter().cloned().map(Value::String).collect()),
-                );
+                m.insert(key, Value::Array(v.iter().cloned().map(Value::String).collect()));
             }
         }
         m
@@ -850,10 +754,7 @@ impl Args {
 
     /// Raw key/value pairs (for re-building, replay, and pipelines).
     pub fn pairs(&self) -> Vec<(String, String)> {
-        self.values
-            .iter()
-            .flat_map(|(k, vs)| vs.iter().map(move |v| (k.clone(), v.clone())))
-            .collect()
+        self.values.iter().flat_map(|(k, vs)| vs.iter().map(move |v| (k.clone(), v.clone()))).collect()
     }
 }
 
@@ -891,11 +792,7 @@ fn scalar_to_string(v: &Value) -> Result<String> {
         }
         Value::Number(n) => n.to_string(),
         Value::Null => String::new(),
-        Value::Array(a) => a
-            .iter()
-            .map(scalar_to_string)
-            .collect::<Result<Vec<_>>>()?
-            .join(","),
+        Value::Array(a) => a.iter().map(scalar_to_string).collect::<Result<Vec<_>>>()?.join(","),
         Value::Object(_) => serde_json::to_string(v)?,
     })
 }
@@ -919,16 +816,11 @@ pub fn parse_stage_string(s: &str) -> Result<(String, Vec<(String, String)>)> {
         }
         let looks_like_key = part
             .split_once('=')
-            .map(|(k, _)| {
-                k.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-            })
+            .map(|(k, _)| k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
             .unwrap_or(false)
             || (!part.contains('=')
                 && part.starts_with(|c: char| c.is_ascii_alphabetic())
-                && part
-                    .chars()
-                    .all(|c| c.is_ascii_alphabetic() || c == '-' || c == '_'));
+                && part.chars().all(|c| c.is_ascii_alphabetic() || c == '-' || c == '_'));
         if looks_like_key {
             if let Some(kv) = current.take() {
                 pairs.push(kv);
@@ -941,9 +833,7 @@ pub fn parse_stage_string(s: &str) -> Result<(String, Vec<(String, String)>)> {
             v.push(',');
             v.push_str(part);
         } else {
-            return Err(Error::usage(format!(
-                "cannot parse effect parameters '{rest}'"
-            )));
+            return Err(Error::usage(format!("cannot parse effect parameters '{rest}'")));
         }
     }
     if let Some(kv) = current.take() {
@@ -964,11 +854,7 @@ mod tests {
         OpSpec::transform("compress", Category::Dynamics, "Compressor", dummy)
             .param(param("threshold", ParamKind::Gain).default("-18dB"))
             .param(param("ratio", ParamKind::Ratio).default("3:1"))
-            .param(
-                param("detector", ParamKind::Choice)
-                    .choices(&["rms", "peak"])
-                    .default("rms"),
-            )
+            .param(param("detector", ParamKind::Choice).choices(&["rms", "peak"]).default("rms"))
             .preset("vocal", "", &[("threshold", "-20dB"), ("ratio", "4:1")])
     }
 
@@ -986,15 +872,8 @@ mod tests {
     #[test]
     fn preset_then_override() {
         let s = spec();
-        let a = Args::build(
-            &s,
-            vec![
-                ("preset".into(), "vocal".into()),
-                ("ratio".into(), "2:1".into()),
-            ],
-            &|_, _| None,
-        )
-        .unwrap();
+        let a = Args::build(&s, vec![("preset".into(), "vocal".into()), ("ratio".into(), "2:1".into())], &|_, _| None)
+            .unwrap();
         assert_eq!(a.db("threshold").unwrap(), -20.0);
         assert_eq!(a.ratio("ratio").unwrap(), 2.0);
     }

@@ -16,8 +16,20 @@ pub const TOOL_PREFIX: &str = "ferraus_";
 
 /// Commands that manage the CLI process itself and are not exposed as tools. MCP clients
 /// get the in-server job tools instead of the CLI's process-based `jobs` commands.
-pub const CLI_ONLY: &[&str] =
-    &["mcp serve", "self-update", "self-uninstall", "completions", "man", "docs build-site", "jobs list", "jobs status", "jobs logs", "jobs wait", "jobs cancel", "jobs result"];
+pub const CLI_ONLY: &[&str] = &[
+    "mcp serve",
+    "self-update",
+    "self-uninstall",
+    "completions",
+    "man",
+    "docs build-site",
+    "jobs list",
+    "jobs status",
+    "jobs logs",
+    "jobs wait",
+    "jobs cancel",
+    "jobs result",
+];
 
 /// Global options an agent may pass inside tool arguments.
 const GLOBAL_ARGS: &[(&str, &str)] = &[
@@ -104,7 +116,14 @@ fn strip_meta(mut v: Value) -> Value {
 
 impl<'a> Server<'a> {
     pub fn new(registry: &'a Registry, io: &'a dyn AudioIo, cfg: ServerConfig) -> Server<'a> {
-        Server { registry, io, cfg, jobs: Mutex::new(HashMap::new()), cancels: Mutex::new(HashMap::new()), next_job: Mutex::new(1) }
+        Server {
+            registry,
+            io,
+            cfg,
+            jobs: Mutex::new(HashMap::new()),
+            cancels: Mutex::new(HashMap::new()),
+            next_job: Mutex::new(1),
+        }
     }
 
     /// Ops exposed as tools.
@@ -128,7 +147,9 @@ impl<'a> Server<'a> {
             for (k, help) in GLOBAL_ARGS {
                 if !props.contains_key(*k) {
                     let ty = match *k {
-                        "overwrite" | "dry_run" | "force" | "deterministic" => json!({"type": "boolean", "description": help}),
+                        "overwrite" | "dry_run" | "force" | "deterministic" => {
+                            json!({"type": "boolean", "description": help})
+                        }
                         _ => json!({"type": ["string", "number"], "description": help}),
                     };
                     props.insert(k.to_string(), ty);
@@ -153,7 +174,10 @@ impl<'a> Server<'a> {
             || op.name.ends_with(" info")
             || op.name.ends_with(" validate")
             || op.name.ends_with(" explain");
-        let network = op.name.starts_with("models pull") || op.name.starts_with("sounds install") || op.name.starts_with("accelerate") || op.name.starts_with("doctor");
+        let network = op.name.starts_with("models pull")
+            || op.name.starts_with("sounds install")
+            || op.name.starts_with("accelerate")
+            || op.name.starts_with("doctor");
         json!({
             "name": Self::tool_name(op),
             "title": format!("ferraus {}", op.name),
@@ -210,8 +234,15 @@ impl<'a> Server<'a> {
         if self.cfg.allow.iter().any(|a| p.starts_with(a)) {
             Ok(())
         } else {
-            Err(Error::new(ferraus_core::ErrorKind::Usage, "path_not_allowed", format!("{} is outside the allowed directories", p.display()))
-                .with_hint(format!("allowed: {}", self.cfg.allow.iter().map(|a| a.display().to_string()).collect::<Vec<_>>().join(", "))))
+            Err(Error::new(
+                ferraus_core::ErrorKind::Usage,
+                "path_not_allowed",
+                format!("{} is outside the allowed directories", p.display()),
+            )
+            .with_hint(format!(
+                "allowed: {}",
+                self.cfg.allow.iter().map(|a| a.display().to_string()).collect::<Vec<_>>().join(", ")
+            )))
         }
     }
 
@@ -264,10 +295,21 @@ impl<'a> Server<'a> {
                 "force" if !has_param => g.force = v.as_bool().unwrap_or(false),
                 "deterministic" if !has_param => g.deterministic = v.as_bool().unwrap_or(false),
                 "bpm" if !has_param => g.bpm = v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())),
-                "sample_rate" if !has_param => g.sample_rate = v.as_u64().map(|x| x as u32).or_else(|| v.as_str().and_then(|s| s.parse().ok())),
-                "bit_depth" if !has_param => g.bit_depth = v.as_u64().map(|x| x as u16).or_else(|| v.as_str().and_then(|s| s.parse().ok())),
-                "channels" if !has_param => g.channels = v.as_u64().map(|x| x as usize).or_else(|| v.as_str().and_then(|s| s.parse().ok())),
-                "bitrate" if !has_param => g.bitrate = v.as_str().and_then(|s| ferraus_core::units::parse_bitrate(s).ok()).or(v.as_u64().map(|x| x as u32)),
+                "sample_rate" if !has_param => {
+                    g.sample_rate = v.as_u64().map(|x| x as u32).or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                }
+                "bit_depth" if !has_param => {
+                    g.bit_depth = v.as_u64().map(|x| x as u16).or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                }
+                "channels" if !has_param => {
+                    g.channels = v.as_u64().map(|x| x as usize).or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                }
+                "bitrate" if !has_param => {
+                    g.bitrate = v
+                        .as_str()
+                        .and_then(|s| ferraus_core::units::parse_bitrate(s).ok())
+                        .or(v.as_u64().map(|x| x as u32))
+                }
                 "format" if !has_param => g.format = v.as_str().map(|s| s.to_string()),
                 "seed" if !has_param => g.seed = v.as_u64().unwrap_or(0),
                 _ => {
@@ -290,7 +332,14 @@ impl<'a> Server<'a> {
             g.outdir = Some(self.base_dir().join("ferraus-out"));
         }
         let pairs = json_to_pairs(&Value::Object(rest))?;
-        Ok(Invocation { command: op.name.to_string(), args: pairs, inputs, globals: g, argv: vec!["(mcp)".into(), op.name.to_string()], stdin: None })
+        Ok(Invocation {
+            command: op.name.to_string(),
+            args: pairs,
+            inputs,
+            globals: g,
+            argv: vec!["(mcp)".into(), op.name.to_string()],
+            stdin: None,
+        })
     }
 
     fn run_invocation(&self, inv: Invocation, progress: &dyn Progress, cancel: CancelToken) -> Envelope {
@@ -308,10 +357,21 @@ impl<'a> Server<'a> {
         })
     }
 
-    fn call_tool(&self, name: &str, args: &Value, progress: &dyn Progress, cancel: CancelToken, scope_jobs: Option<&dyn Fn(String, Value)>) -> Result<Value> {
+    fn call_tool(
+        &self,
+        name: &str,
+        args: &Value,
+        progress: &dyn Progress,
+        cancel: CancelToken,
+        scope_jobs: Option<&dyn Fn(String, Value)>,
+    ) -> Result<Value> {
         match name {
             "ferraus_job_start" => {
-                let tool = args.get("tool").and_then(|t| t.as_str()).ok_or_else(|| Error::usage("job_start needs 'tool'"))?.to_string();
+                let tool = args
+                    .get("tool")
+                    .and_then(|t| t.as_str())
+                    .ok_or_else(|| Error::usage("job_start needs 'tool'"))?
+                    .to_string();
                 if self.op_for_tool(&tool).is_none() {
                     return Err(Error::usage(format!("unknown tool '{tool}'")));
                 }
@@ -321,17 +381,33 @@ impl<'a> Server<'a> {
                     format!("job-{}", *n - 1)
                 };
                 let spawn = scope_jobs.ok_or_else(|| Error::internal("jobs unavailable"))?;
-                self.jobs.lock().unwrap().insert(id.clone(), Job { state: "running".into(), percent: 0.0, result: None, cancel: CancelToken::default(), tool: tool.clone() });
-                spawn(id.clone(), json!({"tool": tool, "arguments": args.get("arguments").cloned().unwrap_or(json!({}))}));
+                self.jobs.lock().unwrap().insert(
+                    id.clone(),
+                    Job {
+                        state: "running".into(),
+                        percent: 0.0,
+                        result: None,
+                        cancel: CancelToken::default(),
+                        tool: tool.clone(),
+                    },
+                );
+                spawn(
+                    id.clone(),
+                    json!({"tool": tool, "arguments": args.get("arguments").cloned().unwrap_or(json!({}))}),
+                );
                 let v = json!({"job_id": id, "state": "running"});
-                Ok(json!({"content": [{"type": "text", "text": v.to_string()}], "structuredContent": v, "isError": false}))
+                Ok(
+                    json!({"content": [{"type": "text", "text": v.to_string()}], "structuredContent": v, "isError": false}),
+                )
             }
             "ferraus_job_status" | "ferraus_job_result" | "ferraus_job_cancel" => {
                 let id = args.get("job_id").and_then(|t| t.as_str()).ok_or_else(|| Error::usage("needs 'job_id'"))?;
                 let mut jobs = self.jobs.lock().unwrap();
                 let job = jobs.get_mut(id).ok_or_else(|| Error::usage(format!("no job '{id}'")))?;
                 let v = match name {
-                    "ferraus_job_status" => json!({"job_id": id, "tool": job.tool, "state": job.state, "percent": job.percent}),
+                    "ferraus_job_status" => {
+                        json!({"job_id": id, "tool": job.tool, "state": job.state, "percent": job.percent})
+                    }
                     "ferraus_job_cancel" => {
                         job.cancel.cancel();
                         if job.state == "running" {
@@ -345,7 +421,9 @@ impl<'a> Server<'a> {
                     },
                 };
                 let is_err = name == "ferraus_job_result" && v.get("ok") == Some(&json!(false));
-                Ok(json!({"content": [{"type": "text", "text": v.to_string()}], "structuredContent": v, "isError": is_err}))
+                Ok(
+                    json!({"content": [{"type": "text", "text": v.to_string()}], "structuredContent": v, "isError": is_err}),
+                )
             }
             _ => {
                 let op = self.op_for_tool(name).ok_or_else(|| Error::usage(format!("unknown tool '{name}'")))?;
@@ -395,7 +473,11 @@ impl<'a> Server<'a> {
             json!({"uri": "ferraus://catalog", "name": "catalog", "title": "Command catalog", "description": "One line per command (describe --agent)", "mimeType": "text/plain"}),
             json!({"uri": "ferraus://presets", "name": "presets", "title": "Presets", "description": "Built-in and user presets", "mimeType": "application/json"}),
         ];
-        for (uri, op, title) in [("ferraus://models", "models list", "Model registry"), ("ferraus://plugins", "plugin list", "Scanned plugins"), ("ferraus://sounds", "sounds list", "Installed sounds")] {
+        for (uri, op, title) in [
+            ("ferraus://models", "models list", "Model registry"),
+            ("ferraus://plugins", "plugin list", "Scanned plugins"),
+            ("ferraus://sounds", "sounds list", "Installed sounds"),
+        ] {
             if self.registry.get(op).is_some() {
                 r.push(json!({"uri": uri, "name": uri.trim_start_matches("ferraus://"), "title": title, "mimeType": "application/json"}));
             }
@@ -440,7 +522,11 @@ impl<'a> Server<'a> {
         } else if let Some(id) = uri.strip_prefix("ferraus://jobs/") {
             let jobs = self.jobs.lock().unwrap();
             let j = jobs.get(id).ok_or_else(|| Error::usage(format!("no job '{id}'")))?;
-            ("application/json", json!({"job_id": id, "tool": j.tool, "state": j.state, "percent": j.percent, "result": j.result}).to_string())
+            (
+                "application/json",
+                json!({"job_id": id, "tool": j.tool, "state": j.state, "percent": j.percent, "result": j.result})
+                    .to_string(),
+            )
         } else if let Some(cmd) = uri.strip_prefix("ferraus://docs/") {
             let cmd = cmd.replace("%20", " ").replace('_', " ");
             let v = self.run_quiet("docs", vec![("command".into(), cmd)])?;
@@ -481,7 +567,10 @@ impl<'a> Server<'a> {
     }
 
     fn get_prompt(&self, name: &str, args: &Value) -> Result<Value> {
-        let (_, desc, params, template) = Self::prompts().into_iter().find(|p| p.0 == name).ok_or_else(|| Error::usage(format!("unknown prompt '{name}'")))?;
+        let (_, desc, params, template) = Self::prompts()
+            .into_iter()
+            .find(|p| p.0 == name)
+            .ok_or_else(|| Error::usage(format!("unknown prompt '{name}'")))?;
         let mut text = template.to_string();
         for (p, _, required) in params {
             let v = args.get(p).and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -526,7 +615,12 @@ impl<'a> Server<'a> {
 
     /// Handle one JSON-RPC message. Returns a response for requests, None for notifications.
     /// Tool calls run on the calling thread.
-    pub fn handle(&self, msg: &Value, out: Option<Writer<'_>>, jobs_spawn: Option<&dyn Fn(String, Value)>) -> Option<Value> {
+    pub fn handle(
+        &self,
+        msg: &Value,
+        out: Option<Writer<'_>>,
+        jobs_spawn: Option<&dyn Fn(String, Value)>,
+    ) -> Option<Value> {
         let method = msg.get("method").and_then(|m| m.as_str());
         let id = msg.get("id").cloned();
         let params = msg.get("params").cloned().unwrap_or(Value::Null);
@@ -650,7 +744,8 @@ impl<'a> Server<'a> {
 
     /// Serve the streamable-HTTP transport on `addr` (POST /mcp with JSON responses).
     pub fn serve_http(&self, addr: &str) -> Result<()> {
-        let server = tiny_http::Server::http(addr).map_err(|e| Error::processing(format!("cannot listen on {addr}: {e}")))?;
+        let server =
+            tiny_http::Server::http(addr).map_err(|e| Error::processing(format!("cannot listen on {addr}: {e}")))?;
         let loopback = addr.starts_with("127.") || addr.starts_with("localhost") || addr.starts_with("[::1]");
         if !loopback {
             eprintln!("warning: serving MCP on a non-loopback address ({addr}); anyone who can reach it can run ferraus within the allowed directories");
@@ -672,11 +767,15 @@ impl<'a> Server<'a> {
                         let _ = tx2.send((id, spec));
                     };
                     let sj: &dyn Fn(String, Value) = &spawn;
-                    let origin = req.headers().iter().find(|h| h.field.equiv("Origin")).map(|h| h.value.as_str().to_string());
+                    let origin =
+                        req.headers().iter().find(|h| h.field.equiv("Origin")).map(|h| h.value.as_str().to_string());
                     if let Some(origin) = origin {
-                        let ok = origin.starts_with("http://localhost") || origin.starts_with("http://127.0.0.1") || origin.starts_with("https://localhost");
+                        let ok = origin.starts_with("http://localhost")
+                            || origin.starts_with("http://127.0.0.1")
+                            || origin.starts_with("https://localhost");
                         if !ok {
-                            let _ = req.respond(tiny_http::Response::from_string("forbidden origin").with_status_code(403));
+                            let _ =
+                                req.respond(tiny_http::Response::from_string("forbidden origin").with_status_code(403));
                             return;
                         }
                     }
@@ -704,7 +803,9 @@ impl<'a> Server<'a> {
                     let parsed: std::result::Result<Value, _> = serde_json::from_str(&body);
                     let responses: Vec<Value> = match parsed {
                         Err(e) => vec![rpc_error(&Value::Null, -32700, &format!("parse error: {e}"))],
-                        Ok(Value::Array(batch)) => batch.iter().filter_map(|m| self.handle(m, None, Some(sj))).collect(),
+                        Ok(Value::Array(batch)) => {
+                            batch.iter().filter_map(|m| self.handle(m, None, Some(sj))).collect()
+                        }
                         Ok(m) => self.handle(&m, None, Some(sj)).into_iter().collect(),
                     };
                     let json_header = tiny_http::Header::from_bytes("Content-Type", "application/json").unwrap();
@@ -712,7 +813,11 @@ impl<'a> Server<'a> {
                     let resp = if responses.is_empty() {
                         tiny_http::Response::from_string("").with_status_code(202)
                     } else {
-                        let text = if responses.len() == 1 { responses[0].to_string() } else { Value::Array(responses).to_string() };
+                        let text = if responses.len() == 1 {
+                            responses[0].to_string()
+                        } else {
+                            Value::Array(responses).to_string()
+                        };
                         tiny_http::Response::from_string(text).with_header(json_header)
                     };
                     let _ = req.respond(resp.with_header(sess_header));
@@ -736,14 +841,22 @@ mod tests {
     use ferraus_core::op::{param, Category, OpSpec};
     use ferraus_core::testing;
 
-    fn gain(a: &ferraus_core::Args, mut b: ferraus_core::AudioBuffer, _: &mut ferraus_core::OpCtx) -> Result<ferraus_core::AudioBuffer> {
+    fn gain(
+        a: &ferraus_core::Args,
+        mut b: ferraus_core::AudioBuffer,
+        _: &mut ferraus_core::OpCtx,
+    ) -> Result<ferraus_core::AudioBuffer> {
         b.scale(a.gain("by")?.linear() as f32);
         Ok(b)
     }
 
     fn registry() -> &'static Registry {
         let mut ops = ferraus_core::builtin::ops();
-        ops.push(OpSpec::transform("gain", Category::Edit, "Apply gain", gain).param(param("by", ParamKind::Gain).default("0dB").help("gain")).example("ferraus gain a.wav --by -6dB", "x"));
+        ops.push(
+            OpSpec::transform("gain", Category::Edit, "Apply gain", gain)
+                .param(param("by", ParamKind::Gain).default("0dB").help("gain"))
+                .example("ferraus gain a.wav --by -6dB", "x"),
+        );
         ops.extend(crate::ops());
         testing::leak_registry(ops)
     }
@@ -760,13 +873,20 @@ mod tests {
         let r = s.handle(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}), None, None).unwrap();
         assert_eq!(r["result"]["protocolVersion"], "2025-06-18");
         let r = s.handle(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}), None, None).unwrap();
-        let names: Vec<&str> = r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+        let names: Vec<&str> =
+            r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"ferraus_gain"));
         assert!(names.contains(&"ferraus_pipeline_run"));
         assert!(!names.contains(&"ferraus_mcp_serve"));
         assert!(names.contains(&"ferraus_job_start"));
         // unknown version falls back to latest
-        let r = s.handle(&json!({"jsonrpc":"2.0","id":3,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}), None, None).unwrap();
+        let r = s
+            .handle(
+                &json!({"jsonrpc":"2.0","id":3,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}),
+                None,
+                None,
+            )
+            .unwrap();
         assert_eq!(r["result"]["protocolVersion"], PROTOCOL_VERSIONS[0]);
     }
 
@@ -841,7 +961,15 @@ mod tests {
         assert!(by_id(5)["result"]["contents"][0]["text"].as_str().unwrap().contains("gain"));
         assert_eq!(by_id(6)["error"]["code"], -32601);
         // the job finished before serve_lines returned (scoped threads are joined)
-        let status = s.call_tool("ferraus_job_result", &json!({"job_id": job}), &ferraus_core::ctx::NoProgress, CancelToken::default(), None).unwrap();
+        let status = s
+            .call_tool(
+                "ferraus_job_result",
+                &json!({"job_id": job}),
+                &ferraus_core::ctx::NoProgress,
+                CancelToken::default(),
+                None,
+            )
+            .unwrap();
         assert_eq!(status["structuredContent"]["ok"], true, "{status}");
     }
 }

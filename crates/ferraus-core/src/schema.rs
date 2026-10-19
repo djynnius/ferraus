@@ -18,29 +18,23 @@ fn param_schema(p: &ParamSpec) -> Value {
     };
     match p.kind {
         ParamKind::Flag | ParamKind::Switch => {
-            s.insert("oneOf".into(), json!([{"type": "boolean"}, {"type": "string", "enum": ["on", "off", "true", "false"]}]));
+            s.insert(
+                "oneOf".into(),
+                json!([{"type": "boolean"}, {"type": "string", "enum": ["on", "off", "true", "false"]}]),
+            );
         }
         ParamKind::Int => {
-            s.insert(
-                "oneOf".into(),
-                json!([{"type": "integer"}, {"type": "string", "pattern": "^-?[0-9]+$"}]),
-            );
+            s.insert("oneOf".into(), json!([{"type": "integer"}, {"type": "string", "pattern": "^-?[0-9]+$"}]));
         }
         ParamKind::Float => {
-            s.insert(
-                "oneOf".into(),
-                json!([{"type": "number"}, {"type": "string"}]),
-            );
+            s.insert("oneOf".into(), json!([{"type": "number"}, {"type": "string"}]));
         }
         ParamKind::Choice if !p.choices.is_empty() => {
             s.insert("type".into(), json!("string"));
             s.insert("enum".into(), json!(p.choices));
         }
         ParamKind::Percent | ParamKind::Ratio => {
-            s.insert(
-                "oneOf".into(),
-                json!([{"type": "number"}, {"type": "string"}]),
-            );
+            s.insert("oneOf".into(), json!([{"type": "number"}, {"type": "string"}]));
         }
         _ => {
             s.insert("type".into(), json!("string"));
@@ -58,10 +52,7 @@ fn param_schema(p: &ParamSpec) -> Value {
         let item = Value::Object(s.clone());
         let mut arr = Map::new();
         arr.insert("description".into(), json!(format!("{desc} Repeatable.")));
-        arr.insert(
-            "oneOf".into(),
-            json!([item, {"type": "array", "items": item}]),
-        );
+        arr.insert("oneOf".into(), json!([item, {"type": "array", "items": item}]));
         return Value::Object(arr);
     }
     Value::Object(s)
@@ -172,9 +163,6 @@ pub fn command_schema(spec: &OpSpec) -> Value {
 /// Validate a JSON argument object against an op (names, types via the unit parser).
 pub fn validate_args(spec: &OpSpec, args: &Value) -> crate::error::Result<()> {
     let pairs = crate::op::json_to_pairs(args)?;
-    let filtered: Vec<(String, String)> = pairs
-        .into_iter()
-        .filter(|(k, _)| k != "inputs" && k != "output")
-        .collect();
+    let filtered: Vec<(String, String)> = pairs.into_iter().filter(|(k, _)| k != "inputs" && k != "output").collect();
     crate::op::Args::build(spec, filtered, &|_, _| None).map(|_| ())
 }

@@ -5,33 +5,14 @@ use std::path::PathBuf;
 
 pub fn ops() -> Vec<OpSpec> {
     vec![
-        OpSpec::custom(
-            "jobs list",
-            Category::Agents,
-            "List background jobs started with --async",
-            jobs_list,
-        )
-        .inputs(Inputs::NONE),
-        OpSpec::custom(
-            "jobs status",
-            Category::Agents,
-            "Status of a background job",
-            jobs_status,
-        )
-        .param(
-            param("id", ParamKind::Str)
-                .required()
-                .help("Job id returned by --async"),
-        )
-        .positional("id"),
-        OpSpec::custom(
-            "jobs logs",
-            Category::Agents,
-            "Progress and log output of a background job",
-            jobs_logs,
-        )
-        .param(param("id", ParamKind::Str).required().help("Job id"))
-        .positional("id"),
+        OpSpec::custom("jobs list", Category::Agents, "List background jobs started with --async", jobs_list)
+            .inputs(Inputs::NONE),
+        OpSpec::custom("jobs status", Category::Agents, "Status of a background job", jobs_status)
+            .param(param("id", ParamKind::Str).required().help("Job id returned by --async"))
+            .positional("id"),
+        OpSpec::custom("jobs logs", Category::Agents, "Progress and log output of a background job", jobs_logs)
+            .param(param("id", ParamKind::Str).required().help("Job id"))
+            .positional("id"),
         OpSpec::custom(
             "jobs wait",
             Category::Agents,
@@ -39,28 +20,14 @@ pub fn ops() -> Vec<OpSpec> {
             jobs_wait,
         )
         .param(param("id", ParamKind::Str).required().help("Job id"))
-        .param(
-            param("poll", ParamKind::Time)
-                .default("500ms")
-                .help("Polling interval"),
-        )
+        .param(param("poll", ParamKind::Time).default("500ms").help("Polling interval"))
         .positional("id"),
-        OpSpec::custom(
-            "jobs cancel",
-            Category::Agents,
-            "Cancel a running background job",
-            jobs_cancel,
-        )
-        .param(param("id", ParamKind::Str).required().help("Job id"))
-        .positional("id"),
-        OpSpec::custom(
-            "jobs result",
-            Category::Agents,
-            "The JSON result envelope of a finished job",
-            jobs_result,
-        )
-        .param(param("id", ParamKind::Str).required().help("Job id"))
-        .positional("id"),
+        OpSpec::custom("jobs cancel", Category::Agents, "Cancel a running background job", jobs_cancel)
+            .param(param("id", ParamKind::Str).required().help("Job id"))
+            .positional("id"),
+        OpSpec::custom("jobs result", Category::Agents, "The JSON result envelope of a finished job", jobs_result)
+            .param(param("id", ParamKind::Str).required().help("Job id"))
+            .positional("id"),
     ]
 }
 
@@ -71,8 +38,7 @@ fn job_dir(id: &str) -> Result<PathBuf> {
     let d = ferraus_core::paths::jobs_dir().join(id);
     if !d.exists() {
         return Err(
-            Error::new(ErrorKind::Usage, "job_not_found", format!("no job '{id}'"))
-                .with_hint("ferraus jobs list"),
+            Error::new(ErrorKind::Usage, "job_not_found", format!("no job '{id}'")).with_hint("ferraus jobs list")
         );
     }
     Ok(d)
@@ -104,10 +70,7 @@ fn job_info(id: &str) -> Result<Value> {
     let result_path = d.join("result.json");
     let result: Option<Value> = std::fs::read(&result_path).ok().and_then(|b| {
         let s = String::from_utf8_lossy(&b).to_string();
-        s.lines()
-            .rev()
-            .find(|l| l.trim_start().starts_with('{'))
-            .and_then(|l| serde_json::from_str(l).ok())
+        s.lines().rev().find(|l| l.trim_start().starts_with('{')).and_then(|l| serde_json::from_str(l).ok())
     });
     let pid = meta["pid"].as_u64().unwrap_or(0) as u32;
     let cancelled = d.join("cancelled").exists();
@@ -128,10 +91,7 @@ fn job_info(id: &str) -> Result<Value> {
     let progress = std::fs::read_to_string(d.join("progress.ndjson"))
         .ok()
         .and_then(|s| {
-            s.lines()
-                .rev()
-                .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-                .find(|v| v["event"] == "progress")
+            s.lines().rev().filter_map(|l| serde_json::from_str::<Value>(l).ok()).find(|v| v["event"] == "progress")
         })
         .and_then(|v| v["percent"].as_f64());
     Ok(
@@ -143,10 +103,7 @@ fn job_info(id: &str) -> Result<Value> {
 pub fn spawn_async(argv: &[String], json_out: bool) -> i32 {
     let id = format!(
         "{}-{:04x}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0),
         std::process::id() & 0xffff
     );
     let dir = ferraus_core::paths::jobs_dir().join(&id);
@@ -154,12 +111,7 @@ pub fn spawn_async(argv: &[String], json_out: bool) -> i32 {
         eprintln!("error: cannot create job directory: {e}");
         return 1;
     }
-    let mut args: Vec<String> = argv
-        .iter()
-        .skip(1)
-        .filter(|a| *a != "--async")
-        .cloned()
-        .collect();
+    let mut args: Vec<String> = argv.iter().skip(1).filter(|a| *a != "--async").cloned().collect();
     args.retain(|a| a != "--json");
     args.push("--json".into());
     args.push("--progress".into());
@@ -172,10 +124,7 @@ pub fn spawn_async(argv: &[String], json_out: bool) -> i32 {
         return 1;
     };
     let mut cmd = std::process::Command::new(exe);
-    cmd.args(&args)
-        .stdin(std::process::Stdio::null())
-        .stdout(stdout)
-        .stderr(stderr);
+    cmd.args(&args).stdin(std::process::Stdio::null()).stdout(stdout).stderr(stderr);
     if let Ok(cwd) = std::env::current_dir() {
         cmd.current_dir(cwd);
     }
@@ -192,10 +141,7 @@ pub fn spawn_async(argv: &[String], json_out: bool) -> i32 {
     match cmd.spawn() {
         Ok(child) => {
             let meta = json!({"job_id": id, "pid": child.id(), "argv": args, "started": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)});
-            let _ = std::fs::write(
-                dir.join("job.json"),
-                serde_json::to_vec_pretty(&meta).unwrap(),
-            );
+            let _ = std::fs::write(dir.join("job.json"), serde_json::to_vec_pretty(&meta).unwrap());
             if json_out {
                 println!("{}", json!({"ok": true, "job_id": id}));
             } else {
@@ -213,10 +159,7 @@ pub fn spawn_async(argv: &[String], json_out: bool) -> i32 {
 fn jobs_list(_: &Args, _: &mut OpCtx) -> Result<Value> {
     let mut jobs = Vec::new();
     if let Ok(rd) = std::fs::read_dir(ferraus_core::paths::jobs_dir()) {
-        let mut ids: Vec<String> = rd
-            .flatten()
-            .map(|e| e.file_name().to_string_lossy().to_string())
-            .collect();
+        let mut ids: Vec<String> = rd.flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
         ids.sort();
         for id in ids {
             if let Ok(mut info) = job_info(&id) {
@@ -283,10 +226,7 @@ fn jobs_result(a: &Args, _: &mut OpCtx) -> Result<Value> {
         Value::Null => Err(Error::new(
             ErrorKind::Usage,
             "job_not_finished",
-            format!(
-                "job {id} is {}",
-                info["state"].as_str().unwrap_or("unknown")
-            ),
+            format!("job {id} is {}", info["state"].as_str().unwrap_or("unknown")),
         )
         .with_hint(format!("ferraus jobs wait {id}"))),
         r => Ok(r.clone()),

@@ -65,8 +65,8 @@ pub fn ops() -> Vec<OpSpec> {
 
 fn read_pipeline(args: &Args, ctx: &OpCtx) -> Result<(crate::pipeline::PipelineFile, PathBuf)> {
     let path = ctx.input(0)?.to_path_buf();
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| Error::input(format!("cannot read {}: {e}", path.display())))?;
+    let text =
+        std::fs::read_to_string(&path).map_err(|e| Error::input(format!("cannot read {}: {e}", path.display())))?;
     let p = crate::pipeline::parse(&text, &args.all("set"))?;
     let base = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     Ok((p, base))
@@ -86,14 +86,8 @@ fn pipeline_run(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
         "timing_ms": started.elapsed().as_millis() as u64,
     });
     if let Some(first) = report.outputs.first().and_then(|o| o["path"].as_str()) {
-        let dir = Path::new(first)
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_default();
-        let _ = std::fs::write(
-            dir.join("job.ferraus.json"),
-            serde_json::to_vec_pretty(&job)?,
-        );
+        let dir = Path::new(first).parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        let _ = std::fs::write(dir.join("job.ferraus.json"), serde_json::to_vec_pretty(&job)?);
     }
     Ok(job)
 }
@@ -102,26 +96,16 @@ fn pipeline_validate(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let (p, _) = read_pipeline(args, ctx)?;
     let registry = ctx.registry.ok_or_else(|| Error::internal("no registry"))?;
     let resolved = crate::pipeline::validate(&p, registry)?;
-    let order: Vec<String> = crate::pipeline::topo_order(&p)?
-        .into_iter()
-        .map(|i| p.stages[i].id.clone())
-        .collect();
+    let order: Vec<String> = crate::pipeline::topo_order(&p)?.into_iter().map(|i| p.stages[i].id.clone()).collect();
     Ok(json!({"valid": true, "order": order, "stages": resolved, "outputs": p.outputs}))
 }
 
 /// User presets live in `<config>/presets/<effect>/<name>.toml` as flat key = "value" tables.
 pub fn load_user_preset(effect: &str, name: &str) -> Option<Vec<(String, String)>> {
-    let path = crate::paths::presets_dir()
-        .join(effect.replace(' ', "-"))
-        .join(format!("{name}.toml"));
+    let path = crate::paths::presets_dir().join(effect.replace(' ', "-")).join(format!("{name}.toml"));
     let text = std::fs::read_to_string(path).ok()?;
     let table: toml::Table = toml::from_str(&text).ok()?;
-    Some(
-        table
-            .into_iter()
-            .map(|(k, v)| (k, toml_scalar(&v)))
-            .collect(),
-    )
+    Some(table.into_iter().map(|(k, v)| (k, toml_scalar(&v))).collect())
 }
 
 fn toml_scalar(v: &toml::Value) -> String {
@@ -164,9 +148,7 @@ fn presets_list(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
             continue;
         }
         for p in &op.presets {
-            out.push(
-                json!({"effect": op.name, "name": p.name, "source": "built-in", "help": p.help}),
-            );
+            out.push(json!({"effect": op.name, "name": p.name, "source": "built-in", "help": p.help}));
         }
     }
     out.extend(user_presets(effect.as_deref()));
@@ -184,18 +166,12 @@ fn presets_show(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let (effect, name) = split_preset_name(&args.str_or("name", ""))?;
     let spec = registry.require(&effect)?;
     if let Some(p) = spec.presets.iter().find(|p| p.name == name) {
-        let values: serde_json::Map<String, Value> = p
-            .values
-            .iter()
-            .map(|(k, v)| (k.replace('-', "_"), json!(v)))
-            .collect();
-        return Ok(
-            json!({"effect": spec.name, "name": name, "source": "built-in", "help": p.help, "values": values}),
-        );
+        let values: serde_json::Map<String, Value> =
+            p.values.iter().map(|(k, v)| (k.replace('-', "_"), json!(v))).collect();
+        return Ok(json!({"effect": spec.name, "name": name, "source": "built-in", "help": p.help, "values": values}));
     }
     if let Some(vals) = load_user_preset(spec.name, &name) {
-        let values: serde_json::Map<String, Value> =
-            vals.into_iter().map(|(k, v)| (k, json!(v))).collect();
+        let values: serde_json::Map<String, Value> = vals.into_iter().map(|(k, v)| (k, json!(v))).collect();
         return Ok(json!({"effect": spec.name, "name": name, "source": "user", "values": values}));
     }
     Err(Error::usage(format!("no preset '{name}' for '{effect}'"))
@@ -209,9 +185,7 @@ fn presets_save(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let mut table = toml::Table::new();
     let mut pairs = Vec::new();
     for s in args.all("set") {
-        let (k, v) = s
-            .split_once('=')
-            .ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
+        let (k, v) = s.split_once('=').ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
         pairs.push((k.to_string(), v.to_string()));
         table.insert(k.replace('-', "_"), toml::Value::String(v.to_string()));
     }
@@ -330,10 +304,7 @@ fn replay(_args: &Args, ctx: &mut OpCtx) -> Result<Value> {
             continue; // run-time notes such as detected values
         }
         match v {
-            Value::Array(a) => pairs.extend(
-                a.iter()
-                    .map(|x| (k.clone(), x.as_str().unwrap_or("").to_string())),
-            ),
+            Value::Array(a) => pairs.extend(a.iter().map(|x| (k.clone(), x.as_str().unwrap_or("").to_string()))),
             Value::String(s) => pairs.push((k.clone(), s.clone())),
             other => pairs.push((k.clone(), other.to_string())),
         }
@@ -353,13 +324,8 @@ fn replay(_args: &Args, ctx: &mut OpCtx) -> Result<Value> {
         argv: sc.argv.clone(),
         stdin: None,
     };
-    let rt = Runtime {
-        registry,
-        io: ctx.io,
-        progress: ctx.progress,
-        presets: &|_, _| None,
-        cancel: ctx.cancel.clone(),
-    };
+    let rt =
+        Runtime { registry, io: ctx.io, progress: ctx.progress, presets: &|_, _| None, cancel: ctx.cancel.clone() };
     let out = rt.invoke(inv);
     let env = out.envelope;
     if let Some(e) = env.error.clone() {
@@ -390,10 +356,7 @@ fn verify(_args: &Args, ctx: &mut OpCtx) -> Result<Value> {
         }
     }
     if !ok {
-        let e = Error::verification(format!(
-            "{} no longer matches its recorded hashes",
-            path.display()
-        ));
+        let e = Error::verification(format!("{} no longer matches its recorded hashes", path.display()));
         ctx.metric("files", &files);
         return Err(e);
     }

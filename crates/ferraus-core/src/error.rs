@@ -74,9 +74,7 @@ impl ErrorKind {
             ErrorKind::ModelDownload => "Model download or verification failed",
             ErrorKind::Plugin => "Plugin crashed, timed out, or was not found",
             ErrorKind::Cancelled => "Cancelled",
-            ErrorKind::Verification => {
-                "Output verification failed (checksum, clipping guard, duration mismatch)"
-            }
+            ErrorKind::Verification => "Output verification failed (checksum, clipping guard, duration mismatch)",
             ErrorKind::Network => "Network error",
             ErrorKind::Internal => "Internal error (bug)",
         }
@@ -98,13 +96,7 @@ pub struct Error {
 
 impl Error {
     pub fn new(kind: ErrorKind, code: impl Into<String>, message: impl Into<String>) -> Self {
-        Error {
-            kind,
-            code: code.into(),
-            message: message.into(),
-            hint: None,
-            exit_code: kind.exit_code(),
-        }
+        Error { kind, code: code.into(), message: message.into(), hint: None, exit_code: kind.exit_code() }
     }
 
     pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
@@ -162,9 +154,7 @@ impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         match e.kind() {
-            std::io::ErrorKind::NotFound => {
-                Error::new(ErrorKind::InputMissing, "not_found", e.to_string())
-            }
+            std::io::ErrorKind::NotFound => Error::new(ErrorKind::InputMissing, "not_found", e.to_string()),
             std::io::ErrorKind::PermissionDenied => {
                 Error::new(ErrorKind::InputMissing, "permission_denied", e.to_string())
             }

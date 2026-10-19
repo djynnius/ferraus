@@ -78,7 +78,11 @@ fn docs_build_site(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let guides = a.path("guides").unwrap_or_else(|| PathBuf::from("docs/guides"));
     let problems = crate::docgen::coverage_problems(reg);
     if a.flag("check") && !problems.is_empty() {
-        return Err(Error::verification(format!("{} documentation problems:\n{}", problems.len(), problems.join("\n"))));
+        return Err(Error::verification(format!(
+            "{} documentation problems:\n{}",
+            problems.len(),
+            problems.join("\n")
+        )));
     }
     let n = crate::docgen::build_site(reg, &guides, &out)?;
     Ok(json!({"out": out.display().to_string(), "command_pages": n, "problems": problems}))
@@ -110,7 +114,9 @@ fn man_page(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let mut s = String::new();
     s.push_str(&format!(".TH FERRAUS 1 \"\" \"ferraus {}\" \"User Commands\"\n", ferraus_core::FERRAUS_VERSION));
     s.push_str(".SH NAME\nferraus \\- music editing CLI for people and AI agents\n");
-    s.push_str(".SH SYNOPSIS\n.B ferraus\n\\fIcommand\\fR [\\fIinputs\\fR] [\\fIoptions\\fR] [\\fB\\-o\\fR \\fIoutput\\fR]\n");
+    s.push_str(
+        ".SH SYNOPSIS\n.B ferraus\n\\fIcommand\\fR [\\fIinputs\\fR] [\\fIoptions\\fR] [\\fB\\-o\\fR \\fIoutput\\fR]\n",
+    );
     s.push_str(".SH DESCRIPTION\nferraus edits, repairs, separates, tunes, transcribes, and masters audio. Every command accepts \\fB\\-\\-json\\fR for a structured result and writes a provenance sidecar beside each output. Run \\fBferraus docs\\fR \\fIcommand\\fR for the full page of any command.\n");
     s.push_str(".SH COMMANDS\n");
     for (_, line) in ferraus_core::builtin::agent_catalog(reg) {
@@ -174,7 +180,9 @@ fn doctor(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     report.insert("compute".into(), ferraus_ml::device_report());
     let plughost = std::env::current_exe()
         .ok()
-        .and_then(|e| e.parent().map(|d| d.join(if cfg!(windows) { "ferraus-plughost.exe" } else { "ferraus-plughost" })))
+        .and_then(|e| {
+            e.parent().map(|d| d.join(if cfg!(windows) { "ferraus-plughost.exe" } else { "ferraus-plughost" }))
+        })
         .filter(|p| p.exists())
         .map(|p| p.display().to_string());
     report.insert("plughost".into(), json!({ "clap_host": plughost }));

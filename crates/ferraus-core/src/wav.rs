@@ -15,9 +15,7 @@ pub fn encode(buf: &AudioBuffer, bit_depth: u16, float: bool) -> Result<Vec<u8>>
     } else if [8, 16, 24].contains(&bit_depth) {
         (1u16, bit_depth)
     } else {
-        return Err(Error::unsupported(format!(
-            "WAV bit depth {bit_depth} is not supported (8, 16, 24, 32 float)"
-        )));
+        return Err(Error::unsupported(format!("WAV bit depth {bit_depth} is not supported (8, 16, 24, 32 float)")));
     };
     let bps = (bits / 8) as usize;
     let data_len = frames * ch as usize * bps;
@@ -42,9 +40,7 @@ pub fn encode(buf: &AudioBuffer, bit_depth: u16, float: bool) -> Result<Vec<u8>>
                 (3, 32) => out.extend_from_slice(&s.to_le_bytes()),
                 (3, 64) => out.extend_from_slice(&(s as f64).to_le_bytes()),
                 (1, 8) => out.push(((s.clamp(-1.0, 1.0) * 127.0).round() as i16 + 128) as u8),
-                (1, 16) => out.extend_from_slice(
-                    &((s.clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes(),
-                ),
+                (1, 16) => out.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes()),
                 (1, 24) => {
                     let v = (s.clamp(-1.0, 1.0) * 8_388_607.0).round() as i32;
                     out.extend_from_slice(&v.to_le_bytes()[..3]);
@@ -106,23 +102,12 @@ pub fn decode(bytes: &[u8]) -> Result<(AudioBuffer, u16, bool)> {
                 (1, 16) => i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0,
                 (1, 24) => (i32::from_le_bytes([0, b[0], b[1], b[2]]) >> 8) as f32 / 8_388_608.0,
                 (1, 32) => i32::from_le_bytes(b.try_into().unwrap()) as f32 / 2_147_483_648.0,
-                _ => {
-                    return Err(Error::unsupported(format!(
-                        "WAV format tag {tag} with {bits} bits is not supported"
-                    )))
-                }
+                _ => return Err(Error::unsupported(format!("WAV format tag {tag} with {bits} bits is not supported"))),
             };
             chan.push(v);
         }
     }
-    Ok((
-        AudioBuffer {
-            sample_rate: sr,
-            data: out,
-        },
-        bits,
-        tag == 3,
-    ))
+    Ok((AudioBuffer { sample_rate: sr, data: out }, bits, tag == 3))
 }
 
 /// `AudioIo` that only handles WAV, for tests and minimal builds.
@@ -179,10 +164,7 @@ mod tests {
 
     #[test]
     fn roundtrip_float_and_pcm() {
-        let b = AudioBuffer::from_planar(
-            44100,
-            vec![vec![0.0, 0.5, -0.5, 0.25], vec![0.1, -0.1, 0.9, -0.9]],
-        );
+        let b = AudioBuffer::from_planar(44100, vec![vec![0.0, 0.5, -0.5, 0.25], vec![0.1, -0.1, 0.9, -0.9]]);
         let (d, bits, float) = decode(&encode(&b, 32, true).unwrap()).unwrap();
         assert_eq!(d, b);
         assert_eq!((bits, float), (32, true));

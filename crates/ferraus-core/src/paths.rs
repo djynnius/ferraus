@@ -11,9 +11,7 @@ fn home() -> PathBuf {
 }
 
 fn env_path(k: &str) -> Option<PathBuf> {
-    std::env::var_os(k)
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
+    std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from)
 }
 
 /// Directory holding `config.toml` and user presets.
@@ -31,9 +29,7 @@ pub fn config_dir() -> PathBuf {
     } else if cfg!(windows) {
         env_path("APPDATA").unwrap_or_else(home).join("ferraus")
     } else {
-        env_path("XDG_CONFIG_HOME")
-            .unwrap_or_else(|| home().join(".config"))
-            .join("ferraus")
+        env_path("XDG_CONFIG_HOME").unwrap_or_else(|| home().join(".config")).join("ferraus")
     }
 }
 
@@ -49,14 +45,9 @@ pub fn cache_dir() -> PathBuf {
     if cfg!(target_os = "macos") {
         home().join("Library/Caches/ferraus")
     } else if cfg!(windows) {
-        env_path("LOCALAPPDATA")
-            .unwrap_or_else(home)
-            .join("ferraus")
-            .join("cache")
+        env_path("LOCALAPPDATA").unwrap_or_else(home).join("ferraus").join("cache")
     } else {
-        env_path("XDG_CACHE_HOME")
-            .unwrap_or_else(|| home().join(".cache"))
-            .join("ferraus")
+        env_path("XDG_CACHE_HOME").unwrap_or_else(|| home().join(".cache")).join("ferraus")
     }
 }
 
@@ -68,14 +59,9 @@ pub fn data_dir() -> PathBuf {
     if cfg!(target_os = "macos") {
         home().join("Library/Application Support/ferraus/data")
     } else if cfg!(windows) {
-        env_path("LOCALAPPDATA")
-            .unwrap_or_else(home)
-            .join("ferraus")
-            .join("data")
+        env_path("LOCALAPPDATA").unwrap_or_else(home).join("ferraus").join("data")
     } else {
-        env_path("XDG_DATA_HOME")
-            .unwrap_or_else(|| home().join(".local/share"))
-            .join("ferraus")
+        env_path("XDG_DATA_HOME").unwrap_or_else(|| home().join(".local/share")).join("ferraus")
     }
 }
 

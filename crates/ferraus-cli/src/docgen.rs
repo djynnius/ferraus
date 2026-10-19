@@ -16,7 +16,18 @@ pub fn exit_codes_for(op: &OpSpec) -> Vec<ErrorKind> {
     if audio {
         v.push(ErrorKind::Unsupported);
     }
-    let model_cmds = ["separate", "denoise", "transcribe", "tune", "score", "models", "hum", "master", "analyze pitch", "accelerate"];
+    let model_cmds = [
+        "separate",
+        "denoise",
+        "transcribe",
+        "tune",
+        "score",
+        "models",
+        "hum",
+        "master",
+        "analyze pitch",
+        "accelerate",
+    ];
     if model_cmds.iter().any(|m| n.starts_with(m)) {
         v.extend([ErrorKind::ModelNotCached, ErrorKind::ModelDownload, ErrorKind::Network]);
     }
@@ -28,7 +39,8 @@ pub fn exit_codes_for(op: &OpSpec) -> Vec<ErrorKind> {
         v.push(ErrorKind::Network);
     }
     v.push(ErrorKind::Cancelled);
-    if n.starts_with("verify") || n.starts_with("master verify") || n.starts_with("normalize") || n.starts_with("limit") {
+    if n.starts_with("verify") || n.starts_with("master verify") || n.starts_with("normalize") || n.starts_with("limit")
+    {
         v.push(ErrorKind::Verification);
     }
     v.push(ErrorKind::Internal);
@@ -47,7 +59,10 @@ pub fn command_page(op: &OpSpec) -> String {
     let _ = writeln!(s, "# ferraus {}\n", op.name);
     let _ = writeln!(s, "{}\n", op.summary);
     if op.best_effort {
-        let _ = writeln!(s, "> **Quality tier: best-effort.** Results are reported with a quality or confidence estimate.\n");
+        let _ = writeln!(
+            s,
+            "> **Quality tier: best-effort.** Results are reported with a quality or confidence estimate.\n"
+        );
     }
     let inputs = match (op.inputs.min, op.inputs.max) {
         (0, Some(0)) => String::new(),
@@ -55,7 +70,14 @@ pub fn command_page(op: &OpSpec) -> String {
         _ => " <inputs...>".to_string(),
     };
     let pos = op.positional.map(|p| format!(" <{p}>")).unwrap_or_default();
-    let _ = writeln!(s, "## Synopsis\n\n```text\nferraus {}{}{} [options]{}\n```\n", op.name, pos, inputs, if inputs.is_empty() { "" } else { " [-o <output>]" });
+    let _ = writeln!(
+        s,
+        "## Synopsis\n\n```text\nferraus {}{}{} [options]{}\n```\n",
+        op.name,
+        pos,
+        inputs,
+        if inputs.is_empty() { "" } else { " [-o <output>]" }
+    );
     let _ = writeln!(s, "## What it does\n");
     if op.about.is_empty() {
         let _ = writeln!(s, "{}\n", op.summary);
@@ -75,7 +97,8 @@ pub fn command_page(op: &OpSpec) -> String {
     if !params.is_empty() {
         let _ = writeln!(s, "## Options\n\n| Flag | Type | Default | Meaning |\n| --- | --- | --- | --- |");
         for p in &params {
-            let flag = if op.positional == Some(p.name) { format!("`<{}>`", p.name) } else { format!("`--{}`", p.name) };
+            let flag =
+                if op.positional == Some(p.name) { format!("`<{}>`", p.name) } else { format!("`--{}`", p.name) };
             let ty = match p.kind {
                 ParamKind::Choice if !p.choices.is_empty() => p.choices.join(" \\| "),
                 k => k.type_name().to_string(),
@@ -90,7 +113,14 @@ pub fn command_page(op: &OpSpec) -> String {
             if p.required {
                 meaning.push_str(" **Required.**");
             }
-            let _ = writeln!(s, "| {} | {} | {} | {} |", flag, md_escape(&ty), p.default.map(|d| format!("`{}`", md_escape(d))).unwrap_or_else(|| "—".into()), meaning);
+            let _ = writeln!(
+                s,
+                "| {} | {} | {} | {} |",
+                flag,
+                md_escape(&ty),
+                p.default.map(|d| format!("`{}`", md_escape(d))).unwrap_or_else(|| "—".into()),
+                meaning
+            );
         }
         let _ = writeln!(s);
     }
@@ -118,15 +148,20 @@ pub fn command_page(op: &OpSpec) -> String {
     let _ = writeln!(s, "- Schema: `ferraus schema {}`", op.name);
     let _ = writeln!(s, "- Pipeline: `{{ op: {}, args: {{ ... }} }}` (flag names with `_` instead of `-`)", op.name);
     let _ = writeln!(s, "- fx stage: {}", if op.is_transform() { "yes" } else { "no" });
-    let defaults: Vec<String> = params.iter().filter_map(|p| p.default.map(|d| format!("\"{}\": \"{}\"", p.key(), d))).collect();
-    let _ = writeln!(s, "\n```json\n{{\"command\": \"{}\", \"defaults\": {{{}}}}}\n```\n", op.name, defaults.join(", "));
+    let defaults: Vec<String> =
+        params.iter().filter_map(|p| p.default.map(|d| format!("\"{}\": \"{}\"", p.key(), d))).collect();
+    let _ =
+        writeln!(s, "\n```json\n{{\"command\": \"{}\", \"defaults\": {{{}}}}}\n```\n", op.name, defaults.join(", "));
     s
 }
 
 fn common_mistakes(op: &OpSpec) -> Vec<String> {
     let mut v = Vec::new();
     if op.inputs.max != Some(0) && op.positional.is_none() {
-        v.push("Forgetting that outputs are never overwritten: pass `--overwrite` or a new `-o` path when re-running.".to_string());
+        v.push(
+            "Forgetting that outputs are never overwritten: pass `--overwrite` or a new `-o` path when re-running."
+                .to_string(),
+        );
     }
     if op.params.iter().any(|p| p.kind == ParamKind::Time || p.kind == ParamKind::Range) {
         v.push("Beat-based times (`4b`, `1/4`) need a tempo: pass `--bpm` or write `4b@120`.".to_string());
@@ -149,17 +184,53 @@ fn common_mistakes(op: &OpSpec) -> Vec<String> {
 pub fn error_catalog() -> String {
     let mut s = String::from("# Error catalog\n\nEvery error carries a stable `code`, a `message`, an `exit_code`, and when a fix exists, a `hint` that is a runnable command.\n\n| Exit code | Meaning | Typical codes | What to do |\n| --- | --- | --- | --- |\n");
     let rows: &[(ErrorKind, &str, &str)] = &[
-        (ErrorKind::Processing, "`processing_failed`, `io_error`", "Read the message; re-run with `-v`; report with the sidecar if it persists."),
-        (ErrorKind::Usage, "`invalid_argument`, `output_exists`, `path_not_allowed`", "Fix the flag named in the message; `ferraus docs <command>` lists every option."),
-        (ErrorKind::InputMissing, "`input_not_found`, `not_found`, `permission_denied`", "Check the path and permissions."),
-        (ErrorKind::Unsupported, "`unsupported_format`", "Convert first, or install FFmpeg: `ferraus doctor --install-ffmpeg`."),
-        (ErrorKind::ModelNotCached, "`model_not_cached`", "Run the `ferraus models pull ...` command in the hint, or allow downloads with `-y`."),
-        (ErrorKind::ModelDownload, "`download_failed`, `checksum_mismatch`", "Retry; the download resumes. A repeated mismatch means a corrupted mirror."),
-        (ErrorKind::Plugin, "`plugin_crashed`, `plugin_timeout`, `plugin_not_found`", "Run `ferraus plugin scan`; try another preset; the main process is unaffected."),
+        (
+            ErrorKind::Processing,
+            "`processing_failed`, `io_error`",
+            "Read the message; re-run with `-v`; report with the sidecar if it persists.",
+        ),
+        (
+            ErrorKind::Usage,
+            "`invalid_argument`, `output_exists`, `path_not_allowed`",
+            "Fix the flag named in the message; `ferraus docs <command>` lists every option.",
+        ),
+        (
+            ErrorKind::InputMissing,
+            "`input_not_found`, `not_found`, `permission_denied`",
+            "Check the path and permissions.",
+        ),
+        (
+            ErrorKind::Unsupported,
+            "`unsupported_format`",
+            "Convert first, or install FFmpeg: `ferraus doctor --install-ffmpeg`.",
+        ),
+        (
+            ErrorKind::ModelNotCached,
+            "`model_not_cached`",
+            "Run the `ferraus models pull ...` command in the hint, or allow downloads with `-y`.",
+        ),
+        (
+            ErrorKind::ModelDownload,
+            "`download_failed`, `checksum_mismatch`",
+            "Retry; the download resumes. A repeated mismatch means a corrupted mirror.",
+        ),
+        (
+            ErrorKind::Plugin,
+            "`plugin_crashed`, `plugin_timeout`, `plugin_not_found`",
+            "Run `ferraus plugin scan`; try another preset; the main process is unaffected.",
+        ),
         (ErrorKind::Cancelled, "`cancelled`, `timeout`", "Raise `--timeout`/`--max-memory` or re-run."),
-        (ErrorKind::Verification, "`verification_failed`", "The output failed a check (hash, clipping, duration). See the message."),
+        (
+            ErrorKind::Verification,
+            "`verification_failed`",
+            "The output failed a check (hash, clipping, duration). See the message.",
+        ),
         (ErrorKind::Network, "`network_error`", "Check connectivity, or use `--offline` with cached models."),
-        (ErrorKind::Internal, "`internal_error`", "A bug: report it at https://github.com/djynnius/ferraus/issues with the command and sidecar."),
+        (
+            ErrorKind::Internal,
+            "`internal_error`",
+            "A bug: report it at https://github.com/djynnius/ferraus/issues with the command and sidecar.",
+        ),
     ];
     for (k, codes, todo) in rows {
         let _ = writeln!(s, "| {} | {} | {} | {} |", k.exit_code(), k.describe(), codes, todo);
@@ -203,14 +274,19 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
     let base = "https://djynnius.github.io/ferraus";
     let mut summary = String::from("# Summary\n\n[Introduction](README.md)\n\n");
     // hand-written guides (copied verbatim); each top-level md file becomes a chapter
-    let mut guides: Vec<std::path::PathBuf> = std::fs::read_dir(guides_dir).map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default();
+    let mut guides: Vec<std::path::PathBuf> =
+        std::fs::read_dir(guides_dir).map(|rd| rd.flatten().map(|e| e.path()).collect()).unwrap_or_default();
     guides.sort();
     let mut intro_written = false;
     for g in &guides {
         if g.is_dir() {
             let section = g.file_name().unwrap().to_string_lossy().to_string();
             std::fs::create_dir_all(src.join(&section))?;
-            let mut files: Vec<_> = std::fs::read_dir(g)?.flatten().map(|e| e.path()).filter(|p| p.extension().map(|e| e == "md").unwrap_or(false)).collect();
+            let mut files: Vec<_> = std::fs::read_dir(g)?
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().map(|e| e == "md").unwrap_or(false))
+                .collect();
             files.sort();
             let title = section.replace('-', " ");
             let _ = writeln!(summary, "\n# {}\n", title[..1].to_uppercase() + &title[1..]);
@@ -232,7 +308,10 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
         }
     }
     if !intro_written {
-        std::fs::write(src.join("README.md"), "# ferraus\n\nA cross-platform music editing CLI for people and AI agents.\n")?;
+        std::fs::write(
+            src.join("README.md"),
+            "# ferraus\n\nA cross-platform music editing CLI for people and AI agents.\n",
+        )?;
     }
     // agent guide
     let catalog = ferraus_core::builtin::agent_catalog(reg);

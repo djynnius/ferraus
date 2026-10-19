@@ -10,6 +10,8 @@
 //! * [`envelope`] — the `--json` result envelope and provenance sidecars.
 //! * [`pipeline`] — pipeline files with content-hash stage caching.
 
+#![allow(clippy::type_complexity)]
+
 pub mod buffer;
 pub mod builtin;
 pub mod ctx;

@@ -72,16 +72,11 @@ impl Time {
         }
         let t = t.strip_prefix('+').unwrap_or(t);
         if t.contains(':') {
-            return parse_clock(t)
-                .map(Time::Seconds)
-                .ok_or_else(|| err("time", s, "mm:ss(.fff) or hh:mm:ss(.fff)"));
+            return parse_clock(t).map(Time::Seconds).ok_or_else(|| err("time", s, "mm:ss(.fff) or hh:mm:ss(.fff)"));
         }
         // beats with optional @bpm
         let (body, bpm) = match t.split_once('@') {
-            Some((b, bpm)) => (
-                b,
-                Some(num(bpm).ok_or_else(|| err("time", s, "a tempo after '@'"))?),
-            ),
+            Some((b, bpm)) => (b, Some(num(bpm).ok_or_else(|| err("time", s, "a tempo after '@'"))?)),
             None => (t, None),
         };
         let (n, unit) = split_unit(body);
@@ -119,14 +114,14 @@ impl Time {
             Time::Seconds(s) => Ok(*s),
             Time::Samples(n) => Ok(*n as f64 / sample_rate.max(1) as f64),
             Time::Beats { beats, bpm: b } => {
-                let tempo = b.or(bpm).ok_or_else(|| {
-                    Error::usage("beat-based time needs a tempo: pass --bpm or use the form 4b@120")
-                })?;
+                let tempo = b
+                    .or(bpm)
+                    .ok_or_else(|| Error::usage("beat-based time needs a tempo: pass --bpm or use the form 4b@120"))?;
                 Ok(beats * 60.0 / tempo)
             }
-            Time::End | Time::FromEnd(_) => Err(Error::usage(
-                "'end' and negative times need an input to resolve against",
-            )),
+            Time::End | Time::FromEnd(_) => {
+                Err(Error::usage("'end' and negative times need an input to resolve against"))
+            }
         }
     }
 
@@ -146,9 +141,7 @@ impl Time {
     pub fn duration_frames(&self, sample_rate: u32, bpm: Option<f64>) -> Result<usize> {
         match self {
             Time::Samples(n) => Ok(*n as usize),
-            other => Ok((other.seconds(sample_rate, bpm)? * sample_rate as f64)
-                .round()
-                .max(0.0) as usize),
+            other => Ok((other.seconds(sample_rate, bpm)? * sample_rate as f64).round().max(0.0) as usize),
         }
     }
 }
@@ -193,35 +186,18 @@ pub struct TimeRange {
 
 impl TimeRange {
     pub fn parse(s: &str) -> Result<TimeRange> {
-        let (a, b) = s
-            .split_once("..")
-            .ok_or_else(|| err("range", s, "start..end, e.g. 0s..2s or 1:00..end"))?;
-        let start = if a.trim().is_empty() {
-            Time::Start
-        } else {
-            Time::parse(a)?
-        };
-        let end = if b.trim().is_empty() {
-            Time::End
-        } else {
-            Time::parse(b)?
-        };
+        let (a, b) = s.split_once("..").ok_or_else(|| err("range", s, "start..end, e.g. 0s..2s or 1:00..end"))?;
+        let start = if a.trim().is_empty() { Time::Start } else { Time::parse(a)? };
+        let end = if b.trim().is_empty() { Time::End } else { Time::parse(b)? };
         Ok(TimeRange { start, end })
     }
 
     /// Frames `[start, end)` within `total`. Errors when start > end.
-    pub fn frames(
-        &self,
-        sample_rate: u32,
-        total: usize,
-        bpm: Option<f64>,
-    ) -> Result<(usize, usize)> {
+    pub fn frames(&self, sample_rate: u32, total: usize, bpm: Option<f64>) -> Result<(usize, usize)> {
         let a = self.start.frames(sample_rate, total, bpm)?;
         let b = self.end.frames(sample_rate, total, bpm)?;
         if a > b {
-            return Err(Error::usage(format!(
-                "range start ({a} frames) is after its end ({b} frames)"
-            )));
+            return Err(Error::usage(format!("range start ({a} frames) is after its end ({b} frames)")));
         }
         Ok((a, b))
     }
@@ -229,9 +205,7 @@ impl TimeRange {
 
 /// A numeric range such as `80Hz..8kHz` or `60..200`.
 pub fn parse_num_range<T>(s: &str, f: impl Fn(&str) -> Result<T>) -> Result<(T, T)> {
-    let (a, b) = s
-        .split_once("..")
-        .ok_or_else(|| err("range", s, "low..high"))?;
+    let (a, b) = s.split_once("..").ok_or_else(|| err("range", s, "low..high"))?;
     Ok((f(a)?, f(b)?))
 }
 
@@ -303,8 +277,7 @@ pub fn parse_freq(s: &str) -> Result<f64> {
         return Ok(midi_to_hz(n as f64));
     }
     let (n, unit) = split_unit(t);
-    let v =
-        num(n).ok_or_else(|| err("frequency", s, "Hz, kHz, a note name like C4, or midi:60"))?;
+    let v = num(n).ok_or_else(|| err("frequency", s, "Hz, kHz, a note name like C4, or midi:60"))?;
     let hz = match unit.as_str() {
         "" | "hz" => v,
         "khz" | "k" => v * 1000.0,
@@ -324,9 +297,7 @@ pub fn hz_to_midi(hz: f64) -> f64 {
     69.0 + 12.0 * (hz.max(1e-9) / 440.0).log2()
 }
 
-const NOTE_NAMES_SHARP: [&str; 12] = [
-    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-];
+const NOTE_NAMES_SHARP: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 /// Note name for a MIDI number, e.g. 60 → `C4`.
 pub fn midi_to_name(n: i32) -> String {
@@ -349,7 +320,7 @@ pub fn parse_pitch_class(s: &str) -> Option<i32> {
         'B' => 11,
         _ => return None,
     };
-    let mut pc = base;
+    let mut pc: i32 = base;
     for c in chars {
         match c {
             '#' | '♯' => pc += 1,
@@ -357,7 +328,7 @@ pub fn parse_pitch_class(s: &str) -> Option<i32> {
             _ => return None,
         }
     }
-    Some((pc as i32).rem_euclid(12))
+    Some(pc.rem_euclid(12))
 }
 
 /// MIDI number for a note name with octave (`C4` = 60, `A#3`, `Bb-1`).
@@ -367,10 +338,7 @@ pub fn parse_note_name(s: &str) -> Option<i32> {
     if !matches!(first.to_ascii_uppercase(), 'A'..='G') {
         return None;
     }
-    let split = s
-        .char_indices()
-        .find(|(i, c)| *i > 0 && (c.is_ascii_digit() || *c == '-'))
-        .map(|(i, _)| i)?;
+    let split = s.char_indices().find(|(i, c)| *i > 0 && (c.is_ascii_digit() || *c == '-')).map(|(i, _)| i)?;
     let pc = parse_pitch_class(&s[..split])?;
     let oct: i32 = s[split..].parse().ok()?;
     // Accidentals can cross octave boundaries (B#3 = C4, Cb4 = B3): compute from base letter.
@@ -437,9 +405,7 @@ pub fn parse_ratio(s: &str) -> Result<f64> {
 pub fn parse_percent(s: &str) -> Result<f64> {
     let t = s.trim();
     if let Some(p) = t.strip_suffix('%') {
-        return num(p)
-            .map(|v| v / 100.0)
-            .ok_or_else(|| err("percentage", s, "N% or a fraction"));
+        return num(p).map(|v| v / 100.0).ok_or_else(|| err("percentage", s, "N% or a fraction"));
     }
     num(t).ok_or_else(|| err("percentage", s, "N% or a fraction such as 0.8"))
 }
@@ -483,13 +449,7 @@ pub fn parse_with_unit(s: &str, units: &[&str]) -> Result<f64> {
             }
         }
     }
-    num(t).ok_or_else(|| {
-        err(
-            "value",
-            s,
-            &format!("a number optionally followed by {}", units.join(", ")),
-        )
-    })
+    num(t).ok_or_else(|| err("value", s, &format!("a number optionally followed by {}", units.join(", "))))
 }
 
 // ---------------------------------------------------------------------------------
@@ -515,26 +475,13 @@ impl Grid {
         } else {
             (t, false, false)
         };
-        let (n, d) = body
-            .split_once('/')
-            .ok_or_else(|| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
-        let num: u32 = n
-            .trim()
-            .parse()
-            .map_err(|_| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
-        let den: u32 = d
-            .trim()
-            .parse()
-            .map_err(|_| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
+        let (n, d) = body.split_once('/').ok_or_else(|| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
+        let num: u32 = n.trim().parse().map_err(|_| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
+        let den: u32 = d.trim().parse().map_err(|_| err("grid", s, "1/16, 1/8T, or 1/8D"))?;
         if num == 0 || den == 0 {
             return Err(err("grid", s, "non-zero numerator and denominator"));
         }
-        Ok(Grid {
-            num,
-            den,
-            triplet,
-            dotted,
-        })
+        Ok(Grid { num, den, triplet, dotted })
     }
 
     /// Length in quarter-note beats (`1/4` = 1.0, `1/16` = 0.25, `1/8T` = 1/3).
@@ -603,10 +550,7 @@ impl SyncTime {
 
 /// Split a comma list, trimming entries and dropping empties.
 pub fn split_list(s: &str) -> Vec<String> {
-    s.split(',')
-        .map(|x| x.trim().to_string())
-        .filter(|x| !x.is_empty())
-        .collect()
+    s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()
 }
 
 #[cfg(test)]
@@ -620,24 +564,9 @@ mod tests {
         assert_eq!(Time::parse("01:23.5").unwrap(), Time::Seconds(83.5));
         assert_eq!(Time::parse("1:02:03.250").unwrap(), Time::Seconds(3723.25));
         assert_eq!(Time::parse("44100smp").unwrap(), Time::Samples(44100));
-        assert_eq!(
-            Time::parse("4b").unwrap(),
-            Time::Beats {
-                beats: 4.0,
-                bpm: None
-            }
-        );
-        assert_eq!(
-            Time::parse("4b@120").unwrap(),
-            Time::Beats {
-                beats: 4.0,
-                bpm: Some(120.0)
-            }
-        );
-        assert_eq!(
-            Time::parse("-10s").unwrap(),
-            Time::FromEnd(Box::new(Time::Seconds(10.0)))
-        );
+        assert_eq!(Time::parse("4b").unwrap(), Time::Beats { beats: 4.0, bpm: None });
+        assert_eq!(Time::parse("4b@120").unwrap(), Time::Beats { beats: 4.0, bpm: Some(120.0) });
+        assert_eq!(Time::parse("-10s").unwrap(), Time::FromEnd(Box::new(Time::Seconds(10.0))));
         assert_eq!(Time::parse("end").unwrap(), Time::End);
         assert_eq!(Time::parse("2").unwrap(), Time::Seconds(2.0));
         assert!(Time::parse("1:75").is_err());
@@ -652,13 +581,7 @@ mod tests {
         let t = Time::parse("-1s").unwrap();
         assert_eq!(t.frames(1000, 5000, None).unwrap(), 4000);
         assert!(Time::parse("4b").unwrap().seconds(48000, None).is_err());
-        assert_eq!(
-            Time::parse("4b")
-                .unwrap()
-                .seconds(48000, Some(60.0))
-                .unwrap(),
-            4.0
-        );
+        assert_eq!(Time::parse("4b").unwrap().seconds(48000, Some(60.0)).unwrap(), 4.0);
     }
 
     #[test]

@@ -32,23 +32,12 @@ pub fn leak_registry(ops: Vec<OpSpec>) -> &'static Registry {
 
 /// Build args for `spec` from `key=value` pairs (defaults applied).
 pub fn args(spec: &OpSpec, pairs: &[(&str, &str)]) -> Args {
-    Args::build(
-        spec,
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect(),
-        &|_, _| None,
-    )
-    .expect("valid test args")
+    Args::build(spec, pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), &|_, _| None)
+        .expect("valid test args")
 }
 
 /// Run a transform spec directly.
-pub fn run(
-    spec: &OpSpec,
-    pairs: &[(&str, &str)],
-    input: AudioBuffer,
-) -> crate::error::Result<AudioBuffer> {
+pub fn run(spec: &OpSpec, pairs: &[(&str, &str)], input: AudioBuffer) -> crate::error::Result<AudioBuffer> {
     let a = args(spec, pairs);
     let mut c = ctx();
     crate::exec::apply_spec(spec, &a, input, &mut c)
@@ -56,12 +45,7 @@ pub fn run(
 
 pub fn sine(sr: u32, freq: f64, secs: f64, amp: f32) -> AudioBuffer {
     let n = (sr as f64 * secs).round() as usize;
-    AudioBuffer::from_mono(
-        sr,
-        (0..n)
-            .map(|i| amp * (2.0 * PI * freq * i as f64 / sr as f64).sin() as f32)
-            .collect(),
-    )
+    AudioBuffer::from_mono(sr, (0..n).map(|i| amp * (2.0 * PI * freq * i as f64 / sr as f64).sin() as f32).collect())
 }
 
 pub fn stereo(b: AudioBuffer) -> AudioBuffer {
@@ -71,10 +55,7 @@ pub fn stereo(b: AudioBuffer) -> AudioBuffer {
 /// Deterministic white noise in [-amp, amp].
 pub fn noise(sr: u32, secs: f64, amp: f32, seed: u64) -> AudioBuffer {
     let n = (sr as f64 * secs).round() as usize;
-    let mut x = seed
-        .wrapping_mul(6364136223846793005)
-        .wrapping_add(1442695040888963407)
-        | 1;
+    let mut x = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407) | 1;
     AudioBuffer::from_mono(
         sr,
         (0..n)
@@ -125,17 +106,11 @@ pub fn add(a: &AudioBuffer, b: &AudioBuffer) -> AudioBuffer {
     let data = (0..ch)
         .map(|c| {
             (0..n)
-                .map(|i| {
-                    a2.data[c].get(i).copied().unwrap_or(0.0)
-                        + b2.data[c].get(i).copied().unwrap_or(0.0)
-                })
+                .map(|i| a2.data[c].get(i).copied().unwrap_or(0.0) + b2.data[c].get(i).copied().unwrap_or(0.0))
                 .collect()
         })
         .collect();
-    AudioBuffer {
-        sample_rate: a.sample_rate,
-        data,
-    }
+    AudioBuffer { sample_rate: a.sample_rate, data }
 }
 
 /// RMS of the difference (over the common length).
@@ -187,11 +162,7 @@ pub fn si_sdr(reference: &[f32], estimate: &[f32]) -> f64 {
     let r = &reference[..n];
     let e = &estimate[..n];
     let dot: f64 = r.iter().zip(e).map(|(a, b)| *a as f64 * *b as f64).sum();
-    let rr: f64 = r
-        .iter()
-        .map(|a| (*a as f64).powi(2))
-        .sum::<f64>()
-        .max(1e-20);
+    let rr: f64 = r.iter().map(|a| (*a as f64).powi(2)).sum::<f64>().max(1e-20);
     let alpha = dot / rr;
     let mut st = 0.0;
     let mut en = 0.0;
@@ -212,10 +183,7 @@ impl TempDir {
             "ferraus-test-{}-{}-{}",
             name,
             std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&p).unwrap();
         TempDir(p)

@@ -12,10 +12,7 @@ pub struct AudioBuffer {
 impl AudioBuffer {
     /// A silent buffer.
     pub fn new(sample_rate: u32, channels: usize, frames: usize) -> Self {
-        AudioBuffer {
-            sample_rate,
-            data: vec![vec![0.0; frames]; channels.max(1)],
-        }
+        AudioBuffer { sample_rate, data: vec![vec![0.0; frames]; channels.max(1)] }
     }
 
     /// Build from planar channels. Shorter channels are zero-padded to the longest.
@@ -31,10 +28,7 @@ impl AudioBuffer {
     }
 
     pub fn from_mono(sample_rate: u32, samples: Vec<f32>) -> Self {
-        AudioBuffer {
-            sample_rate,
-            data: vec![samples],
-        }
+        AudioBuffer { sample_rate, data: vec![samples] }
     }
 
     pub fn from_interleaved(sample_rate: u32, channels: usize, samples: &[f32]) -> Self {
@@ -104,10 +98,7 @@ impl AudioBuffer {
         let n = self.frames();
         let s = start.min(n);
         let e = end.clamp(s, n);
-        AudioBuffer {
-            sample_rate: self.sample_rate,
-            data: self.data.iter().map(|c| c[s..e].to_vec()).collect(),
-        }
+        AudioBuffer { sample_rate: self.sample_rate, data: self.data.iter().map(|c| c[s..e].to_vec()).collect() }
     }
 
     /// Append another buffer with the same channel count (extra channels are dropped,
@@ -123,20 +114,12 @@ impl AudioBuffer {
     }
 
     pub fn peak(&self) -> f32 {
-        self.data
-            .iter()
-            .flat_map(|c| c.iter())
-            .fold(0.0f32, |m, s| m.max(s.abs()))
+        self.data.iter().flat_map(|c| c.iter()).fold(0.0f32, |m, s| m.max(s.abs()))
     }
 
     pub fn rms(&self) -> f32 {
         let n = (self.frames() * self.channels()).max(1);
-        let sum: f64 = self
-            .data
-            .iter()
-            .flat_map(|c| c.iter())
-            .map(|s| (*s as f64) * (*s as f64))
-            .sum();
+        let sum: f64 = self.data.iter().flat_map(|c| c.iter()).map(|s| (*s as f64) * (*s as f64)).sum();
         (sum / n as f64).sqrt() as f32
     }
 
@@ -164,10 +147,7 @@ impl AudioBuffer {
         } else {
             (0..n).map(|i| self.data[i.min(cur - 1)].clone()).collect()
         };
-        AudioBuffer {
-            sample_rate: self.sample_rate,
-            data,
-        }
+        AudioBuffer { sample_rate: self.sample_rate, data }
     }
 
     /// Resize every channel to `frames`, padding with zeros.

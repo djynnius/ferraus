@@ -16,11 +16,7 @@ impl Registry {
     /// Add ops. Panics on a duplicate name: duplicates are a programming error caught by tests.
     pub fn extend(&mut self, ops: impl IntoIterator<Item = OpSpec>) {
         for op in ops {
-            assert!(
-                self.ops.iter().all(|o| o.name != op.name),
-                "duplicate op registered: {}",
-                op.name
-            );
+            assert!(self.ops.iter().all(|o| o.name != op.name), "duplicate op registered: {}", op.name);
             self.ops.push(op);
         }
     }
@@ -32,12 +28,7 @@ impl Registry {
     /// Look up by command path (`denoise profile`), id (`denoise_profile`), or alias.
     pub fn get(&self, name: &str) -> Option<&OpSpec> {
         let norm = name.trim().replace(['_', '.'], " ");
-        self.ops.iter().find(|o| {
-            o.name == name
-                || o.name == norm
-                || o.id() == name
-                || o.aliases.iter().any(|a| *a == name)
-        })
+        self.ops.iter().find(|o| o.name == name || o.name == norm || o.id() == name || o.aliases.contains(&name))
     }
 
     pub fn require(&self, name: &str) -> Result<&OpSpec> {
@@ -45,9 +36,7 @@ impl Registry {
             let suggestions = self.suggest(name);
             let mut e = Error::usage(format!("unknown command '{name}'"));
             if let Some(s) = suggestions.first() {
-                e = e.with_hint(format!(
-                    "did you mean 'ferraus {s}'? Run 'ferraus schema' to list commands"
-                ));
+                e = e.with_hint(format!("did you mean 'ferraus {s}'? Run 'ferraus schema' to list commands"));
             } else {
                 e = e.with_hint("ferraus schema");
             }
@@ -57,12 +46,8 @@ impl Registry {
 
     /// Closest command names by edit distance.
     pub fn suggest(&self, name: &str) -> Vec<&'static str> {
-        let mut scored: Vec<(usize, &'static str)> = self
-            .ops
-            .iter()
-            .map(|o| (levenshtein(name, o.name), o.name))
-            .filter(|(d, _)| *d <= 3)
-            .collect();
+        let mut scored: Vec<(usize, &'static str)> =
+            self.ops.iter().map(|o| (levenshtein(name, o.name), o.name)).filter(|(d, _)| *d <= 3).collect();
         scored.sort();
         scored.into_iter().map(|(_, n)| n).take(3).collect()
     }

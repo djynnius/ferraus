@@ -75,10 +75,7 @@ impl Config {
         let path = match explicit {
             Some(p) => {
                 if !p.exists() {
-                    return Err(Error::input(format!(
-                        "config file not found: {}",
-                        p.display()
-                    )));
+                    return Err(Error::input(format!("config file not found: {}", p.display())));
                 }
                 p.to_path_buf()
             }

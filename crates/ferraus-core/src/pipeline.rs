@@ -64,18 +64,12 @@ pub fn parse(text: &str, sets: &[String]) -> Result<PipelineFile> {
         serde_yaml::from_str(text).map_err(|e| Error::usage(format!("pipeline YAML: {e}")))?
     };
     for s in sets {
-        let (k, val) = s
-            .split_once('=')
-            .ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
+        let (k, val) = s.split_once('=').ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
         apply_set(&mut v, k, val)?;
     }
-    let p: PipelineFile =
-        serde_json::from_value(v).map_err(|e| Error::usage(format!("pipeline: {e}")))?;
+    let p: PipelineFile = serde_json::from_value(v).map_err(|e| Error::usage(format!("pipeline: {e}")))?;
     if p.version != 1 {
-        return Err(Error::usage(format!(
-            "pipeline version {} is not supported (expected 1)",
-            p.version
-        )));
+        return Err(Error::usage(format!("pipeline version {} is not supported (expected 1)", p.version)));
     }
     Ok(p)
 }
@@ -96,16 +90,14 @@ fn apply_set(v: &mut Value, key: &str, val: &str) -> Result<()> {
                         .position(|s| s.get("id").and_then(|x| x.as_str()) == Some(part))
                         .ok_or_else(|| Error::usage(format!("--set: no stage with id '{part}'")))?
                 };
-                arr.get_mut(idx)
-                    .ok_or_else(|| Error::usage(format!("--set: index {idx} out of range")))?
+                arr.get_mut(idx).ok_or_else(|| Error::usage(format!("--set: index {idx} out of range")))?
             }
             Value::Object(obj) => {
                 if last {
                     obj.insert(part.to_string(), Value::String(val.to_string()));
                     return Ok(());
                 }
-                obj.entry(part.to_string())
-                    .or_insert_with(|| Value::Object(Map::new()))
+                obj.entry(part.to_string()).or_insert_with(|| Value::Object(Map::new()))
             }
             _ => return Err(Error::usage(format!("--set: cannot descend into '{part}'"))),
         };
@@ -117,12 +109,7 @@ fn apply_set(v: &mut Value, key: &str, val: &str) -> Result<()> {
 /// Order stages so every stage comes after the ones it reads from; error on cycles and
 /// unknown references.
 pub fn topo_order(p: &PipelineFile) -> Result<Vec<usize>> {
-    let ids: HashMap<&str, usize> = p
-        .stages
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (s.id.as_str(), i))
-        .collect();
+    let ids: HashMap<&str, usize> = p.stages.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
     if ids.len() != p.stages.len() {
         return Err(Error::usage("pipeline stage ids must be unique"));
     }
@@ -142,21 +129,10 @@ pub fn topo_order(p: &PipelineFile) -> Result<Vec<usize>> {
     }
     let mut order = Vec::new();
     let mut state = vec![0u8; p.stages.len()];
-    fn visit(
-        i: usize,
-        deps: &[Vec<usize>],
-        state: &mut [u8],
-        order: &mut Vec<usize>,
-        p: &PipelineFile,
-    ) -> Result<()> {
+    fn visit(i: usize, deps: &[Vec<usize>], state: &mut [u8], order: &mut Vec<usize>, p: &PipelineFile) -> Result<()> {
         match state[i] {
             2 => return Ok(()),
-            1 => {
-                return Err(Error::usage(format!(
-                    "pipeline has a cycle through stage '{}'",
-                    p.stages[i].id
-                )))
-            }
+            1 => return Err(Error::usage(format!("pipeline has a cycle through stage '{}'", p.stages[i].id))),
             _ => {}
         }
         state[i] = 1;
@@ -173,10 +149,7 @@ pub fn topo_order(p: &PipelineFile) -> Result<Vec<usize>> {
     for o in &p.outputs {
         let base = o.from.split('.').next().unwrap_or(&o.from);
         if !ids.contains_key(base) && !p.inputs.contains_key(base) {
-            return Err(Error::usage(format!(
-                "output reads '{}', which is not a stage",
-                o.from
-            )));
+            return Err(Error::usage(format!("output reads '{}', which is not a stage", o.from)));
         }
     }
     Ok(order)
@@ -187,17 +160,16 @@ pub fn validate(p: &PipelineFile, registry: &Registry) -> Result<Vec<Value>> {
     topo_order(p)?;
     let mut resolved = Vec::new();
     for s in &p.stages {
-        let spec = registry
-            .require(&s.op)
-            .map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
+        let spec = registry.require(&s.op).map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
         let pairs = stage_pairs(s)?;
         let args = Args::build(spec, pairs, &|_, _| None)
             .map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
         if let Runner::Chain = spec.runner {
-            crate::exec::chain_stages(&args)
-                .map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
+            crate::exec::chain_stages(&args).map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
         }
-        resolved.push(json!({"id": s.id, "op": spec.name, "in": s.input.as_ref().map(|i| i.refs()), "args": args.to_json()}));
+        resolved.push(
+            json!({"id": s.id, "op": spec.name, "in": s.input.as_ref().map(|i| i.refs()), "args": args.to_json()}),
+        );
     }
     Ok(resolved)
 }
@@ -229,15 +201,8 @@ pub struct RunReport {
 
 /// Run the pipeline. Intermediate results are float WAV files in the stage cache, keyed
 /// by a hash of (op, resolved args, input content).
-pub fn run(
-    p: &PipelineFile,
-    base_dir: &Path,
-    ctx: &mut OpCtx,
-    use_cache: bool,
-) -> Result<RunReport> {
-    let registry = ctx
-        .registry
-        .ok_or_else(|| Error::internal("pipeline needs a registry"))?;
+pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) -> Result<RunReport> {
+    let registry = ctx.registry.ok_or_else(|| Error::internal("pipeline needs a registry"))?;
     validate(p, registry)?;
     let order = topo_order(p)?;
     let cache_root = crate::paths::pipeline_cache_dir();
@@ -247,23 +212,14 @@ pub fn run(
     let mut produced: HashMap<String, (String, BTreeMap<String, PathBuf>)> = HashMap::new();
     for (name, path) in &p.inputs {
         let pb = resolve_path(base_dir, path);
-        let h = sha256_file(&pb).map_err(|_| {
-            Error::input(format!(
-                "pipeline input '{name}' not found: {}",
-                pb.display()
-            ))
-        })?;
+        let h = sha256_file(&pb)
+            .map_err(|_| Error::input(format!("pipeline input '{name}' not found: {}", pb.display())))?;
         let mut m = BTreeMap::new();
         m.insert("main".to_string(), pb);
         produced.insert(name.clone(), (h, m));
     }
 
-    let mut report = RunReport {
-        stages: vec![],
-        outputs: vec![],
-        computed: 0,
-        cached: 0,
-    };
+    let mut report = RunReport { stages: vec![], outputs: vec![], computed: 0, cached: 0 };
     let n = order.len();
     for (k, &i) in order.iter().enumerate() {
         ctx.check_cancel()?;
@@ -279,13 +235,18 @@ pub fn run(
                 Some((b, role)) if produced.contains_key(b) => (b.to_string(), role.to_string()),
                 _ => (r.clone(), "main".to_string()),
             };
-            let (key, files) = produced
-                .get(&base)
-                .ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
+            let (key, files) =
+                produced.get(&base).ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
             let path = files
                 .get(&role)
                 .or_else(|| if role == "main" { files.values().next() } else { None })
-                .ok_or_else(|| Error::usage(format!("stage '{}' reads '{r}', but '{base}' has no output named '{role}' (has: {})", s.id, files.keys().cloned().collect::<Vec<_>>().join(", "))))?;
+                .ok_or_else(|| {
+                    Error::usage(format!(
+                        "stage '{}' reads '{r}', but '{base}' has no output named '{role}' (has: {})",
+                        s.id,
+                        files.keys().cloned().collect::<Vec<_>>().join(", ")
+                    ))
+                })?;
             input_paths.push(path.clone());
             input_keys.push(format!("{key}:{role}"));
         }
@@ -297,9 +258,7 @@ pub fn run(
         let mut files: BTreeMap<String, PathBuf> = BTreeMap::new();
         let mut was_cached = false;
         if use_cache && manifest.exists() {
-            if let Ok(m) =
-                serde_json::from_slice::<BTreeMap<String, PathBuf>>(&std::fs::read(&manifest)?)
-            {
+            if let Ok(m) = serde_json::from_slice::<BTreeMap<String, PathBuf>>(&std::fs::read(&manifest)?) {
                 if m.values().all(|p| p.exists()) {
                     files = m;
                     was_cached = true;
@@ -333,14 +292,7 @@ pub fn run(
                     let input = child.read_audio(0)?;
                     let mut buf = input;
                     for (name, pairs) in crate::exec::chain_stages(&args)? {
-                        buf = crate::exec::run_transform_pairs(
-                            registry,
-                            &|_, _| None,
-                            &name,
-                            pairs,
-                            buf,
-                            &mut child,
-                        )?;
+                        buf = crate::exec::run_transform_pairs(registry, &|_, _| None, &name, pairs, buf, &mut child)?;
                     }
                     let path = dir.join("main.wav");
                     child.write_audio(&path, &buf, Some("main"))?;
@@ -377,28 +329,18 @@ pub fn run(
             Some((b, r)) => (b.to_string(), r.to_string()),
             None => (o.from.clone(), "main".to_string()),
         };
-        let (_, files) = produced
-            .get(&base)
-            .ok_or_else(|| Error::usage(format!("unknown output source {}", o.from)))?;
+        let (_, files) =
+            produced.get(&base).ok_or_else(|| Error::usage(format!("unknown output source {}", o.from)))?;
         let src = files
             .get(&role)
-            .or_else(|| {
-                if role == "main" {
-                    files.values().next()
-                } else {
-                    None
-                }
-            })
+            .or_else(|| if role == "main" { files.values().next() } else { None })
             .ok_or_else(|| Error::usage(format!("'{}' has no output '{role}'", base)))?;
         let dest = resolve_path(base_dir, &o.path);
         let buf = ctx.read_audio_path(src)?;
         ctx.input_records.pop();
         let mut opts = ctx.encode_options(&dest);
         if let Some(b) = o.encode.get("bit_depth") {
-            opts.bit_depth = b
-                .as_u64()
-                .map(|v| v as u16)
-                .or_else(|| b.as_str().and_then(|s| s.parse().ok()));
+            opts.bit_depth = b.as_u64().map(|v| v as u16).or_else(|| b.as_str().and_then(|s| s.parse().ok()));
         }
         if let Some(b) = o.encode.get("bitrate").and_then(|v| v.as_str()) {
             opts.bitrate = Some(crate::units::parse_bitrate(b)?);
@@ -408,9 +350,7 @@ pub fn run(
             buf = crate::resample::resample(&buf, sr as u32, crate::resample::Quality::High);
         }
         ctx.write_audio_with(&dest, &buf, Some(&o.from), &opts)?;
-        report
-            .outputs
-            .push(json!({"from": o.from, "path": dest.display().to_string()}));
+        report.outputs.push(json!({"from": o.from, "path": dest.display().to_string()}));
     }
     Ok(report)
 }
@@ -456,33 +396,19 @@ outputs:
         assert_eq!(p.stages.len(), 3);
         let o = topo_order(&p).unwrap();
         assert_eq!(o, vec![0, 1, 2]);
-        assert_eq!(
-            p.outputs[0]
-                .encode
-                .get("bit_depth")
-                .and_then(|v| v.as_u64()),
-            Some(24)
-        );
+        assert_eq!(p.outputs[0].encode.get("bit_depth").and_then(|v| v.as_u64()), Some(24));
     }
 
     #[test]
     fn set_overrides() {
-        let p = parse(
-            EX,
-            &[
-                "stages.tuned.args.strength=90%".into(),
-                "inputs.vocal=x.wav".into(),
-            ],
-        )
-        .unwrap();
+        let p = parse(EX, &["stages.tuned.args.strength=90%".into(), "inputs.vocal=x.wav".into()]).unwrap();
         assert_eq!(p.stages[1].args["strength"], "90%");
         assert_eq!(p.inputs["vocal"], "x.wav");
     }
 
     #[test]
     fn detects_cycles_and_bad_refs() {
-        let bad =
-            "version: 1\nstages:\n  - {id: a, op: gain, in: b}\n  - {id: b, op: gain, in: a}\n";
+        let bad = "version: 1\nstages:\n  - {id: a, op: gain, in: b}\n  - {id: b, op: gain, in: a}\n";
         assert!(topo_order(&parse(bad, &[]).unwrap()).is_err());
         let bad2 = "version: 1\nstages:\n  - {id: a, op: gain, in: nope}\n";
         assert!(topo_order(&parse(bad2, &[]).unwrap()).is_err());

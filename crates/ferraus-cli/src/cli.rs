@@ -60,18 +60,12 @@ fn global_args() -> Vec<Arg> {
             .value_name("PATH")
             .allow_hyphen_values(true)
             .help("Output path; '-' for stdout; templates {name} {stem} {index} {ext}")),
-        g(Arg::new("outdir")
-            .long("outdir")
-            .value_name("DIR")
-            .help("Output directory for batch runs")),
+        g(Arg::new("outdir").long("outdir").value_name("DIR").help("Output directory for batch runs")),
         g(Arg::new("format")
             .long("format")
             .value_name("FMT")
             .help("Output container/codec when the extension is ambiguous or output is stdout")),
-        g(Arg::new("input-format")
-            .long("input-format")
-            .value_name("FMT")
-            .help("Input format when reading stdin")),
+        g(Arg::new("input-format").long("input-format").value_name("FMT").help("Input format when reading stdin")),
         g(Arg::new("json")
             .long("json")
             .action(ArgAction::SetTrue)
@@ -81,11 +75,7 @@ fn global_args() -> Vec<Arg> {
             .value_name("MODE")
             .value_parser(["auto", "none", "bar", "json"])
             .help("Progress on stderr [default: auto]")),
-        g(Arg::new("quiet")
-            .short('q')
-            .long("quiet")
-            .action(ArgAction::SetTrue)
-            .help("Only errors on stderr")),
+        g(Arg::new("quiet").short('q').long("quiet").action(ArgAction::SetTrue).help("Only errors on stderr")),
         g(Arg::new("verbose")
             .short('v')
             .long("verbose")
@@ -108,19 +98,13 @@ fn global_args() -> Vec<Arg> {
             .long("seed")
             .value_name("N")
             .help("Seed for any stochastic step (dither, humanize) [default: 0]")),
-        g(Arg::new("offline")
-            .long("offline")
-            .action(ArgAction::SetTrue)
-            .help("Fail instead of downloading anything")),
+        g(Arg::new("offline").long("offline").action(ArgAction::SetTrue).help("Fail instead of downloading anything")),
         g(Arg::new("yes")
             .short('y')
             .long("yes")
             .action(ArgAction::SetTrue)
             .help("Allow model downloads without asking")),
-        g(Arg::new("overwrite")
-            .long("overwrite")
-            .action(ArgAction::SetTrue)
-            .help("Replace an existing output")),
+        g(Arg::new("overwrite").long("overwrite").action(ArgAction::SetTrue).help("Replace an existing output")),
         g(Arg::new("in-place")
             .long("in-place")
             .action(ArgAction::SetTrue)
@@ -149,39 +133,21 @@ fn global_args() -> Vec<Arg> {
             .long("sample-rate")
             .value_name("HZ")
             .help("Output sample rate [default: match input]")),
-        g(Arg::new("bit-depth")
-            .long("bit-depth")
-            .value_name("BITS")
-            .help("Output bit depth (16, 24, 32 = float)")),
-        g(Arg::new("channels")
-            .long("channels")
-            .value_name("N")
-            .help("Output channel count [default: match input]")),
-        g(Arg::new("bitrate")
-            .long("bitrate")
-            .value_name("RATE")
-            .help("Lossy bitrate, e.g. 192k [default: 192k]")),
-        g(Arg::new("config")
-            .long("config")
-            .value_name("PATH")
-            .help("Alternate config file")),
+        g(Arg::new("bit-depth").long("bit-depth").value_name("BITS").help("Output bit depth (16, 24, 32 = float)")),
+        g(Arg::new("channels").long("channels").value_name("N").help("Output channel count [default: match input]")),
+        g(Arg::new("bitrate").long("bitrate").value_name("RATE").help("Lossy bitrate, e.g. 192k [default: 192k]")),
+        g(Arg::new("config").long("config").value_name("PATH").help("Alternate config file")),
         g(Arg::new("sound-path")
             .long("sound-path")
             .value_name("DIR")
             .action(ArgAction::Append)
             .help("Extra folder of instruments and sound libraries to scan (repeatable)")),
-        g(Arg::new("bpm")
-            .long("bpm")
-            .value_name("BPM")
-            .help("Tempo for beat-based times (4b, 1/4)")),
+        g(Arg::new("bpm").long("bpm").value_name("BPM").help("Tempo for beat-based times (4b, 1/4)")),
         g(Arg::new("async")
             .long("async")
             .action(ArgAction::SetTrue)
             .help("Run as a background job and return its job_id immediately")),
-        g(Arg::new("timeout")
-            .long("timeout")
-            .value_name("TIME")
-            .help("Cancel the job after this long (exit code 8)")),
+        g(Arg::new("timeout").long("timeout").value_name("TIME").help("Cancel the job after this long (exit code 8)")),
         g(Arg::new("max-memory")
             .long("max-memory")
             .value_name("SIZE")
@@ -218,16 +184,11 @@ fn op_args(op: &OpSpec) -> Vec<Arg> {
         let mut a = Arg::new(p.name).long(p.name).help(param_help(&p));
         a = match p.kind {
             ParamKind::Flag => a.action(ArgAction::SetTrue),
-            ParamKind::Switch => a
-                .num_args(0..=1)
-                .default_missing_value("on")
-                .value_name("on|off")
-                .action(ArgAction::Set),
+            ParamKind::Switch => {
+                a.num_args(0..=1).default_missing_value("on").value_name("on|off").action(ArgAction::Set)
+            }
             _ => {
-                let a = a
-                    .num_args(1)
-                    .allow_hyphen_values(true)
-                    .value_name(p.kind.type_name().to_uppercase());
+                let a = a.num_args(1).allow_hyphen_values(true).value_name(p.kind.type_name().to_uppercase());
                 if p.repeatable {
                     a.action(ArgAction::Append)
                 } else {
@@ -274,13 +235,7 @@ fn op_long_about(op: &OpSpec) -> String {
     }
     if !op.presets.is_empty() {
         s.push_str("\n\nPresets: ");
-        s.push_str(
-            &op.presets
-                .iter()
-                .map(|p| p.name)
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
+        s.push_str(&op.presets.iter().map(|p| p.name).collect::<Vec<_>>().join(", "));
     }
     if !op.examples.is_empty() {
         s.push_str("\n\nExamples:");
@@ -293,22 +248,14 @@ fn op_long_about(op: &OpSpec) -> String {
 
 /// Build the full clap tree from the registry.
 pub fn build_command(reg: &Registry) -> Command {
-    let paths: BTreeSet<Vec<&'static str>> = reg
-        .ops()
-        .iter()
-        .map(|o| o.name.split(' ').collect())
-        .collect();
+    let paths: BTreeSet<Vec<&'static str>> = reg.ops().iter().map(|o| o.name.split(' ').collect()).collect();
     let mut prefixes: BTreeSet<Vec<&'static str>> = BTreeSet::new();
     for p in &paths {
         for i in 1..=p.len() {
             prefixes.insert(p[..i].to_vec());
         }
     }
-    fn node(
-        prefix: Vec<&'static str>,
-        reg: &Registry,
-        prefixes: &BTreeSet<Vec<&'static str>>,
-    ) -> Command {
+    fn node(prefix: Vec<&'static str>, reg: &Registry, prefixes: &BTreeSet<Vec<&'static str>>) -> Command {
         let name = *prefix.last().unwrap();
         let joined = prefix.join(" ");
         let mut cmd = Command::new(name);
@@ -318,25 +265,17 @@ pub fn build_command(reg: &Registry) -> Command {
             .cloned()
             .collect();
         if let Some(op) = reg.get(&joined).filter(|o| o.name == joined) {
-            cmd = cmd
-                .about(op.summary)
-                .long_about(op_long_about(op))
-                .args(op_args(op));
+            cmd = cmd.about(op.summary).long_about(op_long_about(op)).args(op_args(op));
             for a in &op.aliases {
                 if !a.contains(' ') {
                     cmd = cmd.visible_alias(*a);
                 }
             }
             if !children.is_empty() {
-                cmd = cmd
-                    .args_conflicts_with_subcommands(true)
-                    .subcommand_negates_reqs(true);
+                cmd = cmd.args_conflicts_with_subcommands(true).subcommand_negates_reqs(true);
             }
         } else {
-            let kids: Vec<String> = children
-                .iter()
-                .map(|c| c.last().unwrap().to_string())
-                .collect();
+            let kids: Vec<String> = children.iter().map(|c| c.last().unwrap().to_string()).collect();
             cmd = cmd
                 .about(format!("{} commands: {}", name, kids.join(", ")))
                 .subcommand_required(true)
@@ -376,23 +315,19 @@ fn get_str(m: &ArgMatches, id: &str) -> Option<String> {
 }
 
 fn get_flag(m: &ArgMatches, id: &str) -> bool {
-    m.try_get_one::<bool>(id)
-        .ok()
-        .flatten()
-        .copied()
-        .unwrap_or(false)
+    m.try_get_one::<bool>(id).ok().flatten().copied().unwrap_or(false)
 }
 
+#[allow(clippy::field_reassign_with_default)]
 fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals, OutputPrefs)> {
     let mut g = Globals::default();
     g.output = get_str(m, "output");
     g.outdir = get_str(m, "outdir").map(PathBuf::from);
-    g.format = get_str(m, "format").or_else(|| None);
+    g.format = get_str(m, "format");
     g.input_format = get_str(m, "input-format");
     g.overwrite = get_flag(m, "overwrite");
     g.in_place = get_flag(m, "in-place");
-    g.sidecar =
-        !get_flag(m, "no-sidecar") && cfg.output.sidecar.unwrap_or(true) || get_flag(m, "sidecar");
+    g.sidecar = !get_flag(m, "no-sidecar") && cfg.output.sidecar.unwrap_or(true) || get_flag(m, "sidecar");
     g.dry_run = get_flag(m, "dry-run");
     g.explain = get_flag(m, "explain");
     g.force = get_flag(m, "force");
@@ -411,18 +346,14 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
     };
     g.sample_rate = match get_str(m, "sample-rate") {
         None => None,
-        Some(v) => Some(
-            units::parse_freq(&v)
-                .map_err(|e| Error::usage(format!("--sample-rate: {}", e.message)))?
-                as u32,
-        ),
+        Some(v) => {
+            Some(units::parse_freq(&v).map_err(|e| Error::usage(format!("--sample-rate: {}", e.message)))? as u32)
+        }
     };
     g.bit_depth = num("bit-depth")?.map(|v| v as u16).or(cfg.output.bit_depth);
     if let Some(b) = g.bit_depth {
         if ![8, 16, 24, 32].contains(&b) {
-            return Err(Error::usage(format!(
-                "--bit-depth must be 8, 16, 24, or 32 (float), got {b}"
-            )));
+            return Err(Error::usage(format!("--bit-depth must be 8, 16, 24, or 32 (float), got {b}")));
         }
     }
     g.channels = num("channels")?.map(|v| v as usize);
@@ -431,23 +362,14 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
         Some(v) => Some(units::parse_bitrate(&v)?),
     };
     g.seed = num("seed")?.unwrap_or(0);
-    g.threads = num("threads")?
-        .map(|v| v as usize)
-        .or(cfg.compute.threads)
-        .unwrap_or(0);
+    g.threads = num("threads")?.map(|v| v as usize).or(cfg.compute.threads).unwrap_or(0);
     if g.deterministic && g.threads == 0 {
         g.threads = 4;
     }
-    g.device = get_str(m, "device")
-        .or_else(|| cfg.compute.device.clone())
-        .unwrap_or_else(|| "auto".into());
+    g.device = get_str(m, "device").or_else(|| cfg.compute.device.clone()).unwrap_or_else(|| "auto".into());
     g.bpm = match get_str(m, "bpm") {
         None => None,
-        Some(v) => Some(
-            v.trim()
-                .parse::<f64>()
-                .map_err(|_| Error::usage(format!("--bpm: '{v}' is not a number")))?,
-        ),
+        Some(v) => Some(v.trim().parse::<f64>().map_err(|_| Error::usage(format!("--bpm: '{v}' is not a number")))?),
     };
     g.sound_paths = m
         .try_get_many::<String>("sound-path")
@@ -477,8 +399,7 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
         std::env::set_var("FERRAUS_FFMPEG", p);
     }
     if !cfg.plugins.extra_paths.is_empty() {
-        g.sound_paths
-            .extend(cfg.plugins.extra_paths.iter().cloned());
+        g.sound_paths.extend(cfg.plugins.extra_paths.iter().cloned());
     }
     if g.threads > 0 {
         let _ = rayon_init(g.threads);
@@ -489,11 +410,7 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
         verbosity: if get_flag(m, "quiet") {
             -1
         } else {
-            m.try_get_one::<u8>("verbose")
-                .ok()
-                .flatten()
-                .copied()
-                .unwrap_or(0) as i32
+            m.try_get_one::<u8>("verbose").ok().flatten().copied().unwrap_or(0) as i32
         },
         is_async: get_flag(m, "async"),
         timeout: match get_str(m, "timeout") {
@@ -502,9 +419,7 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
         },
     };
     if prefs.json && g.output.as_deref() == Some("-") {
-        return Err(Error::usage(
-            "--json and -o - both want stdout; write the audio to a file or drop --json",
-        ));
+        return Err(Error::usage("--json and -o - both want stdout; write the audio to a file or drop --json"));
     }
     Ok((g, prefs))
 }
@@ -526,11 +441,7 @@ fn print_envelope(env: &Envelope, prefs: &OutputPrefs) {
     let out = std::io::stdout();
     let mut out = out.lock();
     if prefs.json {
-        let text = if out.is_terminal() {
-            serde_json::to_string_pretty(env)
-        } else {
-            serde_json::to_string(env)
-        };
+        let text = if out.is_terminal() { serde_json::to_string_pretty(env) } else { serde_json::to_string(env) };
         let _ = writeln!(out, "{}", text.unwrap_or_default());
         return;
     }
@@ -563,34 +474,17 @@ fn print_envelope(env: &Envelope, prefs: &OutputPrefs) {
     }
     let has_result = !env.result.is_null() && env.result != serde_json::json!({"reused": true});
     if has_result {
-        let _ = writeln!(
-            out,
-            "{}",
-            serde_json::to_string_pretty(&env.result).unwrap_or_default()
-        );
+        let _ = writeln!(out, "{}", serde_json::to_string_pretty(&env.result).unwrap_or_default());
     }
     if !env.metrics.is_empty() && (env.outputs.is_empty() || prefs.verbosity > 0) && !has_result {
-        let _ = writeln!(
-            out,
-            "{}",
-            serde_json::to_string_pretty(&env.metrics).unwrap_or_default()
-        );
+        let _ = writeln!(out, "{}", serde_json::to_string_pretty(&env.metrics).unwrap_or_default());
     }
 }
 
 fn error_exit(command: &str, e: Error, json: bool) -> i32 {
     let code = e.exit_code;
     let env = Envelope::error(command, e, 0);
-    print_envelope(
-        &env,
-        &OutputPrefs {
-            json,
-            progress: "none".into(),
-            verbosity: 0,
-            is_async: false,
-            timeout: None,
-        },
-    );
+    print_envelope(&env, &OutputPrefs { json, progress: "none".into(), verbosity: 0, is_async: false, timeout: None });
     code
 }
 
@@ -601,19 +495,11 @@ fn help_json(reg: &Registry, argv: &[String]) -> Option<i32> {
     if !(has_help && has_json) {
         return None;
     }
-    let words: Vec<&str> = argv
-        .iter()
-        .skip(1)
-        .filter(|a| !a.starts_with('-'))
-        .map(|s| s.as_str())
-        .collect();
+    let words: Vec<&str> = argv.iter().skip(1).filter(|a| !a.starts_with('-')).map(|s| s.as_str()).collect();
     for n in (1..=words.len().min(3)).rev() {
         let name = words[..n].join(" ");
         if let Some(op) = reg.get(&name).filter(|o| o.name == name) {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&ferraus_core::schema::command_schema(op)).unwrap()
-            );
+            println!("{}", serde_json::to_string_pretty(&ferraus_core::schema::command_schema(op)).unwrap());
             return Some(0);
         }
     }
@@ -634,20 +520,13 @@ pub fn run(argv: Vec<String>) -> i32 {
         Err(e) => {
             use clap::error::ErrorKind as K;
             return match e.kind() {
-                K::DisplayHelp
-                | K::DisplayVersion
-                | K::DisplayHelpOnMissingArgumentOrSubcommand => {
+                K::DisplayHelp | K::DisplayVersion | K::DisplayHelpOnMissingArgumentOrSubcommand => {
                     let _ = e.print();
                     0
                 }
                 _ if wants_json => error_exit(
                     "ferraus",
-                    Error::usage(
-                        e.to_string()
-                            .trim()
-                            .trim_start_matches("error: ")
-                            .to_string(),
-                    ),
+                    Error::usage(e.to_string().trim().trim_start_matches("error: ").to_string()),
                     true,
                 ),
                 _ => {
@@ -661,13 +540,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     let command = path.join(" ");
     let op = match reg.get(&command) {
         Some(o) => o,
-        None => {
-            return error_exit(
-                &command,
-                Error::usage(format!("unknown command '{command}'")),
-                wants_json,
-            )
-        }
+        None => return error_exit(&command, Error::usage(format!("unknown command '{command}'")), wants_json),
     };
     let cfg = match Config::load(get_str(&matches, "config").map(PathBuf::from).as_deref()) {
         Ok(c) => c,
@@ -721,10 +594,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     if let Some(pos) = op.positional {
         if let Ok(Some(vals)) = leaf_m.try_get_many::<String>("__positional") {
             let vals: Vec<String> = vals.cloned().collect();
-            let repeat = op
-                .find_param(pos)
-                .map(|p| p.repeatable || p.kind == ParamKind::List)
-                .unwrap_or(false);
+            let repeat = op.find_param(pos).map(|p| p.repeatable || p.kind == ParamKind::List).unwrap_or(false);
             if repeat {
                 for v in vals {
                     raw.push((pos.to_string(), v));
@@ -744,11 +614,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     let stdin = if inputs.iter().any(|i| i == "-") {
         let mut b = Vec::new();
         if let Err(e) = std::io::stdin().read_to_end(&mut b) {
-            return error_exit(
-                &command,
-                Error::input(format!("cannot read stdin: {e}")),
-                prefs.json,
-            );
+            return error_exit(&command, Error::input(format!("cannot read stdin: {e}")), prefs.json);
         }
         Some(b)
     } else {
@@ -759,15 +625,8 @@ pub fn run(argv: Vec<String>) -> i32 {
     let io = ferraus_codec::CodecIo;
     let cancel = ferraus_core::ctx::CancelToken::default();
     install_cancel_handlers(&cancel, &command, prefs.json, prefs.timeout);
-    let user_presets =
-        |effect: &str, name: &str| ferraus_core::builtin::load_user_preset(effect, name);
-    let rt = Runtime {
-        registry: &reg,
-        io: &io,
-        progress: &progress,
-        presets: &user_presets,
-        cancel,
-    };
+    let user_presets = |effect: &str, name: &str| ferraus_core::builtin::load_user_preset(effect, name);
+    let rt = Runtime { registry: &reg, io: &io, progress: &progress, presets: &user_presets, cancel };
     let inv = Invocation {
         command: op.name.to_string(),
         args: raw,
@@ -787,12 +646,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     outcome.envelope.exit_code()
 }
 
-fn install_cancel_handlers(
-    cancel: &ferraus_core::ctx::CancelToken,
-    command: &str,
-    json: bool,
-    timeout: Option<f64>,
-) {
+fn install_cancel_handlers(cancel: &ferraus_core::ctx::CancelToken, command: &str, json: bool, timeout: Option<f64>) {
     if let Some(secs) = timeout {
         let c = cancel.clone();
         let command = command.to_string();

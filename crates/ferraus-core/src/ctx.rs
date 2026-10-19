@@ -49,11 +49,7 @@ pub struct EncodeOptions {
 pub trait AudioIo: Send + Sync {
     fn read(&self, path: &Path) -> Result<(AudioBuffer, SourceInfo)>;
     /// Read from bytes (stdin) with a format hint.
-    fn read_bytes(
-        &self,
-        bytes: &[u8],
-        format_hint: Option<&str>,
-    ) -> Result<(AudioBuffer, SourceInfo)>;
+    fn read_bytes(&self, bytes: &[u8], format_hint: Option<&str>) -> Result<(AudioBuffer, SourceInfo)>;
     fn probe(&self, path: &Path) -> Result<SourceInfo>;
     fn write(&self, path: &Path, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<()>;
     fn write_bytes(&self, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<Vec<u8>>;
@@ -259,13 +255,7 @@ impl<'a> OpCtx<'a> {
 
     /// A child context for running a nested op (shares io, progress, globals, registry).
     pub fn child(&self, command: &str, inputs: Vec<PathBuf>) -> OpCtx<'a> {
-        let mut c = OpCtx::new(
-            command,
-            inputs,
-            self.globals.clone(),
-            self.io,
-            self.progress,
-        );
+        let mut c = OpCtx::new(command, inputs, self.globals.clone(), self.io, self.progress);
         c.cancel = self.cancel.clone();
         c.registry = self.registry;
         c
@@ -294,13 +284,10 @@ impl<'a> OpCtx<'a> {
     }
 
     pub fn input(&self, i: usize) -> Result<&Path> {
-        self.inputs.get(i).map(|p| p.as_path()).ok_or_else(|| {
-            Error::usage(format!(
-                "'{}' needs at least {} input(s)",
-                self.command,
-                i + 1
-            ))
-        })
+        self.inputs
+            .get(i)
+            .map(|p| p.as_path())
+            .ok_or_else(|| Error::usage(format!("'{}' needs at least {} input(s)", self.command, i + 1)))
     }
 
     /// Check that a path is inside the sandbox (when one is set).
@@ -309,12 +296,7 @@ impl<'a> OpCtx<'a> {
             return Ok(());
         }
         let abs = absolutize(path);
-        if self
-            .globals
-            .allow
-            .iter()
-            .any(|a| abs.starts_with(absolutize(a)))
-        {
+        if self.globals.allow.iter().any(|a| abs.starts_with(absolutize(a))) {
             Ok(())
         } else {
             Err(Error::new(
@@ -334,13 +316,8 @@ impl<'a> OpCtx<'a> {
 
     pub fn read_audio_path(&mut self, path: &Path) -> Result<AudioBuffer> {
         let (buf, info) = if path.as_os_str() == "-" {
-            let bytes = self
-                .stdin
-                .take()
-                .ok_or_else(|| Error::input("stdin was already consumed or is empty"))?;
-            let r = self
-                .io
-                .read_bytes(&bytes, self.globals.input_format.as_deref())?;
+            let bytes = self.stdin.take().ok_or_else(|| Error::input("stdin was already consumed or is empty"))?;
+            let r = self.io.read_bytes(&bytes, self.globals.input_format.as_deref())?;
             self.stdin = Some(bytes);
             r
         } else {
@@ -386,15 +363,9 @@ impl<'a> OpCtx<'a> {
             .and_then(|p| p.file_stem())
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| "ferraus".to_string());
-        let in_ext = input
-            .and_then(|p| p.extension())
-            .map(|e| e.to_string_lossy().to_lowercase());
+        let in_ext = input.and_then(|p| p.extension()).map(|e| e.to_string_lossy().to_lowercase());
         let cmd = self.command.replace(' ', "-");
-        let ext = if ext.is_empty() {
-            in_ext.clone().unwrap_or_else(|| "wav".into())
-        } else {
-            ext.to_string()
-        };
+        let ext = if ext.is_empty() { in_ext.clone().unwrap_or_else(|| "wav".into()) } else { ext.to_string() };
 
         if self.globals.in_place && role.is_none() {
             if let Some(p) = input {
@@ -413,17 +384,11 @@ impl<'a> OpCtx<'a> {
                 .replace("{ext}", &ext);
             s = s.replace("{stem}", role.unwrap_or("out"));
             let mut p = PathBuf::from(s);
-            if role.is_some() && !has_template {
+            if let (Some(role), false) = (role, has_template) {
                 // several outputs from one -o: insert the role before the extension
-                let stem = p
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_default();
-                let e = p
-                    .extension()
-                    .map(|e| e.to_string_lossy().to_string())
-                    .unwrap_or_else(|| ext.clone());
-                p.set_file_name(format!("{stem}.{}.{e}", role.unwrap()));
+                let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                let e = p.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_else(|| ext.clone());
+                p.set_file_name(format!("{stem}.{role}.{e}"));
             }
             if let Some(dir) = &self.globals.outdir {
                 if p.is_relative() {
@@ -453,18 +418,11 @@ impl<'a> OpCtx<'a> {
         self.check_allowed(path)?;
         let is_input = self.inputs.iter().any(|i| i == path);
         if path.exists() && !self.globals.overwrite && !(self.globals.in_place && is_input) {
-            return Err(Error::new(
-                ErrorKind::Usage,
-                "output_exists",
-                format!("{} already exists", path.display()),
-            )
-            .with_hint("pass --overwrite to replace it, or choose another -o path"));
+            return Err(Error::new(ErrorKind::Usage, "output_exists", format!("{} already exists", path.display()))
+                .with_hint("pass --overwrite to replace it, or choose another -o path"));
         }
         if is_input && !self.globals.in_place {
-            return Err(Error::usage(format!(
-                "output {} is the same as an input; use --in-place",
-                path.display()
-            )));
+            return Err(Error::usage(format!("output {} is the same as an input; use --in-place", path.display())));
         }
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !self.globals.dry_run {
@@ -479,10 +437,7 @@ impl<'a> OpCtx<'a> {
         let format = if path.as_os_str() == "-" {
             Some(self.globals.format.clone().unwrap_or_else(|| "wav".into()))
         } else {
-            self.globals
-                .format
-                .clone()
-                .or_else(|| path.extension().map(|e| e.to_string_lossy().to_lowercase()))
+            self.globals.format.clone().or_else(|| path.extension().map(|e| e.to_string_lossy().to_lowercase()))
         };
         EncodeOptions {
             format,
@@ -498,12 +453,7 @@ impl<'a> OpCtx<'a> {
 
     /// Write an audio output, applying `--sample-rate` and `--channels` conversions is the
     /// caller's job (the executor does it for transforms). Records the output.
-    pub fn write_audio(
-        &mut self,
-        path: &Path,
-        buf: &AudioBuffer,
-        role: Option<&str>,
-    ) -> Result<()> {
+    pub fn write_audio(&mut self, path: &Path, buf: &AudioBuffer, role: Option<&str>) -> Result<()> {
         let opts = self.encode_options(path);
         self.write_audio_with(path, buf, role, &opts)
     }
@@ -550,9 +500,7 @@ impl<'a> OpCtx<'a> {
         self.prepare_output(path)?;
         if !self.globals.dry_run {
             if path.as_os_str() == "-" {
-                self.stdout
-                    .get_or_insert_with(Vec::new)
-                    .extend_from_slice(bytes);
+                self.stdout.get_or_insert_with(Vec::new).extend_from_slice(bytes);
             } else {
                 let tmp = tmp_path(path);
                 std::fs::write(&tmp, bytes)?;
@@ -579,41 +527,27 @@ impl<'a> OpCtx<'a> {
     pub fn warn(&mut self, code: &str, message: impl Into<String>) {
         let message = message.into();
         self.progress.warning(code, &message);
-        self.warnings.push(WarningRecord {
-            code: code.to_string(),
-            message,
-        });
+        self.warnings.push(WarningRecord { code: code.to_string(), message });
     }
 
     pub fn metric(&mut self, key: &str, value: impl Serialize) {
-        self.metrics.insert(
-            key.to_string(),
-            serde_json::to_value(value).unwrap_or(Value::Null),
-        );
+        self.metrics.insert(key.to_string(), serde_json::to_value(value).unwrap_or(Value::Null));
     }
 
     /// Record a parameter resolved at run time (shown in params and the sidecar).
     pub fn note(&mut self, key: &str, value: impl Serialize) {
-        self.notes.insert(
-            key.to_string(),
-            serde_json::to_value(value).unwrap_or(Value::Null),
-        );
+        self.notes.insert(key.to_string(), serde_json::to_value(value).unwrap_or(Value::Null));
     }
 
     pub fn model_used(&mut self, name: &str, version: &str, sha256: &str) {
-        let r = ModelRecord {
-            name: name.into(),
-            version: version.into(),
-            sha256: sha256.into(),
-        };
+        let r = ModelRecord { name: name.into(), version: version.into(), sha256: sha256.into() };
         if !self.models.contains(&r) {
             self.models.push(r);
         }
     }
 
     pub fn set_progress(&self, fraction: f64) {
-        self.progress
-            .progress(&self.command, fraction.clamp(0.0, 1.0));
+        self.progress.progress(&self.command, fraction.clamp(0.0, 1.0));
     }
 
     pub fn check_cancel(&self) -> Result<()> {
@@ -623,9 +557,7 @@ impl<'a> OpCtx<'a> {
     /// Thread count to use (0 = all cores).
     pub fn threads(&self) -> usize {
         if self.globals.threads == 0 {
-            std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(1)
+            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
         } else {
             self.globals.threads
         }
@@ -633,31 +565,20 @@ impl<'a> OpCtx<'a> {
 }
 
 pub fn tmp_path(path: &Path) -> PathBuf {
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let ext = path
-        .extension()
-        .map(|e| e.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let ext = path.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
     // keep the real extension last so encoders that infer format still work
     path.with_file_name(format!(".{name}.{}.part.{ext}", std::process::id()))
 }
 
 pub fn absolutize(p: &Path) -> PathBuf {
     let expanded = if let Ok(s) = p.strip_prefix("~") {
-        std::env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join(s))
-            .unwrap_or_else(|| p.to_path_buf())
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join(s)).unwrap_or_else(|| p.to_path_buf())
     } else {
         p.to_path_buf()
     };
-    let abs = if expanded.is_absolute() {
-        expanded
-    } else {
-        std::env::current_dir().unwrap_or_default().join(expanded)
-    };
+    let abs =
+        if expanded.is_absolute() { expanded } else { std::env::current_dir().unwrap_or_default().join(expanded) };
     // lexical normalization (no symlink resolution so non-existent outputs work)
     let mut out = PathBuf::new();
     for c in abs.components() {
