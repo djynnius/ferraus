@@ -1,14 +1,24 @@
 //! Optical music recognition engines for `score read`.
 //!
-//! * `builtin`: the oemer segmentation networks and the homr transformer exported to ONNX,
-//!   served by the model registry (`ferraus models pull omr/oemer`). PDF pages are
-//!   rasterized with pdfium (`pdfium` cargo feature; needs the pdfium shared library).
+//! * `builtin`: oemer's two segmentation networks (MIT, ONNX, from the model registry:
+//!   `omr/oemer` and `omr/oemer-seg`) label staff lines, noteheads, stems/rests, and
+//!   clefs/keys; [`recon`] rebuilds staves, measures, and timed events from those maps and
+//!   the page's ink. Pages come from images ([`raster::decode_image`]) or PDFs
+//!   ([`raster::rasterize_pdf`]: pdfium when built with the `pdfium` feature, else
+//!   `pdftoppm`, `mutool`, or macOS `sips`). The networks run through a backend the CLI
+//!   registers ([`segment::register_seg_backend`]).
 //! * `audiveris`: the optional Audiveris bridge (`ferraus doctor --install-audiveris`),
 //!   which reads PDFs and images itself and exports `.mxl`.
 
-use crate::model::Score;
-use ferraus_core::{paths, Error, ErrorKind, Result};
-use std::path::{Path, PathBuf};
+pub mod bitmap;
+pub mod raster;
+pub mod recon;
+pub mod segment;
+
+use crate::model::{Clef, Event, KeySig, Measure, Note, Part, Score, Staff, TimeSig, Voice};
+use ferraus_core::{Error, OpCtx, Result};
+use recon::{MeasureResult, PageResult, DIV};
+use std::path::Path;
 
 /// Parse `1-4`, `2`, `1-3,6` into inclusive 1-based ranges.
 pub fn parse_pages(s: &str) -> Result<Vec<(u32, u32)>> {
@@ -37,80 +47,25 @@ pub fn page_selected(ranges: &[(u32, u32)], page: u32) -> bool {
     ranges.is_empty() || ranges.iter().any(|(a, b)| page >= *a && page <= *b)
 }
 
-/// Directory of the builtin OMR models in the shared model cache.
-pub fn builtin_model_dir() -> PathBuf {
-    paths::models_dir().join("omr").join("oemer")
-}
-
-fn builtin_models_present() -> bool {
-    let d = builtin_model_dir();
-    d.is_dir()
-        && std::fs::read_dir(&d)
-            .map(|mut r| {
-                r.any(|e| e.map(|e| e.path().extension().map(|x| x == "onnx").unwrap_or(false)).unwrap_or(false))
-            })
-            .unwrap_or(false)
-}
-
-/// A rasterized page: width, height, 8-bit grayscale pixels.
-pub struct Page {
-    pub number: u32,
-    pub width: u32,
-    pub height: u32,
-    pub gray: Vec<u8>,
-}
-
-/// Rasterize selected PDF pages at `dpi`.
-#[cfg(feature = "pdfium")]
-pub fn rasterize_pdf(bytes: &[u8], ranges: &[(u32, u32)], dpi: u32) -> Result<Vec<Page>> {
-    use pdfium_render::prelude::*;
-    let local = paths::tools_dir().join("pdfium");
-    let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&local))
-        .or_else(|_| Pdfium::bind_to_system_library())
-        .map_err(|e| {
-            Error::new(ErrorKind::Unsupported, "pdfium_missing", format!("PDF rasterization needs the pdfium library: {e}"))
-                .with_hint(format!("put the pdfium shared library in {} or on the system library path, pass page images instead, or use --engine audiveris", local.display()))
-        })?;
-    let pdfium = Pdfium::new(bindings);
-    let doc =
-        pdfium.load_pdf_from_byte_slice(bytes, None).map_err(|e| Error::input(format!("cannot open the PDF: {e}")))?;
-    let mut out = Vec::new();
-    for (i, page) in doc.pages().iter().enumerate() {
-        let n = i as u32 + 1;
-        if !page_selected(ranges, n) {
-            continue;
-        }
-        let cfg = PdfRenderConfig::new().scale_page_by_factor(dpi as f32 / 72.0);
-        let bmp =
-            page.render_with_config(&cfg).map_err(|e| Error::processing(format!("cannot render page {n}: {e}")))?;
-        let (w, h) = (bmp.width() as u32, bmp.height() as u32);
-        let raw = bmp.as_rgba_bytes();
-        let gray = raw
-            .chunks_exact(4)
-            .map(|p| ((p[0] as u32 * 299 + p[1] as u32 * 587 + p[2] as u32 * 114) / 1000) as u8)
-            .collect();
-        out.push(Page { number: n, width: w, height: h, gray });
-    }
-    Ok(out)
-}
-
-/// Rasterize selected PDF pages at `dpi` (this build has no pdfium support).
-#[cfg(not(feature = "pdfium"))]
-pub fn rasterize_pdf(_bytes: &[u8], _ranges: &[(u32, u32)], _dpi: u32) -> Result<Vec<Page>> {
-    Err(Error::new(ErrorKind::Unsupported, "pdfium_missing", "this build was compiled without PDF rasterization (pdfium)")
-        .with_hint("pass page images (PNG/JPEG) instead, use --engine audiveris (it reads PDFs itself), or build ferraus-score with --features pdfium"))
-}
-
 /// What a recognition run produced.
 pub struct Recognized {
     pub score: Score,
     pub unsupported: Vec<String>,
     pub engine: String,
     pub movements: usize,
+    /// Extra facts for the result (pages read, rasterizer, staff space, issues).
+    pub info: serde_json::Value,
 }
 
+/// Constructs the builtin engine does not read; listed in every builtin result.
+pub const BUILTIN_UNSUPPORTED: &[&str] = &[
+    "lyrics and text are not read",
+    "tuplets, grace notes, ties, slurs, dynamics, articulations, repeats, and endings are not read",
+    "one voice per staff: a staff with two voices (stems up and down at once) is read as chords",
+];
+
 /// Recognize sheet music from a PDF or image.
-pub fn recognize(input: &Path, engine: &str, pages: Option<&str>, dpi: u32) -> Result<Recognized> {
+pub fn recognize(ctx: &mut OpCtx, input: &Path, engine: &str, pages: Option<&str>, dpi: u32) -> Result<Recognized> {
     let ranges = match pages {
         Some(p) => parse_pages(p)?,
         None => Vec::new(),
@@ -127,28 +82,413 @@ pub fn recognize(input: &Path, engine: &str, pages: Option<&str>, dpi: u32) -> R
                 unsupported.extend(u2);
                 append_movement(&mut score, s2);
             }
-            Ok(Recognized { score, unsupported, engine: "audiveris".into(), movements })
+            Ok(Recognized { score, unsupported, engine: "audiveris".into(), movements, info: serde_json::json!({}) })
         }
-        _ => {
-            if !builtin_models_present() {
-                return Err(Error::new(
-                    ErrorKind::ModelNotCached,
-                    "model_not_cached",
-                    "the builtin OMR models (oemer segmentation + homr) are not in the model cache",
-                )
-                .with_hint("ferraus models pull omr/oemer"));
-            }
-            let bytes = std::fs::read(input)?;
-            if bytes.starts_with(b"%PDF") {
-                let pages = rasterize_pdf(&bytes, &ranges, dpi)?;
-                if pages.is_empty() {
-                    return Err(Error::input("no pages selected"));
-                }
-            }
-            Err(Error::new(ErrorKind::Unsupported, "omr_runtime_missing", "the builtin OMR models are cached, but this build has no ONNX runtime wired into ferraus-score")
-                .with_hint("use --engine audiveris (ferraus doctor --install-audiveris --yes) until the ferraus-ml OMR runner lands"))
+        _ => recognize_builtin(ctx, input, &ranges, dpi),
+    }
+}
+
+fn recognize_builtin(ctx: &mut OpCtx, input: &Path, ranges: &[(u32, u32)], dpi: u32) -> Result<Recognized> {
+    let backend = segment::backend()?;
+    (backend.prepare)(ctx, &[segment::STAFF_MODEL, segment::SYMBOL_MODEL])?;
+    let bytes = std::fs::read(input)?;
+    let (pages, rasterizer) = if bytes.starts_with(b"%PDF") {
+        raster::rasterize_pdf(input, &bytes, ranges, dpi)?
+    } else {
+        if !page_selected(ranges, 1) {
+            return Err(Error::usage("an image has a single page; --pages must include page 1"));
+        }
+        (vec![raster::Page { number: 1, image: raster::decode_image(&bytes)? }], "image".to_string())
+    };
+    if pages.is_empty() {
+        return Err(Error::input("no pages selected"));
+    }
+    let debug_dir = std::env::var_os("FERRAUS_OMR_DEBUG").map(std::path::PathBuf::from);
+    let mut results: Vec<PageResult> = Vec::new();
+    let n_pages = pages.len();
+    for (pi, page) in pages.iter().enumerate() {
+        let (w, h) = segment::working_size(&page.image);
+        let g = page.image.resize(w, h);
+        let base = pi as f64 / n_pages as f64;
+        let span = 1.0 / n_pages as f64;
+        let staff =
+            segment::segment(ctx, &backend, segment::STAFF_MODEL, &g, segment::STAFF_WINDOW, 3, &mut |c, f| {
+                c.set_progress(base + span * 0.35 * f)
+            })?;
+        let symbols =
+            segment::segment(ctx, &backend, segment::SYMBOL_MODEL, &g, segment::SYMBOL_WINDOW, 4, &mut |c, f| {
+                c.set_progress(base + span * (0.35 + 0.6 * f))
+            })?;
+        let mut dbg = recon::Debug::default();
+        let r = recon::read_page(&recon::PageInput { gray: &g, staff: &staff, symbols: &symbols }, &mut dbg);
+        if let Some(d) = &debug_dir {
+            let _ = write_debug(d, page.number, &g, &staff, &symbols, &dbg);
+        }
+        results.push(r);
+    }
+    ctx.set_progress(1.0);
+    let (score, issues) = assemble(&results);
+    if score.parts.is_empty() {
+        return Err(Error::processing("no staves were recognized on the selected pages").with_hint(
+            "check that the input is printed sheet music at a readable resolution (staff lines at least ~10 px apart), or try --engine audiveris",
+        ));
+    }
+    let staff_space: Vec<f64> = results.iter().map(|r| (r.staff_space * 10.0).round() / 10.0).collect();
+    let info = serde_json::json!({
+        "pages": pages.iter().map(|p| p.number).collect::<Vec<_>>(),
+        "rasterizer": rasterizer,
+        "staff_space_px": staff_space,
+        "issues": issues,
+    });
+    let unsupported = BUILTIN_UNSUPPORTED.iter().map(|s| s.to_string()).collect();
+    Ok(Recognized { score, unsupported, engine: "builtin".into(), movements: 1, info })
+}
+
+fn majority<T: PartialEq + Clone>(items: impl Iterator<Item = T>) -> Option<T> {
+    let mut counts: Vec<(T, usize)> = Vec::new();
+    for it in items {
+        match counts.iter_mut().find(|(v, _)| *v == it) {
+            Some(c) => c.1 += 1,
+            None => counts.push((it, 1)),
         }
     }
+    // the first value wins ties (the first system is the most reliable header)
+    let best = counts.iter().map(|c| c.1).max()?;
+    counts.into_iter().find(|c| c.1 == best).map(|c| c.0)
+}
+
+/// Measure length in quarters × DIV for the events of a measure.
+fn fill(m: &MeasureResult) -> u32 {
+    m.events.iter().map(|e| e.duration).sum()
+}
+
+/// Time signature from how full the measures are, when none was printed or read.
+fn infer_time(lengths: &[u32]) -> Option<TimeSig> {
+    let len = majority(lengths.iter().copied().filter(|&l| l > 0))?;
+    Some(match len {
+        l if l == 4 * DIV => TimeSig::new(4, 4),
+        l if l == 3 * DIV => TimeSig::new(3, 4),
+        l if l == 2 * DIV => TimeSig::new(2, 4),
+        l if l == 5 * DIV => TimeSig::new(5, 4),
+        l if l == 6 * DIV => TimeSig::new(6, 4),
+        l if l == 3 * DIV / 2 => TimeSig::new(3, 8),
+        l if l * 2 % DIV == 0 => TimeSig::new(l * 2 / DIV, 8),
+        _ => return None,
+    })
+}
+
+/// Try one-symbol corrections that make a measure add up: add or drop a dot, or halve or
+/// double one event. Applied only when exactly one correction fits.
+fn repair_measure(m: &mut MeasureResult, expected: u32) -> bool {
+    let have = fill(m);
+    if have == expected || m.events.is_empty() {
+        return have == expected;
+    }
+    // a lone whole rest is a whole-measure rest in any meter
+    if m.events.len() == 1 && m.events[0].rest && m.events[0].measure_rest {
+        m.events[0].duration = expected;
+        return true;
+    }
+    let mut fixes: Vec<(usize, u32, u8, &'static str)> = Vec::new();
+    for (i, e) in m.events.iter().enumerate() {
+        let base = match e.dots {
+            0 => e.duration,
+            1 => e.duration * 2 / 3,
+            _ => e.duration * 4 / 7,
+        };
+        let others = have - e.duration;
+        let mut cands: Vec<(u32, u8, &'static str)> = Vec::new();
+        if e.dots == 0 {
+            cands.push((base * 3 / 2, 1, "dot added"));
+        } else {
+            cands.push((base, 0, "dot removed"));
+        }
+        cands.push((e.duration * 2, e.dots, "duration doubled"));
+        if e.duration % 2 == 0 {
+            cands.push((e.duration / 2, e.dots, "duration halved"));
+        }
+        for (d, dots, why) in cands {
+            if others + d == expected {
+                fixes.push((i, d, dots, why));
+            }
+        }
+    }
+    // prefer fixing the least confident event
+    fixes.sort_by(|a, b| m.events[a.0].confidence.partial_cmp(&m.events[b.0].confidence).unwrap());
+    let lowest = fixes.first().map(|f| m.events[f.0].confidence);
+    let tied = fixes.iter().filter(|f| Some(m.events[f.0].confidence) == lowest).count();
+    if let Some(&(i, d, dots, why)) = fixes.first() {
+        if tied == 1 || fixes.len() == 1 {
+            let e = &mut m.events[i];
+            e.duration = d;
+            e.dots = dots;
+            let base = match dots {
+                0 => d,
+                1 => d * 2 / 3,
+                _ => d * 4 / 7,
+            };
+            e.note_type = type_from(base).into();
+            e.confidence *= 0.7;
+            m.confidence = m.confidence.min(e.confidence);
+            let r = format!("{why} to fill the measure");
+            e.reason = Some(r.clone());
+            m.reasons.push(r);
+            return true;
+        }
+    }
+    false
+}
+
+fn type_from(base: u32) -> &'static str {
+    match base {
+        x if x >= 4 * DIV => "whole",
+        x if x >= 2 * DIV => "half",
+        x if x >= DIV => "quarter",
+        x if x >= DIV / 2 => "eighth",
+        x if x >= DIV / 4 => "16th",
+        _ => "32nd",
+    }
+}
+
+/// Build the score from page results: parts from the staves per system, clef/key/time from
+/// the system headers (majority), measures appended system after system.
+pub fn assemble(pages: &[PageResult]) -> (Score, Vec<String>) {
+    let mut issues: Vec<String> = Vec::new();
+    for (i, p) in pages.iter().enumerate() {
+        for s in &p.issues {
+            issues.push(format!("page {}: {s}", i + 1));
+        }
+    }
+    let systems: Vec<&recon::SystemResult> = pages.iter().flat_map(|p| p.systems.iter()).collect();
+    let mut score = Score { divisions: DIV, ..Score::default() };
+    let Some(n) = majority(systems.iter().map(|s| s.staves.len())) else { return (score, issues) };
+    if n == 0 {
+        return (score, issues);
+    }
+    let odd = systems.iter().filter(|s| s.staves.len() != n).count();
+    if odd > 0 {
+        issues.push(format!("{odd} system(s) do not have {n} staves; their extra staves were dropped or left empty"));
+    }
+    // per staff index: clef, key, time
+    let clefs: Vec<Clef> = (0..n)
+        .map(|k| {
+            majority(systems.iter().filter_map(|s| s.staves.get(k).and_then(|st| st.clef.clone())))
+                .unwrap_or_else(|| if k == 1 && n == 2 { Clef::bass() } else { Clef::treble() })
+        })
+        .collect();
+    let keys: Vec<i8> = (0..n)
+        .map(|k| majority(systems.iter().filter_map(|s| s.staves.get(k).and_then(|st| st.key))).unwrap_or(0))
+        .collect();
+    let key = majority(keys.iter().copied()).unwrap_or(0);
+    let printed_time = systems.first().and_then(|s| s.staves.iter().find_map(|st| st.time));
+    // the measures of each staff index, in order
+    let mut staff_measures: Vec<Vec<MeasureResult>> = vec![Vec::new(); n];
+    for s in &systems {
+        let count = s.staves.iter().take(n).map(|st| st.measures.len()).max().unwrap_or(0);
+        for (k, sm) in staff_measures.iter_mut().enumerate() {
+            let ms = s.staves.get(k).map(|st| st.measures.clone()).unwrap_or_default();
+            let have = ms.len();
+            sm.extend(ms);
+            for _ in have..count {
+                sm.push(MeasureResult {
+                    confidence: 0.0,
+                    reasons: vec!["no measure was found on this staff here".into()],
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    let lengths: Vec<u32> = staff_measures.iter().flat_map(|ms| ms.iter().map(fill)).collect();
+    let time = match printed_time {
+        Some(t) => {
+            // a misread digit: trust the measures when they clearly disagree
+            // a misread top digit: keep the (more reliable) bottom digit and take the number
+            // of beats from how full the measures are
+            let agree = lengths.iter().filter(|&&l| l == t.measure_divisions(DIV)).count();
+            let typical = majority(lengths.iter().copied().filter(|&l| l > 0));
+            match typical {
+                Some(len) if agree * 3 < lengths.len() && len != t.measure_divisions(DIV) => {
+                    let unit = 4 * DIV / t.beat_type.max(1);
+                    let i = if len % unit == 0 {
+                        TimeSig::new(len / unit, t.beat_type)
+                    } else {
+                        infer_time(&lengths).unwrap_or(t)
+                    };
+                    issues.push(format!(
+                        "the time signature read as {}/{} does not match the measures; {}/{} used",
+                        t.beats, t.beat_type, i.beats, i.beat_type
+                    ));
+                    i
+                }
+                _ => t,
+            }
+        }
+        None => {
+            let t = infer_time(&lengths).unwrap_or(TimeSig::new(4, 4));
+            issues.push(format!("no time signature was read; {}/{} inferred from the measures", t.beats, t.beat_type));
+            t
+        }
+    };
+    let expected = time.measure_divisions(DIV);
+    let total = staff_measures.iter().map(|m| m.len()).max().unwrap_or(0);
+    for ms in staff_measures.iter_mut() {
+        for (i, m) in ms.iter_mut().enumerate() {
+            let ok = repair_measure(m, expected);
+            let pickup = i == 0 && fill(m) < expected && fill(m) > 0;
+            let last = i + 1 == total && fill(m) < expected && fill(m) > 0;
+            if !ok && !pickup && !last {
+                m.confidence = m.confidence.min(0.4);
+                m.reasons.push(format!(
+                    "durations add up to {}/{} quarters, the measure needs {}/{}",
+                    fill(m),
+                    DIV,
+                    expected,
+                    DIV
+                ));
+            }
+        }
+    }
+    // a pickup only when every staff agrees the first measure is short
+    let pickup = staff_measures.iter().all(|ms| ms.first().map(|m| fill(m) < expected && fill(m) > 0).unwrap_or(false));
+    let grand = n == 2 && clefs[0].sign == "G" && clefs[1].sign == "F";
+    let to_staff = |k: usize, number: u32| -> Staff {
+        let ms = &staff_measures[k];
+        let staff_key = if grand { key } else { keys[k] };
+        let mut out = Vec::new();
+        for (i, m) in ms.iter().enumerate() {
+            let num = if pickup { i as u32 } else { i as u32 + 1 };
+            let mut events: Vec<Event> = m
+                .events
+                .iter()
+                .map(|e| {
+                    let mut ev = if e.rest {
+                        Event::rest(e.duration)
+                    } else {
+                        Event::notes(
+                            e.duration,
+                            e.pitches
+                                .iter()
+                                .enumerate()
+                                .map(|(pi, p)| {
+                                    let mut p = *p;
+                                    if e.from_key.get(pi).copied().unwrap_or(false) {
+                                        p.alter = recon::key_alter_for(staff_key, p.step);
+                                    }
+                                    let mut n = Note::new(p);
+                                    n.confidence = Some(e.confidence);
+                                    n
+                                })
+                                .collect(),
+                        )
+                    };
+                    ev.note_type = Some(e.note_type.clone());
+                    ev.dots = e.dots;
+                    ev.measure_rest = e.rest && e.measure_rest && m.events.len() == 1;
+                    ev.confidence = Some((e.confidence * 100.0).round() / 100.0);
+                    ev.confidence_reason = e.reason.clone();
+                    ev
+                })
+                .collect();
+            if events.is_empty() && m.confidence > 0.0 {
+                // an empty measure on the page is a full-measure rest
+                let mut r = Event::rest(expected);
+                r.measure_rest = true;
+                events.push(r);
+            }
+            out.push(Measure {
+                number: num,
+                implicit: pickup && i == 0,
+                key: (i == 0).then_some(KeySig::major(if grand { key } else { keys[k] })),
+                time: (i == 0).then_some(time),
+                clef: (i == 0).then(|| clefs[k].clone()),
+                voices: if events.is_empty() { Vec::new() } else { vec![Voice { number: 1, events }] },
+                barline: (m.final_bar && i + 1 == ms.len()).then(|| "light-heavy".to_string()),
+                confidence: Some((m.confidence.clamp(0.0, 1.0) * 100.0).round() / 100.0),
+                confidence_reasons: m.reasons.clone(),
+                ..Default::default()
+            });
+        }
+        Staff { number, measures: out }
+    };
+    if grand {
+        score.parts.push(Part {
+            id: "P1".into(),
+            name: "Piano".into(),
+            abbreviation: None,
+            program: Some(0),
+            channel: None,
+            percussion: false,
+            staves: vec![to_staff(0, 1), to_staff(1, 2)],
+        });
+    } else {
+        for k in 0..n {
+            score.parts.push(Part {
+                id: format!("P{}", k + 1),
+                name: if n == 1 { "Music".into() } else { format!("Staff {}", k + 1) },
+                abbreviation: None,
+                program: None,
+                channel: None,
+                percussion: false,
+                staves: vec![to_staff(k, 1)],
+            });
+        }
+    }
+    (score, issues)
+}
+
+/// `FERRAUS_OMR_DEBUG=<dir>`: write the network maps and the reader's boxes as PNGs.
+fn write_debug(
+    dir: &Path,
+    page: u32,
+    g: &bitmap::Gray,
+    staff: &segment::ClassMap,
+    symbols: &segment::ClassMap,
+    dbg: &recon::Debug,
+) -> Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let mut maps = image::RgbImage::new(g.w as u32, g.h as u32);
+    let mut boxes = image::RgbImage::new(g.w as u32, g.h as u32);
+    for y in 0..g.h {
+        for x in 0..g.w {
+            let v = g.at(x, y);
+            let light = 128 + v / 2;
+            let mut c = [light, light, light];
+            match staff.class[y * g.w + x] {
+                1 => c = [120, 120, 255],
+                2 => c = [200, 200, 200],
+                _ => {}
+            }
+            match symbols.class[y * g.w + x] {
+                1 => c = [0, 170, 0],
+                2 => c = [220, 0, 0],
+                3 => c = [230, 140, 0],
+                _ => {}
+            }
+            maps.put_pixel(x as u32, y as u32, image::Rgb(c));
+            boxes.put_pixel(x as u32, y as u32, image::Rgb([v, v, v]));
+        }
+    }
+    for (b, col) in &dbg.boxes {
+        let (x0, y0, x1, y1) = b.clamp(g.w, g.h);
+        for x in x0..x1 {
+            for y in [y0, y1.saturating_sub(1)] {
+                if y < g.h {
+                    boxes.put_pixel(x as u32, y as u32, image::Rgb(*col));
+                }
+            }
+        }
+        for y in y0..y1 {
+            for x in [x0, x1.saturating_sub(1)] {
+                if x < g.w {
+                    boxes.put_pixel(x as u32, y as u32, image::Rgb(*col));
+                }
+            }
+        }
+    }
+    let err = |e: image::ImageError| Error::processing(format!("debug image: {e}"));
+    maps.save(dir.join(format!("page{page}-maps.png"))).map_err(err)?;
+    boxes.save(dir.join(format!("page{page}-boxes.png"))).map_err(err)?;
+    Ok(())
 }
 
 fn append_movement(score: &mut Score, other: Score) {
@@ -177,6 +517,7 @@ fn append_movement(score: &mut Score, other: Score) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use recon::Ev;
 
     #[test]
     fn pages() {
@@ -186,5 +527,69 @@ mod tests {
         assert!(parse_pages("x").is_err());
         let r = parse_pages("1-2,4").unwrap();
         assert!(page_selected(&r, 4) && !page_selected(&r, 3));
+    }
+
+    fn ev(d: u32, dots: u8, conf: f32) -> Ev {
+        Ev {
+            x: 0.0,
+            rest: false,
+            pitches: vec![crate::model::Pitch { step: 'C', alter: 0, octave: 4 }],
+            from_key: vec![true],
+            duration: d,
+            dots,
+            note_type: type_from(d).into(),
+            measure_rest: false,
+            confidence: conf,
+            reason: None,
+        }
+    }
+
+    #[test]
+    fn a_missed_dot_is_repaired() {
+        // dotted half read as a half in 4/4 next to a quarter
+        let mut m =
+            MeasureResult { events: vec![ev(2 * DIV, 0, 0.5), ev(DIV, 0, 0.9)], confidence: 1.0, ..Default::default() };
+        assert!(repair_measure(&mut m, 4 * DIV));
+        assert_eq!(m.events[0].duration, 3 * DIV);
+        assert_eq!(m.events[0].dots, 1);
+        assert!(m.confidence < 0.5);
+        // nothing fits: left alone
+        let mut m = MeasureResult { events: vec![ev(DIV / 4, 0, 0.9)], confidence: 1.0, ..Default::default() };
+        assert!(!repair_measure(&mut m, 4 * DIV));
+        assert_eq!(m.events[0].duration, DIV / 4);
+    }
+
+    #[test]
+    fn time_from_measure_fill() {
+        assert_eq!(infer_time(&[3 * DIV, 3 * DIV, 2 * DIV]), Some(TimeSig::new(3, 4)));
+        assert_eq!(infer_time(&[4 * DIV]), Some(TimeSig::new(4, 4)));
+        assert_eq!(infer_time(&[]), None);
+    }
+
+    #[test]
+    fn assemble_builds_a_grand_staff() {
+        use recon::{StaffResult, SystemResult};
+        let m = |d: u32| MeasureResult { events: vec![ev(d, 0, 0.9)], confidence: 0.9, ..Default::default() };
+        let staff = |clef: Clef| StaffResult {
+            clef: Some(clef),
+            key: Some(1),
+            time: Some(TimeSig::new(4, 4)),
+            measures: vec![m(4 * DIV), m(4 * DIV)],
+            lines: None,
+        };
+        let page = PageResult {
+            systems: vec![SystemResult { staves: vec![staff(Clef::treble()), staff(Clef::bass())] }],
+            issues: vec![],
+            staff_space: 14.0,
+        };
+        let (score, issues) = assemble(&[page]);
+        assert!(issues.is_empty(), "{issues:?}");
+        assert_eq!(score.parts.len(), 1);
+        assert_eq!(score.parts[0].staves.len(), 2);
+        let m1 = &score.parts[0].staves[1].measures[0];
+        assert_eq!(m1.clef, Some(Clef::bass()));
+        assert_eq!(m1.key, Some(KeySig::major(1)));
+        let report = crate::check::check(&score, &[]);
+        assert!(report.ok, "{:?}", report.issues);
     }
 }

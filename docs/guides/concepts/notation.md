@@ -4,8 +4,10 @@
 go the other way. MusicXML is the hub format. Readable inputs: MusicXML (`.musicxml`, `.xml`,
 `.mxl`), MEI, ABC, LilyPond, MIDI, and the ferraus score JSON; outputs add SVG, PDF, and PNG
 pages (through the `ferraus-engrave` helper or LilyPond) and sol-fa text or Markdown.
-Printed music (PDF, PNG, JPEG) goes through optical music recognition (`score read`), whose
-models are not downloadable in this release.
+Printed music (PDF, PNG, JPEG) goes through optical music recognition (`score read`): oemer's
+segmentation networks (MIT, downloaded once) and ferraus's own reconstruction read clean
+printed scores; see [Perform a sheet-music file](../tutorials/perform-sheet-music.md#5-from-printed-sheet-music)
+for what is and is not read.
 
 * **Lead sheet**: melody on a treble staff, chord symbols above, lyrics below.
 * **Grand staff**: treble and bass clefs for piano, with a hand split (`--split auto` or a note

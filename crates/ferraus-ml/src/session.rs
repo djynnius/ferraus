@@ -234,6 +234,19 @@ impl ModelSession {
                 .map_err(|e| Error::processing(format!("cannot build input tensor {}: {e}", t.name)))?;
             values.push((t.name, tensor.into()));
         }
+        self.run_values(values)
+    }
+
+    /// Run a model whose single input is a `u8` tensor (image models exported with a
+    /// `uint8` input, such as oemer's segmentation networks). Outputs as in [`Self::run`].
+    pub fn run_u8(&self, name: &str, shape: Vec<i64>, data: Vec<u8>) -> Result<Vec<TensorF32>> {
+        let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
+        let tensor = Tensor::from_array((dims, data))
+            .map_err(|e| Error::processing(format!("cannot build input tensor {name}: {e}")))?;
+        self.run_values(vec![(name.to_string(), tensor.into())])
+    }
+
+    fn run_values(&self, values: Vec<(String, ort::session::SessionInputValue<'static>)>) -> Result<Vec<TensorF32>> {
         let mut session = self.session.lock().expect("session lock");
         let outputs = session.run(values).map_err(|e| Error::processing(format!("model inference failed: {e}")))?;
         let mut out = Vec::new();

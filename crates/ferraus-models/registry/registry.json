@@ -415,13 +415,15 @@
       "task": "omr",
       "format": "onnx",
       "size_bytes": 70767752,
-      "sha256": null,
+      "sha256": "37512e858731096439746f60b377c049f07055b4a23ec6eb9a178ce92cfba174",
       "urls": ["https://github.com/BreezeWhite/oemer/releases/download/checkpoints/1st_model.onnx"],
       "license": {"spdx": "MIT", "url": "https://github.com/BreezeWhite/oemer/blob/main/LICENSE", "commercial_use": true},
       "source": {"paper": "https://doi.org/10.5281/zenodo.8429346", "weights": "https://github.com/BreezeWhite/oemer/releases/tag/checkpoints"},
-      "status": "unverified",
+      "status": "verified",
       "arch": "oemer-unet",
-      "notes": "Staff-line/symbol segmentation U-Net. Pairs with omr/oemer-seg (2nd_model.onnx, 38,448,467 B). Not downloaded; I/O not verified."
+      "provider_hints": ["cuda", "directml", "cpu"],
+      "io": {"inputs": [{"name": "input", "shape": [-1, 256, 256, 3]}], "outputs": [{"name": "prediction", "shape": [-1, 256, 256, 3]}], "params": {"input_dtype": "uint8", "window": 256, "classes": ["background", "staff", "symbols"]}},
+      "notes": "oemer unet_big: staff-line and symbol segmentation over 256 px RGB uint8 tiles (BGR order as oemer feeds it; grayscale pages make it moot), softmax over 3 classes. Used by score read --engine builtin together with omr/oemer-seg. Downloaded, hashed, and I/O checked by the project."
     },
     {
       "name": "omr/oemer-seg",
@@ -429,13 +431,15 @@
       "task": "omr",
       "format": "onnx",
       "size_bytes": 38448467,
-      "sha256": null,
+      "sha256": "ed2e1a86ea75712ee6cdc740e96f7a36753543cf9bb980227c071c9256d9d82e",
       "urls": ["https://github.com/BreezeWhite/oemer/releases/download/checkpoints/2nd_model.onnx"],
       "license": {"spdx": "MIT", "url": "https://github.com/BreezeWhite/oemer/blob/main/LICENSE", "commercial_use": true},
       "source": {"paper": "https://doi.org/10.5281/zenodo.8429346", "weights": "https://github.com/BreezeWhite/oemer/releases/tag/checkpoints"},
-      "status": "unverified",
+      "status": "verified",
       "arch": "oemer-unet",
-      "notes": "Second oemer segmentation network. Not downloaded; I/O not verified."
+      "provider_hints": ["cuda", "directml", "cpu"],
+      "io": {"inputs": [{"name": "input", "shape": [-1, 288, 288, 3]}], "outputs": [{"name": "conv2d_25", "shape": [-1, 288, 288, 4]}], "params": {"input_dtype": "uint8", "window": 288, "classes": ["background", "stems_rests", "noteheads", "clefs_keys"]}},
+      "notes": "oemer seg_net: stems/rests, noteheads, and clefs/keys/accidentals segmentation over 288 px RGB uint8 tiles, softmax over 4 classes. Used by score read --engine builtin. Downloaded, hashed, and I/O checked by the project."
     },
     {
       "name": "omr/homr",

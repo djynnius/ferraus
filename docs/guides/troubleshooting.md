@@ -33,7 +33,8 @@ shows every model, its size and license, and which tiers use it.
 **Exit code 6 with `model_unverified`.** The model's registry entry has no recorded SHA-256
 (or, for some entries, no download at all), so ferraus refuses to fetch it. In this release that
 affects the `balanced`, `quality`, and `max` separation tiers, 6-stem separation, the full-size
-CREPE model, and the sheet-music recognition models; see
+CREPE model, and the homr sheet-music transformer (the builtin `score read` engine does not
+need it); see
 [Stems and separation tiers](concepts/stems.md). `separate` with the default `--tier auto` uses the
 best verified tier (`fast` today). You can override
 the check for an entry that does have a download with the variable shown in the hint
@@ -100,6 +101,25 @@ or write intermediates as 32-bit float with `--bit-depth 32`.
 `cargo build -p ferraus-engrave --release`, then put it beside `ferraus` or set
 `FERRAUS_ENGRAVE`) or LilyPond. MusicXML, ABC, LilyPond, MEI, and sol-fa outputs need nothing.
 
+## Sheet music recognition
+
+**`pdf_renderer_missing` (exit code 4).** PDFs are rasterized with `pdftoppm` (poppler) or
+`mutool` (MuPDF); install one (`brew install poppler`, `apt install poppler-utils`), or export
+the pages as PNG and pass those. On macOS without either, `sips` reads only the first page.
+
+**`no staves were recognized`.** The page needs staff lines at least about 8 px apart after
+scanning; scan at 300 dpi, crop away dark borders, and straighten the page. Photos taken at an
+angle, handwritten music, and very faint copies are best-effort.
+
+**Wrong notes or durations.** Run `score read page.png -o out.musicxml --review`: measures
+whose durations do not add up are in `failing_measures`, uncertain ones in
+`review.low_confidence` with the reason. Fix them with `--fix edits.json` or `score from-json`.
+To see what the recognizer saw, set `FERRAUS_OMR_DEBUG=<dir>`: it writes the network's maps
+and the boxes of every symbol it read as PNGs (`FERRAUS_OMR_TRACE=1` prints its decisions).
+
+**Slow.** Recognition takes roughly 15–60 s per page on a laptop CPU (two networks over
+overlapping tiles); blank areas are skipped. `--device cuda` uses a GPU when one is set up.
+
 ## Slow runs
 
 - Separation is the slowest command: the `fast` tier runs at about half real time on a
@@ -119,7 +139,7 @@ or write intermediates as 32-bit float with `--bit-depth 32`.
 | Hum-to-MIDI | Accurate on clean, separated notes; raise `--onset-sensitivity` for repeated notes |
 | Polyphonic transcription (`--mode poly`) | Best-effort; check the per-note confidence |
 | Score from MIDI | Reliable; from audio, as good as the transcription |
-| Sheet music reading | Not available until the recognition models are published; use MusicXML |
+| Sheet music reading (`score read`) | Clean printed scores: all 975 notes of the engraved test set read right (PNG and PDF); scans are best-effort; one voice per staff; lyrics, tuplets, ties, slurs, dynamics, and repeats are not read; check `--review` before trusting a page |
 
 ## Reporting a bug
 

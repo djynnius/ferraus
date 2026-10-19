@@ -4,11 +4,45 @@ An agent recipe: take a notation file, validate it, fix problems in the score mo
 render a performance. Run with ferraus 0.1.0; JSON is trimmed. The plain-language version is
 the [tutorial](../tutorials/perform-sheet-music.md).
 
-**Printed scores:** recognising a PDF or photo (`score read`, `score perform page.pdf`) needs
-the oemer/homr models, which have no verified download in this release (exit code 5, then 6
-with `FERRAUS_ALLOW_UNVERIFIED=1` as the hint). Ask the user for MusicXML, or use
-`--engine audiveris` with an installed Audiveris. Everything below works on MusicXML, MXL,
-ABC, MEI, LilyPond, MIDI, and ferraus score JSON.
+**Printed scores** (PDF or page images) go through `score read` first; the steps below then
+apply to its MusicXML. Recognition needs the two oemer models (MIT, about 110 MB; pass `-y`
+or run `ferraus models pull omr/oemer omr/oemer-seg` once), and PDFs need `pdftoppm` or
+`mutool` on PATH (macOS `sips` reads the first page only).
+
+## 0. Recognize a printed score
+
+```bash
+ferraus score read minuet.pdf -o minuet.musicxml --review --json -y
+```
+
+```json
+{"ok": true, "command": "score read",
+ "models": [{"name": "omr/oemer", "version": "checkpoints-2021-11-25", "sha256": "37512e85..."},
+            {"name": "omr/oemer-seg", "version": "checkpoints-2021-11-25", "sha256": "ed2e1a86..."}],
+ "warnings": [],
+ "result": {"engine": "builtin", "parts": 1, "measures": 16, "check_ok": true, "failing_measures": [],
+            "recognition": {"pages": [1], "rasterizer": "pdftoppm", "staff_space_px": [13.8], "issues": []},
+            "review": {"ok": true, "notes": 77,
+                       "issues": [{"severity": "warning", "code": "unsupported", "message": "lyrics and text are not read"}, ...,
+                                  {"severity": "info", "code": "low_confidence", "part": "P1", "measure": 10,
+                                   "message": "confidence 0.50: duration doubled to fill the measure"}],
+                       "low_confidence": [{"part": "P1", "measure": 10, "confidence": 0.5,
+                                           "reasons": ["duration doubled to fill the measure"]}]}}}
+```
+
+**Decide:**
+
+* `check_ok: false` with `failing_measures`: those measures' durations do not add up. Look at
+  them with `score to-json` and fix them (step 2).
+* `review.low_confidence`: measures the reader was unsure about, with the reason. `duration
+  doubled / halved / dot added to fill the measure` means a duration was corrected so the
+  measure adds up; check that note against the page. `uncertain notehead` means the network
+  was unsure; check the pitch.
+* `recognition.issues` (also in `warnings` as `omr_issue`): page-level doubts, such as a
+  time signature that was inferred from the measures instead of read.
+* The `unsupported` warnings are always present for the builtin engine: lyrics, tuplets,
+  grace notes, ties, slurs, dynamics, articulations, repeats, and a second voice on a staff
+  are not read. A score that relies on them needs fixing by hand (or `--engine audiveris`).
 
 ## 1. Validate
 
