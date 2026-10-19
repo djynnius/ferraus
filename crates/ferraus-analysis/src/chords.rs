@@ -7,9 +7,7 @@ use ferraus_core::AudioBuffer;
 use serde::Serialize;
 
 /// Pitch-class names used in chord labels.
-pub const NOTE_NAMES: [&str; 12] = [
-    "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
-];
+pub const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 
 /// Chord qualities: (label suffix, quality name, intervals from the root).
 pub const QUALITIES: [(&str, &str, &[usize]); 8] = [
@@ -34,10 +32,7 @@ pub struct ChordOptions {
 
 impl Default for ChordOptions {
     fn default() -> Self {
-        ChordOptions {
-            change_penalty: 0.5,
-            min_duration_s: 0.25,
-        }
+        ChordOptions { change_penalty: 0.5, min_duration_s: 0.25 }
     }
 }
 
@@ -88,31 +83,19 @@ pub fn chromagram(buf: &AudioBuffer) -> Chromagram {
     let hop = n_fft / 4;
     let hop_s = hop as f64 / sr;
     if x.len() < n_fft / 4 {
-        return Chromagram {
-            hop_s,
-            chroma: Vec::new(),
-            bass: Vec::new(),
-            level_db: Vec::new(),
-        };
+        return Chromagram { hop_s, chroma: Vec::new(), bass: Vec::new(), level_db: Vec::new() };
     }
     let frames = util::stft_mag(&x, n_fft, hop);
     let df = sr / n_fft as f64;
     let k_lo = (50.0 / df).floor().max(1.0) as usize;
     let k_hi = ((5000.0f64.min(sr / 2.0 - df)) / df) as usize;
-    let energies: Vec<f64> = frames
-        .iter()
-        .map(|f| f[k_lo..=k_hi].iter().map(|m| (*m as f64).powi(2)).sum())
-        .collect();
+    let energies: Vec<f64> = frames.iter().map(|f| f[k_lo..=k_hi].iter().map(|m| (*m as f64).powi(2)).sum()).collect();
     let emax = energies.iter().copied().fold(0.0, f64::max);
     let mut chroma = Vec::with_capacity(frames.len());
     let mut bass = Vec::with_capacity(frames.len());
     let mut level_db = Vec::with_capacity(frames.len());
     for (fi, f) in frames.iter().enumerate() {
-        let lvl = if emax > 0.0 {
-            util::pow_db(energies[fi] / emax)
-        } else {
-            -240.0
-        };
+        let lvl = if emax > 0.0 { util::pow_db(energies[fi] / emax) } else { -240.0 };
         level_db.push(lvl);
         let fmax = f[k_lo..=k_hi].iter().fold(0.0f32, |m, v| m.max(*v));
         let mut c = [0.0f64; 12];
@@ -124,17 +107,9 @@ pub fn chromagram(buf: &AudioBuffer) -> Chromagram {
                     continue;
                 }
                 // parabolic interpolation on log magnitude
-                let (a, b, g) = (
-                    (f[k - 1].max(1e-12) as f64).ln(),
-                    (m as f64).ln(),
-                    (f[k + 1].max(1e-12) as f64).ln(),
-                );
+                let (a, b, g) = ((f[k - 1].max(1e-12) as f64).ln(), (m as f64).ln(), (f[k + 1].max(1e-12) as f64).ln());
                 let den = a - 2.0 * b + g;
-                let delta = if den.abs() > 1e-12 {
-                    (0.5 * (a - g) / den).clamp(-0.5, 0.5)
-                } else {
-                    0.0
-                };
+                let delta = if den.abs() > 1e-12 { (0.5 * (a - g) / den).clamp(-0.5, 0.5) } else { 0.0 };
                 let freq = (k as f64 + delta) * df;
                 if !(55.0..=5000.0).contains(&freq) {
                     continue;
@@ -157,12 +132,7 @@ pub fn chromagram(buf: &AudioBuffer) -> Chromagram {
         chroma.push(c);
         bass.push(lowest.map(|l| l.1));
     }
-    Chromagram {
-        hop_s,
-        chroma,
-        bass,
-        level_db,
-    }
+    Chromagram { hop_s, chroma, bass, level_db }
 }
 
 /// Chord template for a root and quality, including the first harmonics of each note
@@ -196,16 +166,10 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
     let nq = QUALITIES.len();
     let ns = 12 * nq + 1; // last state = N
     let n_state = ns - 1;
-    let templates: Vec<[f64; 12]> = (0..12 * nq)
-        .map(|s| chord_template(s / nq, s % nq))
-        .collect();
+    let templates: Vec<[f64; 12]> = (0..12 * nq).map(|s| chord_template(s / nq, s % nq)).collect();
     let t = cg.chroma.len();
     if t == 0 {
-        return ChordResult {
-            best_effort: true,
-            segments: Vec::new(),
-            distinct_chords: 0,
-        };
+        return ChordResult { best_effort: true, segments: Vec::new(), distinct_chords: 0 };
     }
     // emissions
     let emis: Vec<Vec<f64>> = (0..t)
@@ -230,10 +194,8 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
     let mut score = emis[0].clone();
     let mut back = vec![vec![0usize; ns]; t];
     for i in 1..t {
-        let (best_prev, best_val) = score
-            .iter()
-            .enumerate()
-            .fold((0usize, f64::NEG_INFINITY), |m, (s, v)| if *v > m.1 { (s, *v) } else { m });
+        let (best_prev, best_val) =
+            score.iter().enumerate().fold((0usize, f64::NEG_INFINITY), |m, (s, v)| if *v > m.1 { (s, *v) } else { m });
         let mut next = vec![0.0f64; ns];
         for s in 0..ns {
             let stay = score[s];
@@ -249,11 +211,8 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
         score = next;
     }
     let mut path = vec![0usize; t];
-    path[t - 1] = score
-        .iter()
-        .enumerate()
-        .fold((0usize, f64::NEG_INFINITY), |m, (s, v)| if *v > m.1 { (s, *v) } else { m })
-        .0;
+    path[t - 1] =
+        score.iter().enumerate().fold((0usize, f64::NEG_INFINITY), |m, (s, v)| if *v > m.1 { (s, *v) } else { m }).0;
     for i in (1..t).rev() {
         path[i - 1] = back[i][path[i]];
     }
@@ -314,10 +273,8 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
                     total += 1;
                 }
             }
-            let (bp, bv) = votes
-                .iter()
-                .enumerate()
-                .fold((0usize, 0usize), |m, (p, v)| if *v > m.1 { (p, *v) } else { m });
+            let (bp, bv) =
+                votes.iter().enumerate().fold((0usize, 0usize), |m, (p, v)| if *v > m.1 { (p, *v) } else { m });
             let in_chord = QUALITIES[q].2.iter().any(|iv| (root + iv) % 12 == bp);
             let slash = total > 0
                 && bp != root
@@ -341,11 +298,7 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
             }
         })
         .collect();
-    ChordResult {
-        best_effort: true,
-        segments,
-        distinct_chords: distinct.len(),
-    }
+    ChordResult { best_effort: true, segments, distinct_chords: distinct.len() }
 }
 
 #[cfg(test)]

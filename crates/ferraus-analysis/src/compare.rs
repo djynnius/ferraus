@@ -16,10 +16,7 @@ pub struct CompareOptions {
 
 impl Default for CompareOptions {
     fn default() -> Self {
-        CompareOptions {
-            max_offset_s: 1.0,
-            no_align: false,
-        }
+        CompareOptions { max_offset_s: 1.0, no_align: false }
     }
 }
 
@@ -65,18 +62,11 @@ pub struct CompareReport {
 fn conform(a: &AudioBuffer, b: &AudioBuffer, notes: &mut Vec<String>) -> AudioBuffer {
     let mut b2 = b.clone();
     if b2.sample_rate != a.sample_rate {
-        notes.push(format!(
-            "resampled b from {} Hz to {} Hz",
-            b2.sample_rate, a.sample_rate
-        ));
+        notes.push(format!("resampled b from {} Hz to {} Hz", b2.sample_rate, a.sample_rate));
         b2 = resample(&b2, a.sample_rate, Quality::High);
     }
     if b2.channels() != a.channels() {
-        notes.push(format!(
-            "converted b from {} to {} channel(s)",
-            b2.channels(),
-            a.channels()
-        ));
+        notes.push(format!("converted b from {} to {} channel(s)", b2.channels(), a.channels()));
         b2 = b2.with_channels(a.channels());
     }
     b2
@@ -122,17 +112,9 @@ fn si_sdr(reference: &[f64], estimate: &[f64]) -> f64 {
 pub fn compare(a: &AudioBuffer, b: &AudioBuffer, opts: &CompareOptions) -> CompareReport {
     let mut notes = Vec::new();
     let b = conform(a, b, &mut notes);
-    let (lag, corr) = if opts.no_align {
-        (0, 0.0)
-    } else {
-        find_offset(a, &b, opts.max_offset_s)
-    };
+    let (lag, corr) = if opts.no_align { (0, 0.0) } else { find_offset(a, &b, opts.max_offset_s) };
     // aligned region: a[i] vs b[i + lag]
-    let (a0, b0) = if lag >= 0 {
-        (0usize, lag as usize)
-    } else {
-        ((-lag) as usize, 0usize)
-    };
+    let (a0, b0) = if lag >= 0 { (0usize, lag as usize) } else { ((-lag) as usize, 0usize) };
     let len = a.frames().saturating_sub(a0).min(b.frames().saturating_sub(b0));
     let ch = a.channels();
     let mut ra = Vec::with_capacity(len * ch);
@@ -183,11 +165,7 @@ pub fn compare(a: &AudioBuffer, b: &AudioBuffer, opts: &CompareOptions) -> Compa
         diff_peak_db: amp_db(pd),
         peak_delta_db: amp_db(b.peak() as f64) - amp_db(a.peak() as f64),
         rms_delta_db: pow_db(sb / n) - rms_a_db,
-        loudness_delta_lu: if la.is_finite() && lb.is_finite() {
-            lb - la
-        } else {
-            f64::NAN
-        },
+        loudness_delta_lu: if la.is_finite() && lb.is_finite() { lb - la } else { f64::NAN },
         gain_db,
         si_sdr_db: si,
         identical,
@@ -235,10 +213,7 @@ pub fn mfcc(buf: &AudioBuffer, n_coeffs: usize) -> Vec<Vec<f32>> {
         .filter(|(_, e)| emax > 0.0 && **e > emax * 1e-6)
         .map(|(f, _)| {
             let p: Vec<f32> = f.iter().map(|m| m * m).collect();
-            let mel: Vec<f32> = util::apply_bank(&bank, &p)
-                .into_iter()
-                .map(|e| 10.0 * (e + 1e-10).log10())
-                .collect();
+            let mel: Vec<f32> = util::apply_bank(&bank, &p).into_iter().map(|e| 10.0 * (e + 1e-10).log10()).collect();
             util::dct2(&mel, n_coeffs)
         })
         .collect()
@@ -264,11 +239,7 @@ pub fn similarity(a: &AudioBuffer, b: &AudioBuffer) -> SimilarityReport {
     let sb = crate::spectrum::third_octave_levels(b);
     let pairs: Vec<(f64, f64)> = sa
         .iter()
-        .filter_map(|x| {
-            sb.iter()
-                .find(|y| y.center_hz == x.center_hz)
-                .map(|y| (x.center_hz, x.db, y.db))
-        })
+        .filter_map(|x| sb.iter().find(|y| y.center_hz == x.center_hz).map(|y| (x.center_hz, x.db, y.db)))
         .filter(|(c, x, y)| *c >= 31.0 && *c <= 16500.0 && (*x > -120.0 || *y > -120.0))
         .map(|(_, x, y)| (x.max(-120.0), y.max(-120.0)))
         .collect();
@@ -307,22 +278,13 @@ pub fn similarity(a: &AudioBuffer, b: &AudioBuffer) -> SimilarityReport {
     };
     let (mdist, msim) = match (mean_mfcc(a), mean_mfcc(b)) {
         (Some(x), Some(y)) => {
-            let d = x
-                .iter()
-                .zip(&y)
-                .map(|(p, q)| (p - q).powi(2))
-                .sum::<f64>()
-                .sqrt();
+            let d = x.iter().zip(&y).map(|(p, q)| (p - q).powi(2)).sum::<f64>().sqrt();
             (d, (-d / 25.0).exp())
         }
         (None, None) => (0.0, 1.0),
         _ => (f64::INFINITY, 0.0),
     };
-    let lsim = if ldiff.is_finite() {
-        (-ldiff.abs() / 6.0).exp()
-    } else {
-        0.0
-    };
+    let lsim = if ldiff.is_finite() { (-ldiff.abs() / 6.0).exp() } else { 0.0 };
     let score = (0.45 * spec_sim + 0.4 * msim + 0.15 * lsim).clamp(0.0, 1.0);
     let verdict = if score >= 0.9 {
         "same"

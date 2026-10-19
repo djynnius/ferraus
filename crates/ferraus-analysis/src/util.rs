@@ -23,9 +23,7 @@ pub fn amp_db(a: f64) -> f64 {
 
 /// Periodic Hann window of length `n`.
 pub fn hann(n: usize) -> Vec<f32> {
-    (0..n)
-        .map(|i| (0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos()) as f32)
-        .collect()
+    (0..n).map(|i| (0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos()) as f32).collect()
 }
 
 /// Smallest power of two `>= n`.
@@ -50,14 +48,9 @@ pub fn stft_complex(x: &[f32], n_fft: usize, hop: usize) -> Vec<Vec<Complex<f32>
         let start = (f * hop) as isize - half as isize;
         for (k, slot) in input.iter_mut().enumerate() {
             let idx = start + k as isize;
-            *slot = if idx >= 0 && (idx as usize) < x.len() {
-                x[idx as usize] * win[k]
-            } else {
-                0.0
-            };
+            *slot = if idx >= 0 && (idx as usize) < x.len() { x[idx as usize] * win[k] } else { 0.0 };
         }
-        fft.process_with_scratch(&mut input, &mut out, &mut scratch)
-            .expect("fft sizes match");
+        fft.process_with_scratch(&mut input, &mut out, &mut scratch).expect("fft sizes match");
         frames.push(out.clone());
     }
     frames
@@ -65,10 +58,7 @@ pub fn stft_complex(x: &[f32], n_fft: usize, hop: usize) -> Vec<Vec<Complex<f32>
 
 /// Magnitude STFT (see [`stft_complex`] for framing).
 pub fn stft_mag(x: &[f32], n_fft: usize, hop: usize) -> Vec<Vec<f32>> {
-    stft_complex(x, n_fft, hop)
-        .into_iter()
-        .map(|fr| fr.iter().map(|c| c.norm()).collect())
-        .collect()
+    stft_complex(x, n_fft, hop).into_iter().map(|fr| fr.iter().map(|c| c.norm()).collect()).collect()
 }
 
 /// Welch power spectrum: mean of `|X|^2` over Hann-windowed frames with 50% overlap,
@@ -93,24 +83,15 @@ pub fn welch_power(channels: &[&[f32]], n_fft: usize) -> (Vec<f64>, f64) {
         if n == 0 {
             continue;
         }
-        let starts: Vec<usize> = if n < n_fft {
-            vec![0]
-        } else {
-            (0..=(n - n_fft) / hop).map(|i| i * hop).collect()
-        };
+        let starts: Vec<usize> = if n < n_fft { vec![0] } else { (0..=(n - n_fft) / hop).map(|i| i * hop).collect() };
         for start in starts {
             let end = (start + n_fft).min(n);
             let len = end - start;
             let mean: f64 = ch[start..end].iter().map(|v| *v as f64).sum::<f64>() / len as f64;
             for k in 0..n_fft {
-                input[k] = if k < len {
-                    ((ch[start + k] as f64 - mean) as f32) * win[k]
-                } else {
-                    0.0
-                };
+                input[k] = if k < len { ((ch[start + k] as f64 - mean) as f32) * win[k] } else { 0.0 };
             }
-            fft.process_with_scratch(&mut input, &mut out, &mut scratch)
-                .expect("fft sizes match");
+            fft.process_with_scratch(&mut input, &mut out, &mut scratch).expect("fft sizes match");
             for (a, c) in acc.iter_mut().zip(out.iter()) {
                 *a += c.norm_sqr() as f64;
             }
@@ -226,20 +207,12 @@ pub fn mel_to_hz(m: f64) -> f64 {
 
 /// Triangular mel filterbank: `n_mels` filters over `[fmin, fmax]` for an `n_fft` FFT.
 /// Each filter is a sparse list of `(bin, weight)`; every filter covers at least one bin.
-pub fn mel_filterbank(
-    sr: f64,
-    n_fft: usize,
-    n_mels: usize,
-    fmin: f64,
-    fmax: f64,
-) -> Vec<Vec<(usize, f32)>> {
+pub fn mel_filterbank(sr: f64, n_fft: usize, n_mels: usize, fmin: f64, fmax: f64) -> Vec<Vec<(usize, f32)>> {
     let nb = n_fft / 2 + 1;
     let df = sr / n_fft as f64;
     let fmax = fmax.min(sr / 2.0);
     let (m0, m1) = (hz_to_mel(fmin), hz_to_mel(fmax));
-    let pts: Vec<f64> = (0..n_mels + 2)
-        .map(|i| mel_to_hz(m0 + (m1 - m0) * i as f64 / (n_mels + 1) as f64))
-        .collect();
+    let pts: Vec<f64> = (0..n_mels + 2).map(|i| mel_to_hz(m0 + (m1 - m0) * i as f64 / (n_mels + 1) as f64)).collect();
     (0..n_mels)
         .map(|m| {
             let (lo, c, hi) = (pts[m], pts[m + 1], pts[m + 2]);
@@ -268,9 +241,7 @@ pub fn mel_filterbank(
 
 /// Apply a sparse filterbank to one magnitude/power frame.
 pub fn apply_bank(bank: &[Vec<(usize, f32)>], frame: &[f32]) -> Vec<f32> {
-    bank.iter()
-        .map(|f| f.iter().map(|(k, w)| frame[*k] * w).sum())
-        .collect()
+    bank.iter().map(|f| f.iter().map(|(k, w)| frame[*k] * w).sum()).collect()
 }
 
 /// Type-II DCT (orthonormal) of `x`, first `n_out` coefficients.
@@ -283,11 +254,7 @@ pub fn dct2(x: &[f32], n_out: usize) -> Vec<f32> {
                 .enumerate()
                 .map(|(i, v)| *v as f64 * (PI * k as f64 * (i as f64 + 0.5) / n as f64).cos())
                 .sum();
-            let norm = if k == 0 {
-                (1.0 / n as f64).sqrt()
-            } else {
-                (2.0 / n as f64).sqrt()
-            };
+            let norm = if k == 0 { (1.0 / n as f64).sqrt() } else { (2.0 / n as f64).sqrt() };
             (s * norm) as f32
         })
         .collect()
@@ -331,8 +298,8 @@ pub fn xcorr_peak(a: &[f32], b: &[f32], max_lag: usize) -> (isize, f64, f64) {
     let max_pos = max_lag.min(b.len().saturating_sub(1));
     let max_neg = max_lag.min(a.len().saturating_sub(1));
     let mut best = (0isize, 0.0f64);
-    for lag in 0..=max_pos {
-        let v = c[lag] * scale;
+    for (lag, cv) in c.iter().enumerate().take(max_pos + 1) {
+        let v = cv * scale;
         if v.abs() > best.1.abs() {
             best = (lag as isize, v);
         }
@@ -346,11 +313,7 @@ pub fn xcorr_peak(a: &[f32], b: &[f32], max_lag: usize) -> (isize, f64, f64) {
     let ea: f64 = a.iter().map(|v| (*v as f64).powi(2)).sum();
     let eb: f64 = b.iter().map(|v| (*v as f64).powi(2)).sum();
     let norm = (ea * eb).sqrt();
-    (
-        best.0,
-        best.1,
-        if norm > 0.0 { best.1 / norm } else { 0.0 },
-    )
+    (best.0, best.1, if norm > 0.0 { best.1 / norm } else { 0.0 })
 }
 
 /// Percentile (0..100) of a slice by linear interpolation (copies and sorts).
@@ -458,9 +421,7 @@ mod tests {
     #[test]
     fn welch_parseval_sine() {
         let sr = 48000.0;
-        let x: Vec<f32> = (0..48000)
-            .map(|i| (0.5 * (2.0 * PI * 1000.0 * i as f64 / sr).sin()) as f32)
-            .collect();
+        let x: Vec<f32> = (0..48000).map(|i| (0.5 * (2.0 * PI * 1000.0 * i as f64 / sr).sin()) as f32).collect();
         let (p, scale) = welch_power(&[&x], 4096);
         let ms: f64 = p.iter().map(|v| v * scale).sum();
         assert!((ms - 0.125).abs() < 0.005, "{ms}");

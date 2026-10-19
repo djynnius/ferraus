@@ -31,13 +31,7 @@ pub struct TempoOptions {
 
 impl Default for TempoOptions {
     fn default() -> Self {
-        TempoOptions {
-            min_bpm: 60.0,
-            max_bpm: 200.0,
-            prior_bpm: 120.0,
-            prior_octaves: 1.0,
-            tightness: 100.0,
-        }
+        TempoOptions { min_bpm: 60.0, max_bpm: 200.0, prior_bpm: 120.0, prior_octaves: 1.0, tightness: 100.0 }
     }
 }
 
@@ -116,13 +110,7 @@ pub fn onset_envelope(buf: &AudioBuffer) -> OnsetEnvelope {
     let bank = mel_filterbank(sr, n_fft, n_mels, 30.0, 8000.0_f64.min(sr / 2.0));
     let low_bands = (0..n_mels)
         .filter(|m| {
-            let c = bank[*m]
-                .iter()
-                .map(|(k, _)| *k)
-                .max()
-                .unwrap_or(0) as f64
-                * sr
-                / n_fft as f64;
+            let c = bank[*m].iter().map(|(k, _)| *k).max().unwrap_or(0) as f64 * sr / n_fft as f64;
             c < 200.0
         })
         .count()
@@ -133,16 +121,10 @@ pub fn onset_envelope(buf: &AudioBuffer) -> OnsetEnvelope {
         .iter()
         .map(|f| {
             let p: Vec<f32> = f.iter().map(|m| m * m).collect();
-            util::apply_bank(&bank, &p)
-                .into_iter()
-                .map(|e| 10.0 * (e.max(1e-12)).log10())
-                .collect()
+            util::apply_bank(&bank, &p).into_iter().map(|e| 10.0 * (e.max(1e-12)).log10()).collect()
         })
         .collect();
-    let top = mel
-        .iter()
-        .flat_map(|f| f.iter())
-        .fold(f32::NEG_INFINITY, |m, v| m.max(*v));
+    let top = mel.iter().flat_map(|f| f.iter()).fold(f32::NEG_INFINITY, |m, v| m.max(*v));
     for f in mel.iter_mut() {
         for v in f.iter_mut() {
             *v = v.max(top - 80.0);
@@ -161,8 +143,8 @@ pub fn onset_envelope(buf: &AudioBuffer) -> OnsetEnvelope {
     for t in 1..n {
         let mut s = 0.0;
         let mut sl = 0.0;
-        for m in 0..n_mels {
-            let d = (mel[t][m] - mel[t - 1][m]).max(0.0);
+        for (m, (cur, prev)) in mel[t].iter().zip(&mel[t - 1]).enumerate() {
+            let d = (cur - prev).max(0.0);
             s += d;
             if m < low_bands {
                 sl += d;
@@ -173,12 +155,7 @@ pub fn onset_envelope(buf: &AudioBuffer) -> OnsetEnvelope {
     }
     let values = normalise_onset(&flux, frame_rate);
     let low = normalise_onset(&low, frame_rate);
-    OnsetEnvelope {
-        frame_rate,
-        values,
-        low,
-        low_level_db,
-    }
+    OnsetEnvelope { frame_rate, values, low, low_level_db }
 }
 
 /// Subtract a 1 s moving average, half-wave rectify, and scale to unit std.
@@ -252,10 +229,7 @@ pub fn detect_tempo_from_onsets(env: &OnsetEnvelope, opts: &TempoOptions) -> Tem
     let fr = env.frame_rate;
     let o = &env.values;
     let n = o.len();
-    let (min_bpm, max_bpm) = (
-        opts.min_bpm.max(20.0).min(opts.max_bpm),
-        opts.max_bpm.max(opts.min_bpm),
-    );
+    let (min_bpm, max_bpm) = (opts.min_bpm.max(20.0).min(opts.max_bpm), opts.max_bpm.max(opts.min_bpm));
     if n < (fr * 1.5) as usize || o.iter().all(|v| *v <= 0.0) {
         return TempoResult::empty();
     }
@@ -269,9 +243,7 @@ pub fn detect_tempo_from_onsets(env: &OnsetEnvelope, opts: &TempoOptions) -> Tem
     let tps = |bpm: f64| -> f64 {
         let lag = 60.0 * fr / bpm;
         // take the best of the interpolated value and its neighbours (period jitter)
-        let v = interp(&ac, lag)
-            .max(interp(&ac, lag - 0.5))
-            .max(interp(&ac, lag + 0.5));
+        let v = interp(&ac, lag).max(interp(&ac, lag - 0.5)).max(interp(&ac, lag + 0.5));
         prior(bpm) * v.max(0.0)
     };
     let score = |bpm: f64| -> f64 { tps(bpm) + 0.5 * tps(bpm / 2.0) + 0.25 * tps(bpm / 3.0) };
@@ -314,44 +286,24 @@ pub fn detect_tempo_from_onsets(env: &OnsetEnvelope, opts: &TempoOptions) -> Tem
     let lm: Vec<f64> = (0..n).map(|i| local_max(o, i, 1) as f64).collect();
     let mean_all = util::mean(&lm);
     let at_beats = beats_f.iter().map(|&b| lm[b]).sum::<f64>() / beats_f.len() as f64;
-    let salience = if mean_all > 0.0 {
-        ((at_beats / mean_all - 1.0) / 2.0).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
+    let salience = if mean_all > 0.0 { ((at_beats / mean_all - 1.0) / 2.0).clamp(0.0, 1.0) } else { 0.0 };
     let lag = 60.0 * fr / bpm;
-    let periodicity = (interp(&ac, lag)
-        .max(interp(&ac, lag - 0.5))
-        .max(interp(&ac, lag + 0.5))
-        / 0.5)
-        .clamp(0.0, 1.0);
+    let periodicity = (interp(&ac, lag).max(interp(&ac, lag - 0.5)).max(interp(&ac, lag + 0.5)) / 0.5).clamp(0.0, 1.0);
     let ibis: Vec<f64> = beats.windows(2).map(|w| w[1] - w[0]).collect();
     let mean_ibi = util::mean(&ibis);
-    let regularity = if mean_ibi > 0.0 {
-        (-(util::std_dev(&ibis) / mean_ibi) / 0.1).exp()
-    } else {
-        0.0
-    };
+    let regularity = if mean_ibi > 0.0 { (-(util::std_dev(&ibis) / mean_ibi) / 0.1).exp() } else { 0.0 };
     let confidence = ((salience * periodicity).sqrt() * regularity).clamp(0.0, 1.0);
 
     let alternatives: Vec<TempoCandidate> = peaks
         .iter()
         .filter(|p| (p.0 - coarse_bpm).abs() > 3.0)
         .take(3)
-        .map(|p| TempoCandidate {
-            bpm: p.0,
-            score: p.1 / best_score,
-        })
+        .map(|p| TempoCandidate { bpm: p.0, score: p.1 / best_score })
         .collect();
 
     let meter = analyse_meter(env, &beats_f, 60.0 * fr / bpm);
     let downbeats = if meter.downbeat_confidence >= 0.35 && confidence > 0.3 {
-        beats
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| i % meter.beats_per_bar == meter.phase)
-            .map(|(_, t)| *t)
-            .collect()
+        beats.iter().enumerate().filter(|(i, _)| i % meter.beats_per_bar == meter.phase).map(|(_, t)| *t).collect()
     } else {
         Vec::new()
     };
@@ -418,9 +370,7 @@ fn track_beats(onset: &[f32], period: f64, tightness: f64) -> Vec<usize> {
     // local score: onset smoothed by a Gaussian of std period/32
     let sigma = (period / 32.0).max(0.5);
     let half = (sigma * 4.0).ceil() as isize;
-    let kernel: Vec<f64> = (-half..=half)
-        .map(|k| (-0.5 * (k as f64 / sigma).powi(2)).exp())
-        .collect();
+    let kernel: Vec<f64> = (-half..=half).map(|k| (-0.5 * (k as f64 / sigma).powi(2)).exp()).collect();
     let local: Vec<f64> = (0..n as isize)
         .map(|i| {
             let mut s = 0.0;
@@ -439,13 +389,7 @@ fn track_beats(onset: &[f32], period: f64, tightness: f64) -> Vec<usize> {
     let mut back = vec![usize::MAX; n];
     // precompute transition costs for each distance
     let cost: Vec<f64> = (0..=hi)
-        .map(|d| {
-            if d == 0 {
-                f64::NEG_INFINITY
-            } else {
-                -tightness * ((d as f64 / period).ln()).powi(2)
-            }
-        })
+        .map(|d| if d == 0 { f64::NEG_INFINITY } else { -tightness * ((d as f64 / period).ln()).powi(2) })
         .collect();
     for t in 0..n {
         let mut best = f64::NEG_INFINITY;
@@ -469,9 +413,8 @@ fn track_beats(onset: &[f32], period: f64, tightness: f64) -> Vec<usize> {
         }
     }
     // last beat: the latest local maximum of the cumulative score above half the median
-    let maxima: Vec<usize> = (1..n.saturating_sub(1))
-        .filter(|&i| cum[i] > cum[i - 1] && cum[i] >= cum[i + 1])
-        .collect();
+    let maxima: Vec<usize> =
+        (1..n.saturating_sub(1)).filter(|&i| cum[i] > cum[i - 1] && cum[i] >= cum[i + 1]).collect();
     if maxima.is_empty() {
         return Vec::new();
     }
@@ -479,11 +422,7 @@ fn track_beats(onset: &[f32], period: f64, tightness: f64) -> Vec<usize> {
     let med = util::median(&vals);
     // search only the final two periods for the end point
     let tail_start = n.saturating_sub((2.0 * period) as usize + 1);
-    let mut last = *maxima
-        .iter()
-        .rev()
-        .find(|&&i| cum[i] >= 0.5 * med)
-        .unwrap_or(maxima.last().unwrap());
+    let mut last = *maxima.iter().rev().find(|&&i| cum[i] >= 0.5 * med).unwrap_or(maxima.last().unwrap());
     let mut best_tail = f64::NEG_INFINITY;
     for &i in maxima.iter().filter(|&&i| i >= tail_start) {
         if cum[i] > best_tail {
@@ -527,13 +466,8 @@ struct Meter {
 }
 
 fn analyse_meter(env: &OnsetEnvelope, beats: &[usize], period: f64) -> Meter {
-    let default = Meter {
-        signature: "4/4".into(),
-        beats_per_bar: 4,
-        phase: 0,
-        confidence: 0.0,
-        downbeat_confidence: 0.0,
-    };
+    let default =
+        Meter { signature: "4/4".into(), beats_per_bar: 4, phase: 0, confidence: 0.0, downbeat_confidence: 0.0 };
     if beats.len() < 8 {
         return default;
     }
@@ -555,11 +489,7 @@ fn analyse_meter(env: &OnsetEnvelope, beats: &[usize], period: f64) -> Meter {
             .collect(),
     );
     let strength = zscore(beats.iter().map(|&b| local_max(&env.values, b, r) as f64).collect());
-    let acc: Vec<f64> = level
-        .iter()
-        .zip(&strength)
-        .map(|(l, s)| 0.7 * l + 0.3 * s)
-        .collect();
+    let acc: Vec<f64> = level.iter().zip(&strength).map(|(l, s)| 0.7 * l + 0.3 * s).collect();
     let sd = util::std_dev(&acc).max(1e-9);
     let fold = |m: usize| -> Vec<f64> {
         (0..m)
@@ -606,21 +536,9 @@ fn analyse_meter(env: &OnsetEnvelope, beats: &[usize], period: f64) -> Meter {
         cnt += 1;
     }
     let ternary = cnt > 0 && tern > 1.5 * bin && tern / cnt as f64 > 0.3;
-    let (m, phase, s, sb, other) = if s3 > s4 * 1.15 {
-        (3usize, p3, s3, s3b, s4)
-    } else {
-        (4usize, p4, s4, s4b, s3)
-    };
-    let confidence = if s > 0.0 {
-        ((s - other.max(0.0)) / s).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let downbeat_confidence = if s > 0.0 {
-        ((s - sb.max(0.0)) / s).clamp(0.0, 1.0) * (s / 1.5).min(1.0)
-    } else {
-        0.0
-    };
+    let (m, phase, s, sb, other) = if s3 > s4 * 1.15 { (3usize, p3, s3, s3b, s4) } else { (4usize, p4, s4, s4b, s3) };
+    let confidence = if s > 0.0 { ((s - other.max(0.0)) / s).clamp(0.0, 1.0) } else { 0.0 };
+    let downbeat_confidence = if s > 0.0 { ((s - sb.max(0.0)) / s).clamp(0.0, 1.0) * (s / 1.5).min(1.0) } else { 0.0 };
     let signature = if ternary && m == 4 {
         "6/8".to_string()
     } else if m == 3 {
@@ -628,13 +546,7 @@ fn analyse_meter(env: &OnsetEnvelope, beats: &[usize], period: f64) -> Meter {
     } else {
         "4/4".to_string()
     };
-    Meter {
-        signature,
-        beats_per_bar: m,
-        phase,
-        confidence,
-        downbeat_confidence,
-    }
+    Meter { signature, beats_per_bar: m, phase, confidence, downbeat_confidence }
 }
 
 /// Onsets per second: peaks of the onset envelope above an adaptive threshold.
@@ -753,10 +665,7 @@ pub(crate) mod tests {
     /// the detection to be at half or double the reference metrical level.
     pub(crate) fn beat_hits(truth: &[f64], det: &[f64], tol: f64) -> f64 {
         let score = |r: &[f64], d: &[f64]| -> f64 {
-            let hits = r
-                .iter()
-                .filter(|t| d.iter().any(|b| (*b - **t).abs() <= tol))
-                .count();
+            let hits = r.iter().filter(|t| d.iter().any(|b| (*b - **t).abs() <= tol)).count();
             hits as f64 / r.len().max(1) as f64
         };
         let straight = score(truth, det);
@@ -775,9 +684,7 @@ pub(crate) mod tests {
     }
 
     fn tempo_ok(want: f64, got: f64) -> bool {
-        [1.0, 2.0, 0.5, 1.5, 2.0 / 3.0, 3.0, 1.0 / 3.0]
-            .iter()
-            .any(|m| (got - want * m).abs() <= 2.0)
+        [1.0, 2.0, 0.5, 1.5, 2.0 / 3.0, 3.0, 1.0 / 3.0].iter().any(|m| (got - want * m).abs() <= 2.0)
     }
 
     #[test]
@@ -823,20 +730,10 @@ pub(crate) mod tests {
         assert!((r.bpm - 120.0).abs() < 1.0, "{}", r.bpm);
         assert!(r.confidence > 0.5, "{}", r.confidence);
         // restricting the range forces the double-time level
-        let r = detect_tempo(
-            &b,
-            &TempoOptions {
-                min_bpm: 180.0,
-                max_bpm: 260.0,
-                ..Default::default()
-            },
-        );
+        let r = detect_tempo(&b, &TempoOptions { min_bpm: 180.0, max_bpm: 260.0, ..Default::default() });
         assert!((r.bpm - 240.0).abs() < 2.0 || (r.bpm - 120.0).abs() < 1.0, "{}", r.bpm);
         // other sample rates
-        let b = testing::add(
-            &testing::clicks(48000, 0.6, 9.0, 0.8),
-            &testing::noise(48000, 9.0, 0.01, 5),
-        );
+        let b = testing::add(&testing::clicks(48000, 0.6, 9.0, 0.8), &testing::noise(48000, 9.0, 0.01, 5));
         let r = detect_tempo(&b, &TempoOptions::default());
         assert!((r.bpm - 100.0).abs() < 1.0, "{}", r.bpm);
         assert!(r.beats.iter().any(|b| (b - 1.2).abs() < 0.03), "{:?}", &r.beats[..3]);

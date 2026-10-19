@@ -84,10 +84,7 @@ pub fn detect_silence(buf: &AudioBuffer, threshold_db: f64, min_duration_s: f64)
     let first = levels.iter().position(|l| *l >= threshold_db);
     let last = levels.iter().rposition(|l| *l >= threshold_db);
     let (head, tail) = match (first, last) {
-        (Some(f), Some(l)) => (
-            (f * fl) as f64 / sr,
-            (dur - ((l + 1) * fl).min(n) as f64 / sr).max(0.0),
-        ),
+        (Some(f), Some(l)) => ((f * fl) as f64 / sr, (dur - ((l + 1) * fl).min(n) as f64 / sr).max(0.0)),
         _ => (dur, dur),
     };
     let total: f64 = regions.iter().map(|r| r.duration_s).sum();
@@ -199,11 +196,7 @@ pub fn detect_clipping(buf: &AudioBuffer, threshold_db: f64, min_run: usize) -> 
         min_run,
         count,
         clipped_samples: clipped,
-        clipped_fraction: if total > 0 {
-            clipped as f64 / total as f64
-        } else {
-            0.0
-        },
+        clipped_fraction: if total > 0 { clipped as f64 / total as f64 } else { 0.0 },
         truncated: count > runs.len(),
         runs,
     }
@@ -281,11 +274,7 @@ fn dynamic_range(levels: &[f64]) -> (f64, f64, f64) {
     }
     let min = active.iter().copied().fold(f64::INFINITY, f64::min);
     let max = active.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    (
-        util::percentile(&active, 95.0) - util::percentile(&active, 10.0),
-        min,
-        max,
-    )
+    (util::percentile(&active, 95.0) - util::percentile(&active, 10.0), min, max)
 }
 
 /// Build a 61-bin dB histogram (−60..0 dBFS in 1 dB steps).
@@ -301,10 +290,7 @@ pub fn histogram(x: &[f32]) -> Histogram {
         };
         counts[idx] += 1;
     }
-    Histogram {
-        bins_db: (0..61).map(|i| -60.0 + i as f64).collect(),
-        counts,
-    }
+    Histogram { bins_db: (0..61).map(|i| -60.0 + i as f64).collect(), counts }
 }
 
 /// Per-channel and overall amplitude statistics.
@@ -345,10 +331,7 @@ pub fn stats(buf: &AudioBuffer, with_histogram: bool) -> StatsReport {
     let (dr, _, _) = dynamic_range(&window_rms_db(&mono, win));
     let overall = OverallStats {
         peak_db: amp_db(peak),
-        true_peak_dbtp: per_channel
-            .iter()
-            .map(|c| c.true_peak_dbtp)
-            .fold(-240.0, f64::max),
+        true_peak_dbtp: per_channel.iter().map(|c| c.true_peak_dbtp).fold(-240.0, f64::max),
         rms_db: amp_db(rms),
         crest_factor_db: if rms > 0.0 { amp_db(peak) - amp_db(rms) } else { 0.0 },
         dynamic_range_db: dr,

@@ -84,8 +84,7 @@ pub fn stereo_analysis(buf: &AudioBuffer) -> StereoReport {
     let sr = buf.sample_rate as f64;
     let nyq = sr / 2.0;
     if buf.channels() < 2 {
-        let e: f64 = buf.data[0].iter().map(|v| (*v as f64).powi(2)).sum::<f64>()
-            / buf.frames().max(1) as f64;
+        let e: f64 = buf.data[0].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / buf.frames().max(1) as f64;
         return StereoReport {
             channels: buf.channels(),
             correlation: 1.0,
@@ -122,11 +121,7 @@ pub fn stereo_analysis(buf: &AudioBuffer) -> StereoReport {
     let corr = correlation(l, r);
     let corr_low = low_correlation(buf, 120.0);
     let width = if em + es > 1e-20 { es / (em + es) } else { 0.0 };
-    let mono_loss = if el + er > 1e-20 {
-        pow_db(2.0 * em / (el + er)).max(-120.0)
-    } else {
-        0.0
-    };
+    let mono_loss = if el + er > 1e-20 { pow_db(2.0 * em / (el + er)).max(-120.0) } else { 0.0 };
 
     // per band from an STFT
     let n_fft = 4096.min(util::next_pow2(buf.frames().max(512)));
@@ -152,17 +147,9 @@ pub fn stereo_analysis(buf: &AudioBuffer) -> StereoReport {
                 ss += ((p - q) * 0.5).norm_sqr() as f64;
             }
         }
-        let c = if sl > 1e-20 && sr_ > 1e-20 {
-            x / (sl * sr_).sqrt()
-        } else {
-            1.0
-        };
+        let c = if sl > 1e-20 && sr_ > 1e-20 { x / (sl * sr_).sqrt() } else { 1.0 };
         let w = if sm + ss > 1e-20 { ss / (sm + ss) } else { 0.0 };
-        let loss = if sl + sr_ > 1e-20 {
-            pow_db(2.0 * sm / (sl + sr_)).max(-120.0)
-        } else {
-            0.0
-        };
+        let loss = if sl + sr_ > 1e-20 { pow_db(2.0 * sm / (sl + sr_)).max(-120.0) } else { 0.0 };
         let energy = (sl + sr_) / 2.0;
         // normalise band energy to mean square per sample
         let ms = energy * 2.0 / (n_fft as f64 * (3.0 * n_fft as f64 / 8.0)) / fl.len().max(1) as f64;
@@ -177,11 +164,7 @@ pub fn stereo_analysis(buf: &AudioBuffer) -> StereoReport {
             level_db: pow_db(ms),
         });
     }
-    let mono_compat = if weight_acc > 0.0 {
-        score_acc / weight_acc
-    } else {
-        1.0
-    };
+    let mono_compat = if weight_acc > 0.0 { score_acc / weight_acc } else { 1.0 };
     StereoReport {
         channels: buf.channels(),
         correlation: corr,

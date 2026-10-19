@@ -143,12 +143,7 @@ pub fn bands_from_ltas(l: &Ltas, fraction: u32, sample_rate: u32) -> Vec<BandLev
                 let ov = (b.min(hi) - a.max(lo)).max(0.0) / df;
                 ms += l.power[k] * ov;
             }
-            BandLevel {
-                center_hz: nominal_hz(c),
-                low_hz: lo,
-                high_hz: hi,
-                db: (pow_db(ms) + 3.0103).max(-150.0),
-            }
+            BandLevel { center_hz: nominal_hz(c), low_hz: lo, high_hz: hi, db: (pow_db(ms) + 3.0103).max(-150.0) }
         })
         .collect()
 }
@@ -171,12 +166,7 @@ fn descriptors(l: &Ltas) -> (f64, f64, f64, f64) {
     if total <= 1e-30 {
         return (0.0, 0.0, 0.0, 0.0);
     }
-    let centroid = p[k0..]
-        .iter()
-        .enumerate()
-        .map(|(i, v)| (i + k0) as f64 * l.bin_hz * v)
-        .sum::<f64>()
-        / total;
+    let centroid = p[k0..].iter().enumerate().map(|(i, v)| (i + k0) as f64 * l.bin_hz * v).sum::<f64>() / total;
     let mut acc = 0.0;
     let mut rolloff = 0.0;
     for (i, v) in p[k0..].iter().enumerate() {
@@ -189,11 +179,7 @@ fn descriptors(l: &Ltas) -> (f64, f64, f64, f64) {
     let n = (p.len() - k0) as f64;
     let geo = (p[k0..].iter().map(|v| (v + 1e-30).ln()).sum::<f64>() / n).exp();
     let flat = (geo / (total / n)).clamp(0.0, 1.0);
-    let (kmax, _) = p
-        .iter()
-        .enumerate()
-        .skip(k0)
-        .fold((0, 0.0), |m, (i, v)| if *v > m.1 { (i, *v) } else { m });
+    let (kmax, _) = p.iter().enumerate().skip(k0).fold((0, 0.0), |m, (i, v)| if *v > m.1 { (i, *v) } else { m });
     (centroid, rolloff, flat, kmax as f64 * l.bin_hz)
 }
 
@@ -209,11 +195,7 @@ pub fn spectrum(buf: &AudioBuffer, resolution: Resolution) -> SpectrumReport {
             SpectrumReport {
                 resolution,
                 bands: Vec::new(),
-                bins: Some(BinSpectrum {
-                    bin_hz: l.bin_hz,
-                    fft_size: n_fft,
-                    db,
-                }),
+                bins: Some(BinSpectrum { bin_hz: l.bin_hz, fft_size: n_fft, db }),
                 centroid_hz: centroid,
                 rolloff_hz: rolloff,
                 flatness,
@@ -294,36 +276,18 @@ pub fn tone_balance_vs_curve(levels: &[BandLevel], curve: &[(f64, f64)]) -> Tone
     let offset = util::mean(&mid);
     let bands: Vec<BandDelta> = raw
         .iter()
-        .map(|(c, l, r)| BandDelta {
-            center_hz: *c,
-            level_db: *l,
-            reference_db: *r,
-            delta_db: l - r - offset,
-        })
+        .map(|(c, l, r)| BandDelta { center_hz: *c, level_db: *l, reference_db: *r, delta_db: l - r - offset })
         .collect();
-    let in_range: Vec<&BandDelta> = bands
-        .iter()
-        .filter(|b| b.center_hz >= 60.0 && b.center_hz <= 12500.0)
-        .collect();
+    let in_range: Vec<&BandDelta> = bands.iter().filter(|b| b.center_hz >= 60.0 && b.center_hz <= 12500.0).collect();
     let rms = if in_range.is_empty() {
         0.0
     } else {
         (in_range.iter().map(|b| b.delta_db.powi(2)).sum::<f64>() / in_range.len() as f64).sqrt()
     };
     let mut largest: Vec<BandDelta> = in_range.into_iter().cloned().collect();
-    largest.sort_by(|a, b| {
-        b.delta_db
-            .abs()
-            .partial_cmp(&a.delta_db.abs())
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    largest.sort_by(|a, b| b.delta_db.abs().partial_cmp(&a.delta_db.abs()).unwrap_or(std::cmp::Ordering::Equal));
     largest.truncate(3);
-    ToneBalance {
-        offset_db: offset,
-        bands,
-        largest_deviations: largest,
-        rms_deviation_db: rms,
-    }
+    ToneBalance { offset_db: offset, bands, largest_deviations: largest, rms_deviation_db: rms }
 }
 
 /// Fraction of the signal power (0..1, all channels) between `lo` and `hi` Hz.

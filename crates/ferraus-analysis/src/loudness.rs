@@ -60,7 +60,7 @@ pub struct LoudnessSection {
 /// the analog prototypes of BS.1770 so any rate gives the standard response.
 pub fn k_weighting(sample_rate: f64) -> (Biquad, Biquad) {
     // stage 1: high shelf (+4 dB above ~1.5 kHz)
-    let f0 = 1681.974_450_955_533;
+    let f0 = 1_681.974_450_955_533;
     let g = 3.999_843_853_973_347;
     let q = 0.707_175_236_955_419_6;
     let k = (PI * f0 / sample_rate).tan();
@@ -79,13 +79,7 @@ pub fn k_weighting(sample_rate: f64) -> (Biquad, Biquad) {
     let q = 0.500_327_037_323_877_3;
     let k = (PI * f0 / sample_rate).tan();
     let d = 1.0 + k / q + k * k;
-    let hp = Biquad {
-        b0: 1.0,
-        b1: -2.0,
-        b2: 1.0,
-        a1: 2.0 * (k * k - 1.0) / d,
-        a2: (1.0 - k / q + k * k) / d,
-    };
+    let hp = Biquad { b0: 1.0, b1: -2.0, b2: 1.0, a1: 2.0 * (k * k - 1.0) / d, a2: (1.0 - k / q + k * k) / d };
     (shelf, hp)
 }
 
@@ -214,10 +208,7 @@ fn gated_integrated(blocks: &[f64]) -> (f64, f64) {
     if gated.is_empty() {
         return (f64::NEG_INFINITY, rel_gate);
     }
-    (
-        energy_to_lufs(gated.iter().sum::<f64>() / gated.len() as f64),
-        rel_gate,
-    )
+    (energy_to_lufs(gated.iter().sum::<f64>() / gated.len() as f64), rel_gate)
 }
 
 /// Loudness range (LU) from short-term window energies (EBU Tech 3342).
@@ -229,11 +220,7 @@ fn loudness_range(st: &[f64]) -> f64 {
     }
     let rel = energy_to_lufs(above.iter().sum::<f64>() / above.len() as f64) - 20.0;
     let rel_e = lufs_to_energy(rel);
-    let mut l: Vec<f64> = above
-        .into_iter()
-        .filter(|e| *e > rel_e)
-        .map(energy_to_lufs)
-        .collect();
+    let mut l: Vec<f64> = above.into_iter().filter(|e| *e > rel_e).map(energy_to_lufs).collect();
     if l.is_empty() {
         return 0.0;
     }
@@ -256,16 +243,9 @@ pub fn loudness_with(buf: &AudioBuffer, timeline_step_s: Option<f64>) -> Loudnes
     let mom = sb.windows(4);
     let st = sb.windows(30);
     let (integrated, rel_gate) = gated_integrated(&mom);
-    let momentary_max = mom
-        .iter()
-        .copied()
-        .map(energy_to_lufs)
-        .fold(f64::NEG_INFINITY, f64::max);
+    let momentary_max = mom.iter().copied().map(energy_to_lufs).fold(f64::NEG_INFINITY, f64::max);
     let short_term_max = if !st.is_empty() {
-        st.iter()
-            .copied()
-            .map(energy_to_lufs)
-            .fold(f64::NEG_INFINITY, f64::max)
+        st.iter().copied().map(energy_to_lufs).fold(f64::NEG_INFINITY, f64::max)
     } else if sb.count() > 0 {
         energy_to_lufs(sb.window(sb.count() - 1, 30, true))
     } else {
@@ -287,12 +267,7 @@ pub fn loudness_with(buf: &AudioBuffer, timeline_step_s: Option<f64>) -> Loudnes
             s.push(energy_to_lufs(sb.window(j, 30, true)));
             j += every;
         }
-        LoudnessTimeline {
-            step_s: every as f64 * 0.1,
-            t_s,
-            momentary_lufs: m,
-            short_term_lufs: s,
-        }
+        LoudnessTimeline { step_s: every as f64 * 0.1, t_s, momentary_lufs: m, short_term_lufs: s }
     });
     LoudnessReport {
         integrated_lufs: integrated,
@@ -302,11 +277,7 @@ pub fn loudness_with(buf: &AudioBuffer, timeline_step_s: Option<f64>) -> Loudnes
         relative_gate_lufs: rel_gate,
         true_peak_dbtp: tp_db,
         sample_peak_dbfs: crate::util::amp_db(sp),
-        plr_db: if integrated.is_finite() {
-            tp_db - integrated
-        } else {
-            f64::NAN
-        },
+        plr_db: if integrated.is_finite() { tp_db - integrated } else { f64::NAN },
         duration_s: buf.duration_s(),
         timeline,
     }
@@ -324,9 +295,7 @@ pub fn short_term_curve(buf: &AudioBuffer) -> Vec<(f64, f64)> {
     if sb.count() < 30 {
         return Vec::new();
     }
-    (29..sb.count())
-        .map(|j| ((j + 1) as f64 * 0.1, energy_to_lufs(sb.window(j, 30, false))))
-        .collect()
+    (29..sb.count()).map(|j| ((j + 1) as f64 * 0.1, energy_to_lufs(sb.window(j, 30, false)))).collect()
 }
 
 /// Sections (non-overlapping 3 s windows) whose short-term loudness differs from the
@@ -358,12 +327,7 @@ pub fn loudness_outliers(buf: &AudioBuffer, threshold_lu: f64) -> Vec<LoudnessSe
                     continue;
                 }
             }
-            out.push(LoudnessSection {
-                start_s: start,
-                end_s: end,
-                lufs: l,
-                delta_lu: d,
-            });
+            out.push(LoudnessSection { start_s: start, end_s: end, lufs: l, delta_lu: d });
         }
         j += 30;
     }
@@ -399,11 +363,7 @@ fn polyphase(factor: usize, taps: usize) -> Vec<Vec<f32>> {
     let mut h: Vec<f64> = (0..total)
         .map(|i| {
             let t = i as f64 - mid;
-            let sinc = if t.abs() < 1e-12 {
-                2.0 * fc
-            } else {
-                (2.0 * PI * fc * t).sin() / (PI * t)
-            };
+            let sinc = if t.abs() < 1e-12 { 2.0 * fc } else { (2.0 * PI * fc * t).sin() / (PI * t) };
             let r = (i as f64 - mid) / mid;
             let win = bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / i0b;
             sinc * win
@@ -459,10 +419,7 @@ pub fn true_peak_channel(x: &[f32], sample_rate: u32) -> f64 {
 
 /// Highest true peak over all channels (linear).
 pub fn true_peak(buf: &AudioBuffer) -> f64 {
-    buf.data
-        .iter()
-        .map(|c| true_peak_channel(c, buf.sample_rate))
-        .fold(0.0, f64::max)
+    buf.data.iter().map(|c| true_peak_channel(c, buf.sample_rate)).fold(0.0, f64::max)
 }
 
 /// Highest true peak over all channels in dBTP.
@@ -509,16 +466,8 @@ mod tests {
                 smax = smax.max(m.loudness_shortterm().unwrap());
             }
         }
-        let tp = (0..buf.channels() as u32)
-            .map(|c| m.true_peak(c).unwrap())
-            .fold(0.0, f64::max);
-        (
-            m.loudness_global().unwrap(),
-            mmax,
-            smax,
-            m.loudness_range().unwrap(),
-            20.0 * tp.log10(),
-        )
+        let tp = (0..buf.channels() as u32).map(|c| m.true_peak(c).unwrap()).fold(0.0, f64::max);
+        (m.loudness_global().unwrap(), mmax, smax, m.loudness_range().unwrap(), 20.0 * tp.log10())
     }
 
     #[test]
@@ -551,10 +500,7 @@ mod tests {
         // case 3: relative gate removes the -36 dBFS parts
         let c3 = seq(&[(-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0)], sr);
         // case 4: absolute gate removes -72 dBFS
-        let c4 = seq(
-            &[(-72.0, 10.0), (-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0), (-72.0, 10.0)],
-            sr,
-        );
+        let c4 = seq(&[(-72.0, 10.0), (-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0), (-72.0, 10.0)], sr);
         // case 5: -26 / -20 / -26
         let c5 = seq(&[(-26.0, 20.0), (-20.0, 20.1), (-26.0, 20.0)], sr);
         for (name, b) in [("c3", &c3), ("c4", &c4), ("c5", &c5)] {
@@ -574,10 +520,7 @@ mod tests {
             (vec![(-20.0, 20.0), (-30.0, 20.0)], 10.0),
             (vec![(-20.0, 20.0), (-15.0, 20.0)], 5.0),
             (vec![(-40.0, 20.0), (-20.0, 20.0)], 20.0),
-            (
-                vec![(-50.0, 20.0), (-35.0, 20.0), (-20.0, 20.0), (-35.0, 20.0), (-50.0, 20.0)],
-                15.0,
-            ),
+            (vec![(-50.0, 20.0), (-35.0, 20.0), (-20.0, 20.0), (-35.0, 20.0), (-50.0, 20.0)], 15.0),
         ];
         for (parts, want) in cases {
             let b = seq(&parts, sr);
@@ -594,9 +537,7 @@ mod tests {
         let n = sr as usize;
         // fs/4 sine with a 45 degree phase: samples hit 0.707 of the true peak
         let amp = 0.5f32;
-        let x: Vec<f32> = (0..n)
-            .map(|i| amp * (PI / 2.0 * i as f64 + PI / 4.0).sin() as f32)
-            .collect();
+        let x: Vec<f32> = (0..n).map(|i| amp * (PI / 2.0 * i as f64 + PI / 4.0).sin() as f32).collect();
         let b = stereo(AudioBuffer::from_mono(sr, x));
         let r = loudness(&b);
         let want = 20.0 * (amp as f64).log10();

@@ -52,30 +52,18 @@ pub struct ProblemsReport {
 }
 
 fn problem(code: &str, severity: Severity, details: String, fix: &str) -> Problem {
-    Problem {
-        problem: code.into(),
-        severity,
-        details,
-        suggested_fix: fix.into(),
-    }
+    Problem { problem: code.into(), severity, details, suggested_fix: fix.into() }
 }
 
 fn fmt_times(t: &[f64]) -> String {
     let shown: Vec<String> = t.iter().take(5).map(|v| format!("{v:.2}s")).collect();
-    let more = if t.len() > 5 {
-        format!(" (+{} more)", t.len() - 5)
-    } else {
-        String::new()
-    };
+    let more = if t.len() > 5 { format!(" (+{} more)", t.len() - 5) } else { String::new() };
     format!("{}{more}", shown.join(", "))
 }
 
 /// Mean value of each channel.
 pub fn dc_offsets(buf: &AudioBuffer) -> Vec<f64> {
-    buf.data
-        .iter()
-        .map(|c| c.iter().map(|v| *v as f64).sum::<f64>() / c.len().max(1) as f64)
-        .collect()
+    buf.data.iter().map(|c| c.iter().map(|v| *v as f64).sum::<f64>() / c.len().max(1) as f64).collect()
 }
 
 /// Times (seconds) of isolated clicks: samples whose second difference exceeds ten times
@@ -89,25 +77,34 @@ pub fn detect_clicks(buf: &AudioBuffer) -> Vec<f64> {
         if n < 300 {
             continue;
         }
-        let e: Vec<f64> = (0..n)
-            .map(|i| {
-                if i < 2 {
-                    0.0
-                } else {
-                    ch[i] as f64 - 2.0 * ch[i - 1] as f64 + ch[i - 2] as f64
-                }
-            })
-            .collect();
-        let mut cs = vec![0.0f64; n + 1];
-        for i in 0..n {
-            cs[i + 1] = cs[i] + e[i] * e[i];
-        }
+        // second difference, computed on demand (no full-length buffers)
+        let e = |i: usize| -> f64 {
+            if i < 2 {
+                0.0
+            } else {
+                ch[i] as f64 - 2.0 * ch[i - 1] as f64 + ch[i - 2] as f64
+            }
+        };
+        // running energy of e over the window [i-128, i+128]
+        let mut sum: f64 = (0..129.min(n)).map(|j| e(j).powi(2)).sum();
         let mut last: Option<usize> = None;
-        for i in 2..n {
+        for i in 0..n {
+            if i > 0 {
+                if i + 128 < n {
+                    sum += e(i + 128).powi(2);
+                }
+                if i > 128 {
+                    sum -= e(i - 129).powi(2);
+                }
+            }
+            if i < 2 {
+                continue;
+            }
             let a = i.saturating_sub(128);
             let b = (i + 129).min(n);
-            let rms = ((cs[b] - cs[a]) / (b - a) as f64).sqrt();
-            if e[i].abs() > (10.0 * rms).max(0.01) {
+            let rms = (sum.max(0.0) / (b - a) as f64).sqrt();
+            let ei = e(i);
+            if ei.abs() > (10.0 * rms).max(0.01) {
                 if let Some(l) = last {
                     if i - l <= merge {
                         last = Some(i);
@@ -161,13 +158,7 @@ pub fn detect_hum(buf: &AudioBuffer) -> Option<HumInfo> {
             }
             let k0 = ((f - 1.5) / df).floor().max(1.0) as usize;
             let k1 = ((f + 1.5) / df).ceil() as usize;
-            let (kp, peak) = (k0..=k1).fold((k0, 0.0f64), |m, k| {
-                if l.power[k] > m.1 {
-                    (k, l.power[k])
-                } else {
-                    m
-                }
-            });
+            let (kp, peak) = (k0..=k1).fold((k0, 0.0f64), |m, k| if l.power[k] > m.1 { (k, l.power[k]) } else { m });
             let mut bg: Vec<f64> = Vec::new();
             let lo = ((f - 15.0) / df).floor().max(1.0) as usize;
             let hi = (((f + 15.0) / df).ceil() as usize).min(l.power.len() - 1);
@@ -178,9 +169,7 @@ pub fn detect_hum(buf: &AudioBuffer) -> Option<HumInfo> {
             }
             let background = util::median(&bg).max(1e-30);
             // power of the peak including the Hann main lobe
-            let lobe: f64 = (kp.saturating_sub(2)..=(kp + 2).min(l.power.len() - 1))
-                .map(|k| l.power[k])
-                .sum();
+            let lobe: f64 = (kp.saturating_sub(2)..=(kp + 2).min(l.power.len() - 1)).map(|k| l.power[k]).sum();
             let prominence = pow_db(peak / background);
             if prominence > 15.0 && pow_db(lobe) > -100.0 {
                 harmonics.push(h);
@@ -247,11 +236,8 @@ pub fn noise_floor(buf: &AudioBuffer) -> NoiseFloor {
                 let gm = (s.iter().map(|v| (v + 1e-30).ln()).sum::<f64>() / s.len() as f64).exp();
                 (gm / am).clamp(0.0, 1.0)
             };
-            let (hi, hflat) = if k16 > k6 + 4 {
-                (p[k6..k16].iter().sum::<f64>(), flat(&p[k6..k16]))
-            } else {
-                (0.0, 0.0)
-            };
+            let (hi, hflat) =
+                if k16 > k6 + 4 { (p[k6..k16].iter().sum::<f64>(), flat(&p[k6..k16])) } else { (0.0, 0.0) };
             (total, flat(&p[1..]), hi, hflat)
         })
         .collect();
@@ -290,10 +276,7 @@ pub struct Sibilance {
 /// Measure sibilance (requires a sample rate of at least 22.05 kHz).
 pub fn sibilance(buf: &AudioBuffer) -> Sibilance {
     let sr = buf.sample_rate as f64;
-    let none = Sibilance {
-        sibilant_fraction: 0.0,
-        peak_db: -240.0,
-    };
+    let none = Sibilance { sibilant_fraction: 0.0, peak_db: -240.0 };
     if sr < 22050.0 {
         return none;
     }
@@ -314,10 +297,7 @@ pub fn sibilance(buf: &AudioBuffer) -> Sibilance {
     if max <= 0.0 {
         return none;
     }
-    let loud: Vec<&(f64, f64)> = rows
-        .iter()
-        .filter(|r| pow_db(r.0) > (pow_db(max) - 30.0).max(-45.0))
-        .collect();
+    let loud: Vec<&(f64, f64)> = rows.iter().filter(|r| pow_db(r.0) > (pow_db(max) - 30.0).max(-45.0)).collect();
     if loud.is_empty() {
         return none;
     }
@@ -334,12 +314,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
     let dur = buf.duration_s();
     let sp = buf.peak() as f64;
     if buf.is_empty() || sp == 0.0 {
-        out.push(problem(
-            "silent",
-            Severity::High,
-            "the file contains only digital silence".into(),
-            "",
-        ));
+        out.push(problem("silent", Severity::High, "the file contains only digital silence".into(), ""));
         return finish(out);
     }
 
@@ -379,11 +354,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
         } else {
             Severity::Low
         };
-        let per: Vec<String> = dcs
-            .iter()
-            .enumerate()
-            .map(|(c, d)| format!("ch{} {:+.4}", c + 1, d))
-            .collect();
+        let per: Vec<String> = dcs.iter().enumerate().map(|(c, d)| format!("ch{} {:+.4}", c + 1, d)).collect();
         out.push(problem(
             "dc_offset",
             sev,
@@ -422,12 +393,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
         } else {
             Severity::Low
         };
-        out.push(problem(
-            "clicks",
-            sev,
-            format!("{} click(s) at {}", clicks.len(), fmt_times(&clicks)),
-            "declick",
-        ));
+        out.push(problem("clicks", sev, format!("{} click(s) at {}", clicks.len(), fmt_times(&clicks)), "declick"));
     }
 
     // hum
@@ -446,11 +412,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
                 "{:.0} Hz hum (harmonics {:?}) at {:.1} dB relative to the signal",
                 h.freq_hz, h.harmonics, h.relative_db
             ),
-            if h.freq_hz == 50.0 {
-                "dehum:freq=50Hz"
-            } else {
-                "dehum:freq=60Hz"
-            },
+            if h.freq_hz == 50.0 { "dehum:freq=50Hz" } else { "dehum:freq=60Hz" },
         ));
     }
 
@@ -467,21 +429,14 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
         out.push(problem(
             "hiss",
             sev,
-            format!(
-                "high-frequency noise floor of {:.1} dBFS (6–16 kHz) in quiet passages",
-                nf.hiss_db
-            ),
+            format!("high-frequency noise floor of {:.1} dBFS (6–16 kHz) in quiet passages", nf.hiss_db),
             "dehiss",
         ));
     }
     if nf.floor_db > -50.0 && nf.floor_flatness > 0.4 && nf.loud_db - nf.floor_db < 30.0 {
         out.push(problem(
             "noise_floor",
-            if nf.loud_db - nf.floor_db < 15.0 {
-                Severity::High
-            } else {
-                Severity::Medium
-            },
+            if nf.loud_db - nf.floor_db < 15.0 { Severity::High } else { Severity::Medium },
             format!(
                 "broadband noise floor of {:.1} dBFS, only {:.1} dB below the loud passages",
                 nf.floor_db,
@@ -508,10 +463,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
             out.push(problem(
                 "phase",
                 Severity::Medium,
-                format!(
-                    "weak L/R correlation ({:.2}); mono playback loses {:.1} dB",
-                    st.correlation, -st.mono_loss_db
-                ),
+                format!("weak L/R correlation ({:.2}); mono playback loses {:.1} dB", st.correlation, -st.mono_loss_db),
                 "phase-align",
             ));
         }
@@ -540,11 +492,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
     if sil.head_silence_s > 0.5 {
         out.push(problem(
             "silence_head",
-            if sil.head_silence_s >= 2.0 {
-                Severity::Medium
-            } else {
-                Severity::Low
-            },
+            if sil.head_silence_s >= 2.0 { Severity::Medium } else { Severity::Low },
             format!("{:.2} s of silence (below -60 dBFS) at the start", sil.head_silence_s),
             "silence trim --edges",
         ));
@@ -552,11 +500,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
     if sil.tail_silence_s > 1.0 {
         out.push(problem(
             "silence_tail",
-            if sil.tail_silence_s >= 3.0 {
-                Severity::Medium
-            } else {
-                Severity::Low
-            },
+            if sil.tail_silence_s >= 3.0 { Severity::Medium } else { Severity::Low },
             format!("{:.2} s of silence (below -60 dBFS) at the end", sil.tail_silence_s),
             "silence trim --edges",
         ));
@@ -567,18 +511,11 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
         let o = loudness_outliers(buf, 8.0);
         if !o.is_empty() {
             let worst = o.iter().fold(0.0f64, |m, s| m.max(s.delta_lu.abs()));
-            let desc: Vec<String> = o
-                .iter()
-                .take(5)
-                .map(|s| format!("{:.1}-{:.1}s {:+.1} LU", s.start_s, s.end_s, s.delta_lu))
-                .collect();
+            let desc: Vec<String> =
+                o.iter().take(5).map(|s| format!("{:.1}-{:.1}s {:+.1} LU", s.start_s, s.end_s, s.delta_lu)).collect();
             out.push(problem(
                 "loudness_outliers",
-                if worst > 12.0 {
-                    Severity::Medium
-                } else {
-                    Severity::Low
-                },
+                if worst > 12.0 { Severity::Medium } else { Severity::Low },
                 format!("sections far from the integrated loudness: {}", desc.join(", ")),
                 "leveler",
             ));
@@ -610,11 +547,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
     if s.sibilant_fraction >= 0.02 && s.sibilant_fraction <= 0.3 && s.peak_db > -25.0 {
         out.push(problem(
             "sibilance",
-            if s.sibilant_fraction > 0.1 && s.peak_db > -15.0 {
-                Severity::Medium
-            } else {
-                Severity::Low
-            },
+            if s.sibilant_fraction > 0.1 && s.peak_db > -15.0 { Severity::Medium } else { Severity::Low },
             format!(
                 "{:.0}% of loud frames are dominated by 5-10 kHz energy (peak {:.1} dBFS)",
                 s.sibilant_fraction * 100.0,
@@ -627,7 +560,7 @@ pub fn diagnose(buf: &AudioBuffer) -> ProblemsReport {
 }
 
 fn finish(mut out: Vec<Problem>) -> ProblemsReport {
-    out.sort_by(|a, b| b.severity.cmp(&a.severity));
+    out.sort_by_key(|p| std::cmp::Reverse(p.severity));
     let mut counts = SeverityCounts::default();
     for p in &out {
         match p.severity {
@@ -636,11 +569,7 @@ fn finish(mut out: Vec<Problem>) -> ProblemsReport {
             Severity::Low => counts.low += 1,
         }
     }
-    ProblemsReport {
-        clean: counts.high == 0 && counts.medium == 0,
-        counts,
-        problems: out,
-    }
+    ProblemsReport { clean: counts.high == 0 && counts.medium == 0, counts, problems: out }
 }
 
 #[cfg(test)]
