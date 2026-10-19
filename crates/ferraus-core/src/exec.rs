@@ -53,6 +53,8 @@ fn expand_inputs(inputs: &[String]) -> Result<Vec<PathBuf>> {
             let mut matched: Vec<PathBuf> = glob::glob(i)
                 .map_err(|e| Error::usage(format!("bad glob '{i}': {e}")))?
                 .filter_map(|r| r.ok())
+                // provenance sidecars are never inputs
+                .filter(|p| !p.to_string_lossy().ends_with(".ferraus.json"))
                 .collect();
             matched.sort();
             if matched.is_empty() {
@@ -242,6 +244,13 @@ impl<'a> Runtime<'a> {
                     Runner::Custom(_) => unreachable!(),
                 };
                 let out = conform_output(out, &ctx.globals);
+                let peak = out.peak();
+                if peak > 1.0 && ctx.encode_options(&out_path).bit_depth != Some(32) {
+                    ctx.warn(
+                        "output_clips",
+                        format!("the result peaks at {:+.2} dBFS and will clip in an integer format; lower the level (e.g. --fx \"limit\") or write 32-bit float (--bit-depth 32)", crate::buffer::lin_to_db(peak as f64)),
+                    );
+                }
                 ctx.write_audio(&out_path, &out, None)?;
                 ctx.set_progress(1.0);
                 Ok(ctx.result.take().unwrap_or(Value::Null))
@@ -411,6 +420,12 @@ pub fn apply_spec(spec: &OpSpec, args: &Args, input: AudioBuffer, ctx: &mut OpCt
         _ => return Err(Error::usage(format!("'{}' cannot be used as an effect stage", spec.name))),
     };
     let generic_mix = spec.auto_mix && spec.find_param("mix").is_none();
+    if spec.find_param("mix").is_some() || generic_mix {
+        let m = args.percent("mix").unwrap_or(1.0);
+        if !(0.0..=1.0).contains(&m) {
+            return Err(Error::usage(format!("--mix must be between 0% and 100%, got {}%", (m * 100.0).round())));
+        }
+    }
     if generic_mix {
         let m = args.percent("mix").unwrap_or(1.0);
         if m <= 0.0 {

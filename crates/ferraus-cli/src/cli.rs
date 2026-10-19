@@ -461,6 +461,18 @@ fn print_envelope(env: &Envelope, prefs: &OutputPrefs) {
     if prefs.verbosity < 0 {
         return;
     }
+    if let Some(lines) = env.metrics.get("explain").and_then(|e| e.as_array()) {
+        for l in lines {
+            let _ = writeln!(
+                out,
+                "{} = {}  ({}; {})",
+                l["param"].as_str().unwrap_or(""),
+                l["value"].as_str().unwrap_or(""),
+                l["meaning"].as_str().unwrap_or(""),
+                l["why"].as_str().unwrap_or("")
+            );
+        }
+    }
     if let Some(t) = env.result.get("text").and_then(|t| t.as_str()) {
         let _ = write!(out, "{t}");
         if !t.ends_with('\n') {

@@ -1,5 +1,5 @@
 //! `master --stems`: best-effort stem-aware mastering when only a mix exists. Runs
-//! `separate --tier quality`, gives each stem a short corrective chain, and sums the stems
+//! `separate (best verified tier)`, gives each stem a short corrective chain, and sums the stems
 //! back into a mix that the normal chain then masters.
 
 use crate::chain::band_p90_db;
@@ -92,7 +92,7 @@ pub fn stem_aware_mix(ctx: &mut OpCtx, input: &Path, mix: &AudioBuffer) -> Resul
     let template = tmp.join("{stem}.wav");
     let saved = ctx.globals.overwrite;
     ctx.globals.overwrite = true;
-    let res = run_nested(ctx, "separate", &[("tier", "quality")], vec![input.to_path_buf()], Some(&template));
+    let res = run_nested(ctx, "separate", &[("tier", "auto")], vec![input.to_path_buf()], Some(&template));
     ctx.globals.overwrite = saved;
     let cleanup = |outs: &[ferraus_core::ctx::OutputRecord]| {
         for o in outs {
@@ -144,5 +144,5 @@ pub fn stem_aware_mix(ctx: &mut OpCtx, input: &Path, mix: &AudioBuffer) -> Resul
     if report.is_empty() {
         return Err(Error::processing("separate produced no stems"));
     }
-    Ok((sum, json!({"best_effort": true, "separator": "separate --tier quality", "stems": report})))
+    Ok((sum, json!({"best_effort": true, "separator": "separate (best verified tier)", "stems": report})))
 }

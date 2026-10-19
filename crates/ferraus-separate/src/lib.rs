@@ -35,7 +35,7 @@ pub fn ops() -> Vec<OpSpec> {
     .inputs(ferraus_core::op::Inputs::ONE_AUDIO)
     .about("Separates a song into stems with open models run through ONNX Runtime. Tiers trade speed for quality: fast (Demucs v4), balanced (Demucs v4 fine-tuned bag), quality (RoFormer vocals + Demucs), max (ensemble with test-time augmentation). Models download on first use only with -y or models.auto_download = true; otherwise the command fails with exit code 5 and the exact `ferraus models pull` command. With --sum-to-mix on (default) the residual goes to `other`, so the written stems add back to the input within one LSB. Each stem's JSON result carries a quality estimate (ensemble agreement, or mask confidence for a single model).")
     .param(param("stems", ParamKind::Choice).choices(&["2", "4", "6"]).default("4").help("2 = vocals + instrumental, 4 = vocals/drums/bass/other, 6 = adds guitar and piano"))
-    .param(param("tier", ParamKind::Choice).choices(&["fast", "balanced", "quality", "max"]).default("quality").help("Model tier from the registry"))
+    .param(param("tier", ParamKind::Choice).choices(&["auto", "fast", "balanced", "quality", "max"]).default("auto").help("Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry (quality, then balanced, then fast) and reports the choice"))
     .param(param("only", ParamKind::List).help("Write only these stems, e.g. vocals,drums"))
     .param(param("instrumental", ParamKind::Flag).help("Write one file with the vocals removed"))
     .param(param("model", ParamKind::Str).help("Pin a registry model (name[@version]) or an ONNX file instead of a tier"))
@@ -137,6 +137,7 @@ fn spec_for_file(ctx: &mut OpCtx, path: &Path) -> Result<ModelSpec> {
 
 /// Resolve the members of the run (explicit model, custom ensemble, or tier).
 fn plan_members(
+    ctx: &mut OpCtx,
     a: &Args,
     manifest: &Manifest,
     stems_n: &str,
@@ -178,7 +179,17 @@ fn plan_members(
             None,
         ));
     }
-    let tier = a.choice("tier");
+    let mut tier = a.choice("tier");
+    if tier == "auto" {
+        tier = auto_tier(manifest, stems_n);
+        if tier != "quality" {
+            ctx.warn(
+                "tier_fallback",
+                format!("using the '{tier}' tier: the models of the better tiers are not yet verified for download in this registry (see 'ferraus models list')"),
+            );
+        }
+        ctx.note("tier", format!("{tier} (auto)"));
+    }
     let spec = manifest
         .tier("separate", &tier)
         .cloned()
@@ -195,6 +206,25 @@ fn plan_members(
             .collect(),
         Some(spec),
     ))
+}
+
+/// The best tier whose every member is verified (has a SHA-256 and a URL, or is built in).
+fn auto_tier(manifest: &Manifest, stems_n: &str) -> String {
+    for t in ["quality", "balanced", "fast"] {
+        let Some(spec) = manifest.tier("separate", t) else { continue };
+        let members = if stems_n == "6" && !spec.members_6.is_empty() { &spec.members_6 } else { &spec.members };
+        let ok = !members.is_empty()
+            && members.iter().all(|m| {
+                manifest
+                    .resolve(&m.model)
+                    .map(|e| e.is_builtin() || (e.sha256.is_some() && !e.urls.is_empty()))
+                    .unwrap_or(false)
+            });
+        if ok {
+            return t.to_string();
+        }
+    }
+    "fast".to_string()
 }
 
 struct Loaded {
@@ -306,7 +336,7 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let manifest = active_registry(&cache).manifest;
     let stems_explicit = a.is_explicit("stems");
     let mut stems_n = a.choice("stems");
-    let (members, tier_spec) = plan_members(a, &manifest, &stems_n)?;
+    let (members, tier_spec) = plan_members(ctx, a, &manifest, &stems_n)?;
     let overlap = a.percent("overlap")?;
     if !(0.0..0.95).contains(&overlap) {
         return Err(Error::usage("--overlap must be between 0% and 95%"));

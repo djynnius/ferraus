@@ -972,3 +972,14 @@ fn spectrogram_finds_the_tone() {
     let (r, _, _d) = run_custom("spectrogram", &[], &[sine(8000, 440.0, 0.01, 0.5)], Some("u.json"), |_| {});
     assert_eq!(r.unwrap()["frames"], 1);
 }
+
+#[test]
+fn silence_trim_agrees_with_detect_on_noisy_silence() {
+    // room noise at about -48 dB RMS has sample peaks above -45 dB; the windowed measure
+    // used by both `silence detect` and `silence trim` treats it as silence
+    let sr = 16000;
+    let hiss = ferraus_core::testing::noise(sr, 0.7, 0.0068, 4);
+    let b = concat_bufs(&[hiss.clone(), sine(sr, 440.0, 1.0, 0.5), hiss]);
+    let out = ok_t("silence trim", &[("threshold", "-45dB")], b);
+    assert!((out.duration_s() - 1.02).abs() < 0.03, "{}", out.duration_s());
+}

@@ -467,7 +467,23 @@ impl Resolver {
         // 2. scanned sounds
         let matches = self.match_sounds(&n);
         match matches.len() {
-            0 => {}
+            0 => {
+                // installed plugins and registry sounds, via the application's resolver
+                if let Some(f) = EXTERNAL_RESOLVER.get() {
+                    if let Some(src) = f(&given)? {
+                        if let Some(source) = parse_source(&src)? {
+                            return Ok(Resolved {
+                                given,
+                                source,
+                                via: "sound".into(),
+                                program: None,
+                                program_name: None,
+                                alias: None,
+                            });
+                        }
+                    }
+                }
+            }
             1 => {
                 return Ok(Resolved {
                     given,
@@ -739,4 +755,15 @@ mod tests {
         assert_eq!(builtin_program("strings"), Some(Some(48)));
         assert_eq!(builtin_program("gm:5"), Some(Some(5)));
     }
+}
+
+/// Resolves names the synth cannot see itself (installed CLAP/VST3 plugins, registry sounds)
+/// to a source string such as `plugin:/path/Foo.clap#id`. Registered by the application.
+pub type ExternalResolver = fn(&str) -> ferraus_core::Result<Option<String>>;
+
+static EXTERNAL_RESOLVER: std::sync::OnceLock<ExternalResolver> = std::sync::OnceLock::new();
+
+/// Register the external instrument resolver (once per process).
+pub fn set_external_resolver(f: ExternalResolver) -> bool {
+    EXTERNAL_RESOLVER.set(f).is_ok()
 }

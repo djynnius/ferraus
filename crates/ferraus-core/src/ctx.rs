@@ -379,16 +379,17 @@ impl<'a> OpCtx<'a> {
             if o == "-" {
                 return Ok(PathBuf::from("-"));
             }
-            let has_template = o.contains('{');
-            let mut s = o
-                .replace("{name}", &name)
-                .replace("{index}", &self.index.to_string())
-                .replace("{command}", &cmd)
-                .replace("{ext}", &ext);
+            // Several outputs from one -o (stems, split parts) must get distinct names: {stem}
+            // takes the role; without {stem}, {index} takes it; otherwise the role is inserted
+            // before the extension.
+            let has_stem = o.contains("{stem}");
+            let index_takes_role = role.is_some() && !has_stem && o.contains("{index}");
+            let index = if index_takes_role { role.unwrap_or_default().to_string() } else { self.index.to_string() };
+            let mut s =
+                o.replace("{name}", &name).replace("{index}", &index).replace("{command}", &cmd).replace("{ext}", &ext);
             s = s.replace("{stem}", role.unwrap_or("out"));
             let mut p = PathBuf::from(s);
-            if let (Some(role), false) = (role, has_template) {
-                // several outputs from one -o: insert the role before the extension
+            if let (Some(role), false, false) = (role, has_stem, index_takes_role) {
                 let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                 let e = p.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_else(|| ext.clone());
                 p.set_file_name(format!("{stem}.{role}.{e}"));
@@ -420,9 +421,9 @@ impl<'a> OpCtx<'a> {
         }
         self.check_allowed(path)?;
         let is_input = self.inputs.iter().any(|i| i == path);
-        if path.exists() && !self.globals.overwrite && !(self.globals.in_place && is_input) {
+        if path.exists() && !self.globals.overwrite && !self.globals.force && !(self.globals.in_place && is_input) {
             return Err(Error::new(ErrorKind::Usage, "output_exists", format!("{} already exists", path.display()))
-                .with_hint("pass --overwrite to replace it, or choose another -o path"));
+                .with_hint("pass --overwrite (or --force) to replace it, or choose another -o path"));
         }
         if is_input && !self.globals.in_place {
             return Err(Error::usage(format!("output {} is the same as an input; use --in-place", path.display())));

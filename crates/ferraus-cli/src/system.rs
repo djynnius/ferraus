@@ -113,11 +113,24 @@ fn job_info(id: &str) -> Result<Value> {
     let d = job_dir(id)?;
     let meta: Value = serde_json::from_slice(&std::fs::read(d.join("job.json"))?)?;
     let result_path = d.join("result.json");
-    let result: Option<Value> = std::fs::read(&result_path).ok().and_then(|b| {
-        let s = String::from_utf8_lossy(&b).to_string();
-        s.lines().rev().find(|l| l.trim_start().starts_with('{')).and_then(|l| serde_json::from_str(l).ok())
-    });
+    let read_result = || -> Option<Value> {
+        std::fs::read(&result_path).ok().and_then(|b| {
+            let s = String::from_utf8_lossy(&b).to_string();
+            s.lines().rev().find(|l| l.trim_start().starts_with('{')).and_then(|l| serde_json::from_str(l).ok())
+        })
+    };
     let pid = meta["pid"].as_u64().unwrap_or(0) as u32;
+    let mut result = read_result();
+    // a job that just exited may not have its result visible yet: look again briefly
+    if result.is_none() && !(pid != 0 && pid_alive(pid)) {
+        for _ in 0..10 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            result = read_result();
+            if result.is_some() {
+                break;
+            }
+        }
+    }
     let cancelled = d.join("cancelled").exists();
     let state = if let Some(r) = &result {
         if r["ok"].as_bool() == Some(true) {

@@ -56,8 +56,14 @@ fn render_plugin(
 }
 
 /// Register cross-crate hooks once per process.
+fn resolve_external(name: &str) -> Result<Option<String>> {
+    let paths = SOUND_PATHS.get().cloned().unwrap_or_default();
+    Ok(ferraus_plugins::resolve::resolve_instrument(name, &paths)?.map(|r| r.sound.source()))
+}
+
 pub fn install() {
     ferraus_synth::set_plugin_offline_renderer(render_plugin);
+    ferraus_synth::set_external_resolver(resolve_external);
     install_transcription();
 }
 

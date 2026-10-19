@@ -253,7 +253,10 @@ fn presets_and_explain() {
 #[test]
 fn deterministic_runs_are_bit_identical() {
     let d = TempDir::new("cli-determinism");
-    let mix = testing::add(&testing::stereo(testing::sine(44100, 220.0, 2.0, 0.3)), &testing::stereo(testing::noise(44100, 2.0, 0.05, 3)));
+    let mix = testing::add(
+        &testing::stereo(testing::sine(44100, 220.0, 2.0, 0.3)),
+        &testing::stereo(testing::noise(44100, 2.0, 0.05, 3)),
+    );
     testing::write_wav(&d.path("in.wav"), &mix);
     let cases: &[&[&str]] = &[
         &["fx", "in.wav", "--fx", "compress", "--fx", "reverb", "--fx", "limit"],
@@ -279,7 +282,11 @@ fn deterministic_runs_are_bit_identical() {
 fn async_jobs_and_timeout() {
     let d = TempDir::new("cli-async");
     fixture(&d);
-    let out = bin().current_dir(&d.0).args(["gain", "tone.wav", "--by", "-3dB", "-o", "bg.wav", "--async", "--json"]).output().unwrap();
+    let out = bin()
+        .current_dir(&d.0)
+        .args(["gain", "tone.wav", "--by", "-3dB", "-o", "bg.wav", "--async", "--json"])
+        .output()
+        .unwrap();
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
     let id = v["job_id"].as_str().unwrap().to_string();
     let (code, v) = run_json(&d.0, &["jobs", "wait", &id]);
@@ -292,6 +299,22 @@ fn async_jobs_and_timeout() {
     // a job that cannot finish in time is cancelled with exit code 8
     let long = testing::stereo(testing::noise(44100, 30.0, 0.1, 1));
     testing::write_wav(&d.path("long.wav"), &long);
-    let out = bin().current_dir(&d.0).args(["fx", "long.wav", "-o", "slow.wav", "--fx", "reverb:decay=8s", "--fx", "tune", "--timeout", "100ms", "--json"]).output().unwrap();
+    let out = bin()
+        .current_dir(&d.0)
+        .args([
+            "fx",
+            "long.wav",
+            "-o",
+            "slow.wav",
+            "--fx",
+            "reverb:decay=8s",
+            "--fx",
+            "tune",
+            "--timeout",
+            "100ms",
+            "--json",
+        ])
+        .output()
+        .unwrap();
     assert_eq!(out.status.code(), Some(8), "{}", String::from_utf8_lossy(&out.stdout));
 }

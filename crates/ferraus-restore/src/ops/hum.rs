@@ -252,7 +252,9 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
         return Ok(buf);
     }
     let mono: Vec<f64> = buf.mono_mix().iter().map(|v| *v as f64).collect();
-    let est_h = nh.min(6);
+    // detection and frequency tracking always look at the first six harmonics, whatever
+    // --harmonics says about how many to notch
+    let est_h = 6;
     // analysis signal: decimated mono, at most the first 60 s for detection
     let (dec, dsr) = decimate(&mono, sr, 61.0 * (est_h as f64 + 0.5));
     let freq_arg = a.str_or("freq", "auto");

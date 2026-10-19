@@ -358,6 +358,18 @@ fn resolve_profile(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<Optio
             };
             let prof = profile::learn(buf, r.start, r.end, src)?;
             ctx.note("noise_region", region_json(&r, "auto"));
+            // the quietest region is (near) digital silence: there is no noise floor to learn,
+            // and gating against it would only cut the program
+            if prof.mean_level_db() < -90.0 {
+                ctx.warn(
+                    "no_noise_found",
+                    format!(
+                        "the quietest region is {:.0} dB (digital silence), so there is no steady noise to remove; the input was left unchanged. Pass --noise-range to point at the noise",
+                        prof.mean_level_db()
+                    ),
+                );
+                return Ok(None);
+            }
             Ok(Some(prof))
         }
     }

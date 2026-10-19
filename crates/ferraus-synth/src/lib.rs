@@ -22,8 +22,8 @@ pub use render::{
     PluginOfflineRenderer, RenderOptions, RenderReport, Scheduled, Selector, VelocityCurve,
 };
 pub use source::{
-    parse_source, read_aliases, scan_sound_folder, InstrumentSource, Resolved, Resolver, Sf2Preset, SoundEntry,
-    SoundKind,
+    parse_source, read_aliases, scan_sound_folder, set_external_resolver, ExternalResolver, InstrumentSource, Resolved,
+    Resolver, Sf2Preset, SoundEntry, SoundKind,
 };
 
 use ferraus_core::OpSpec;

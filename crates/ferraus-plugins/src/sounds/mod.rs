@@ -557,8 +557,22 @@ fn sounds_alias(a: &Args, _ctx: &mut OpCtx) -> Result<Value> {
     let mut warnings = Vec::new();
     let manifest = load_manifest(&env).ok();
     let installed = resolve::read_installed(&env);
+    // `lead=Ferraus Test Sine` arrives as one argument; words without '=' continue the
+    // previous target so names with spaces work
+    let mut pairs: Vec<String> = Vec::new();
     for assign in a.all("assignment") {
         for part in assign.split_whitespace().filter(|s| !s.is_empty()) {
+            match pairs.last_mut() {
+                Some(last) if !part.contains('=') => {
+                    last.push(' ');
+                    last.push_str(part);
+                }
+                _ => pairs.push(part.to_string()),
+            }
+        }
+    }
+    {
+        for part in pairs.iter().map(|s| s.as_str()) {
             let (k, v) = part.split_once('=').ok_or_else(|| {
                 Error::usage(format!("'{part}' must be name=target, e.g. piano=salamander-grand-piano"))
             })?;

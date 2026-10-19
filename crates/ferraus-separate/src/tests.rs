@@ -109,6 +109,11 @@ fn default_tier_without_models_is_exit_5_with_pull_hint() {
     let e = run(&r, &[], |_| {}).err().unwrap();
     assert_eq!(e.exit_code, 5, "{e}");
     assert_eq!(e.code, "model_not_cached");
+    // the default tier is auto: the best tier whose models are verified (fast today)
+    let hint = e.hint.unwrap();
+    assert!(hint.starts_with("ferraus models pull separate/htdemucs@"), "{hint}");
+    let e = run(&r, &[("tier", "quality")], |_| {}).err().unwrap();
+    assert_eq!(e.exit_code, 5, "{e}");
     let hint = e.hint.unwrap();
     assert!(hint.starts_with("ferraus models pull separate/mel-roformer-kj@2024.08 "), "{hint}");
     assert!(hint.contains("separate/htdemucs-ft-drums@v4-onnx.2026-05-21"));

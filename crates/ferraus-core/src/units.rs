@@ -187,8 +187,17 @@ pub struct TimeRange {
 impl TimeRange {
     pub fn parse(s: &str) -> Result<TimeRange> {
         let (a, b) = s.split_once("..").ok_or_else(|| err("range", s, "start..end, e.g. 0s..2s or 1:00..end"))?;
-        let start = if a.trim().is_empty() { Time::Start } else { Time::parse(a)? };
-        let end = if b.trim().is_empty() { Time::End } else { Time::parse(b)? };
+        let mut start = if a.trim().is_empty() { Time::Start } else { Time::parse(a)? };
+        let mut end = if b.trim().is_empty() { Time::End } else { Time::parse(b)? };
+        // `0b..4b@120`: a tempo written on one end applies to both
+        let tempo = |t: &Time| if let Time::Beats { bpm: Some(b), .. } = t { Some(*b) } else { None };
+        if let Some(b) = tempo(&end).or(tempo(&start)) {
+            for t in [&mut start, &mut end] {
+                if let Time::Beats { bpm: bpm @ None, .. } = t {
+                    *bpm = Some(b);
+                }
+            }
+        }
         Ok(TimeRange { start, end })
     }
 
@@ -590,6 +599,8 @@ mod tests {
         assert_eq!(r.frames(100, 1000, None).unwrap(), (0, 200));
         let r = TimeRange::parse("1:00..end").unwrap();
         assert_eq!(r.frames(10, 1000, None).unwrap(), (600, 1000));
+        let r = TimeRange::parse("0b..4b@120").unwrap();
+        assert_eq!(r.frames(48000, 10_000_000, None).unwrap(), (0, 96000));
         let r = TimeRange::parse("3s..1s").unwrap();
         assert!(r.frames(10, 1000, None).is_err());
     }

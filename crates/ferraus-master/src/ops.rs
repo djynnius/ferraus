@@ -61,7 +61,7 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("report", ParamKind::Path).help("Write the before/after report (JSON) here"))
             .param(param("ab", ParamKind::Flag).help("Also write a loudness-matched before/after pair (within 0.2 LU) for listening: <output>.ab-before.wav and <output>.ab-after.wav"))
             .param(param("plan", ParamKind::Path).help("Run this (edited) plan instead of planning: the JSON from 'master plan'"))
-            .param(param("stems", ParamKind::Flag).help("Best-effort stem-aware mastering: separate --tier quality, per-stem chains, then sum and master"))
+            .param(param("stems", ParamKind::Flag).help("Best-effort stem-aware mastering: separate (best verified tier), per-stem chains, then sum and master"))
             .example("ferraus master mix.wav -o master.wav", "Master for streaming (-14 LUFS, -1 dBTP) with every default")
             .example("ferraus master mix.wav --plan plan.json -o master_v1.wav --report r1.json", "Run an edited plan and write the before/after report")
             .example("ferraus master mix.wav --reference ref.wav --match-amount 75% --ab -o master.wav", "Move toward a reference's tonal balance and write an A/B pair")
@@ -583,7 +583,7 @@ fn master_deliver(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         let path: PathBuf = deliverable_path(ctx, f)?;
         let eo = deliver::encode_options(f, ctx, &tags);
         ctx.write_audio_with(&path, &buf, Some(f.key), &eo)?;
-        let (measured, how) = if !ctx.globals.dry_run {
+        let (mut measured, how) = if !ctx.globals.dry_run {
             match ctx.io.read(&path) {
                 Ok((b, _)) => (b, "decoded deliverable"),
                 Err(_) => (buf.clone(), "before encoding"),
@@ -591,6 +591,35 @@ fn master_deliver(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         } else {
             (buf.clone(), "before encoding")
         };
+        // lossy codecs add inter-sample overshoot: if the decoded file peaks above the master,
+        // trim the level by the overshoot and encode once more
+        if f.bitrate.is_some() && how == "decoded deliverable" {
+            let tp_master = ferraus_analysis::loudness::true_peak_db(&buf);
+            let tp_coded = ferraus_analysis::loudness::true_peak_db(&measured);
+            if tp_master.is_finite() && tp_coded > tp_master + 0.02 {
+                let trim = (tp_coded - tp_master + 0.1) as f32;
+                let mut quieter = buf.clone();
+                quieter.scale(10f32.powf(-trim / 20.0));
+                ctx.outputs.pop();
+                let mut eo2 = eo.clone();
+                eo2.tags = eo.tags.clone();
+                let mut g = ctx.globals.clone();
+                g.overwrite = true;
+                let saved = std::mem::replace(&mut ctx.globals, g);
+                let r = ctx.write_audio_with(&path, &quieter, Some(f.key), &eo2);
+                ctx.globals = saved;
+                r?;
+                if let Ok((b, _)) = ctx.io.read(&path) {
+                    measured = b;
+                }
+                ctx.note(
+                    &format!("{}_trim", f.key),
+                    format!(
+                        "-{trim:.2} dB so the encoded true peak stays at or below the master's {tp_master:.2} dBTP"
+                    ),
+                );
+            }
+        }
         let mut row = deliver::measure_row(f.key, &path, &measured, f.bit_depth, eo.bitrate, how);
         if let Some(n) = note {
             row["note"] = json!(n);

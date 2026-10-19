@@ -255,15 +255,37 @@ fn silence_trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuff
     let thr_db = a.db("threshold")?;
     let thr = db_to_lin(thr_db) as f32;
     let keep = util::duration_frames(a, "keep", sr, bpm)?;
-    let first = (0..n).find(|&i| util::frame_mag(&buf, i) > thr);
-    let last = (0..n).rev().find(|&i| util::frame_mag(&buf, i) > thr);
-    let (first, last) = match (first, last) {
-        (Some(f), Some(l)) => (f, l),
-        _ => {
-            ctx.warn("all_silent", format!("nothing in the input is above {thr_db} dB; it was left unchanged"));
-            return Ok(buf);
+    // the same 10 ms RMS measure as `silence detect`, so both agree on what is silent
+    let regions = detect_silence(&buf, thr_db, (0.01 * sr as f64) as usize);
+    if regions.len() == 1 && regions[0].start == 0 && regions[0].end >= n {
+        ctx.warn("all_silent", format!("nothing in the input is above {thr_db} dB; it was left unchanged"));
+        return Ok(buf);
+    }
+    // locate edges with the windowed measure, then refine to the first/last sample above the
+    // threshold within one window of that boundary (sample-accurate, noise-robust)
+    let win = (0.01 * sr as f64) as usize;
+    let first = match regions.iter().find(|r| r.start == 0) {
+        Some(r) => {
+            let from = r.end.saturating_sub(win);
+            (from..n).find(|&i| util::frame_mag(&buf, i) > thr).unwrap_or(r.end).min(r.end + win)
         }
+        None => 0,
     };
+    let last = match regions.iter().find(|r| r.end >= n && r.start > 0) {
+        Some(r) => {
+            let to = (r.start + win).min(n);
+            (0..to)
+                .rev()
+                .find(|&i| util::frame_mag(&buf, i) > thr)
+                .unwrap_or(r.start.saturating_sub(1))
+                .max(r.start.saturating_sub(win))
+        }
+        None => n - 1,
+    };
+    if first > last {
+        ctx.warn("all_silent", format!("nothing in the input is above {thr_db} dB; it was left unchanged"));
+        return Ok(buf);
+    }
     let s = first.saturating_sub(keep);
     let e = (last + 1 + keep).min(n);
     let mut out = buf.slice(s, e);

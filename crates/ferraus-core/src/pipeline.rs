@@ -211,6 +211,10 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
     let registry = ctx.registry.ok_or_else(|| Error::internal("pipeline needs a registry"))?;
     validate(p, registry)?;
     let order = topo_order(p)?;
+    // refuse output conflicts before computing anything
+    for o in &p.outputs {
+        ctx.prepare_output(&resolve_path(base_dir, &o.path))?;
+    }
     let cache_root = crate::paths::pipeline_cache_dir();
     std::fs::create_dir_all(&cache_root)?;
 
@@ -351,9 +355,22 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
         if let Some(b) = o.encode.get("bitrate").and_then(|v| v.as_str()) {
             opts.bitrate = Some(crate::units::parse_bitrate(b)?);
         }
+        if let Some(f) = o.encode.get("format").and_then(|v| v.as_str()) {
+            opts.format = Some(f.to_string());
+        }
         let mut buf = buf;
-        if let Some(sr) = o.encode.get("sample_rate").and_then(|v| v.as_u64()) {
+        let num =
+            |k: &str| o.encode.get(k).and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())));
+        if let Some(sr) = num("sample_rate") {
             buf = crate::resample::resample(&buf, sr as u32, crate::resample::Quality::High);
+        }
+        if let Some(ch) = num("channels") {
+            buf = buf.with_channels(ch as usize);
+        }
+        for k in o.encode.keys() {
+            if !["bit_depth", "bitrate", "sample_rate", "channels", "format"].contains(&k.as_str()) {
+                ctx.warn("unknown_output_key", format!("output '{}': '{k}' is not an output option (bit_depth, bitrate, sample_rate, channels, format)", o.path));
+            }
         }
         ctx.write_audio_with(&dest, &buf, Some(&o.from), &opts)?;
         report.outputs.push(json!({"from": o.from, "path": dest.display().to_string()}));
