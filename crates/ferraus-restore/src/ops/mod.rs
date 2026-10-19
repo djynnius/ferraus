@@ -3,6 +3,7 @@
 pub mod automation;
 pub mod chains;
 pub mod clicks;
+pub mod dereverb;
 pub mod filters;
 pub mod generate;
 pub mod hum;

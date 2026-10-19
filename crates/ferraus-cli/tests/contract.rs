@@ -133,7 +133,9 @@ fn audition_coverage_map_commands_exist() {
             if words.is_empty() {
                 continue;
             }
-            if resolve_command(&reg, &words).is_none() {
+            let group = words.join(" ") + " ";
+            let is_group = reg.ops().iter().any(|o| o.name.starts_with(&group));
+            if resolve_command(&reg, &words).is_none() && !is_group {
                 missing.push(format!("{} (for {})", span, cols[1]));
             }
         }

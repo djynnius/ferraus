@@ -22,6 +22,7 @@ pub fn ops() -> Vec<OpSpec> {
     let mut v = Vec::new();
     v.extend(ops::clicks::ops());
     v.extend(ops::hum::ops());
+    v.extend(ops::dereverb::ops());
     v.extend(ops::spectral::ops());
     v.extend(ops::stereo::ops());
     v.extend(ops::level::ops());
@@ -106,6 +107,7 @@ mod tests {
             "generate silence",
             "band-split",
             "channels mix",
+            "dereverb",
         ];
         for name in expected {
             assert!(r.get(name).is_some(), "missing op {name}");
