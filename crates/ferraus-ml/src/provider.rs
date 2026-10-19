@@ -16,12 +16,7 @@ pub enum Provider {
 }
 
 /// The automatic order from the PRD.
-pub const AUTO_ORDER: [Provider; 4] = [
-    Provider::Cuda,
-    Provider::CoreMl,
-    Provider::DirectMl,
-    Provider::Cpu,
-];
+pub const AUTO_ORDER: [Provider; 4] = [Provider::Cuda, Provider::CoreMl, Provider::DirectMl, Provider::Cpu];
 
 impl Provider {
     pub fn name(self) -> &'static str {
@@ -92,13 +87,7 @@ pub fn select<T>(
     let mut last = String::new();
     for (i, p) in order.iter().enumerate() {
         match init(*p) {
-            Ok(value) => {
-                return Ok(Selected {
-                    value,
-                    provider: *p,
-                    warnings,
-                })
-            }
+            Ok(value) => return Ok(Selected { value, provider: *p, warnings }),
             Err(e) => {
                 let next = order.get(i + 1).map(|n| n.name()).unwrap_or("nothing");
                 warnings.push(format!(
@@ -109,9 +98,7 @@ pub fn select<T>(
             }
         }
     }
-    Err(Error::processing(format!(
-        "no execution provider could load the model: {last}"
-    )))
+    Err(Error::processing(format!("no execution provider could load the model: {last}")))
 }
 
 #[cfg(test)]
@@ -125,14 +112,8 @@ mod tests {
     #[test]
     fn auto_order_and_pinning() {
         assert_eq!(candidates("auto", false, &all).unwrap(), AUTO_ORDER.to_vec());
-        assert_eq!(
-            candidates("auto", false, &|p| p == Provider::Cpu).unwrap(),
-            vec![Provider::Cpu]
-        );
-        assert_eq!(
-            candidates("cuda", false, &|p| p == Provider::Cpu).unwrap(),
-            vec![Provider::Cuda, Provider::Cpu]
-        );
+        assert_eq!(candidates("auto", false, &|p| p == Provider::Cpu).unwrap(), vec![Provider::Cpu]);
+        assert_eq!(candidates("cuda", false, &|p| p == Provider::Cpu).unwrap(), vec![Provider::Cuda, Provider::Cpu]);
         assert_eq!(candidates("cpu", false, &all).unwrap(), vec![Provider::Cpu]);
         assert_eq!(candidates("auto", true, &all).unwrap(), vec![Provider::Cpu]);
         assert!(candidates("tpu", false, &all).is_err());
@@ -164,14 +145,8 @@ mod tests {
     #[test]
     fn pinned_failure_warns_then_cpu() {
         let order = candidates("cuda", false, &|_| false).unwrap();
-        let sel = select(&order, |p| {
-            if p == Provider::Cuda {
-                Err("not compiled".to_string())
-            } else {
-                Ok(p)
-            }
-        })
-        .unwrap();
+        let sel =
+            select(&order, |p| if p == Provider::Cuda { Err("not compiled".to_string()) } else { Ok(p) }).unwrap();
         assert_eq!(sel.provider, Provider::Cpu);
         assert_eq!(sel.warnings.len(), 1);
     }

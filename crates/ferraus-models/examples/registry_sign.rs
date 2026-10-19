@@ -33,10 +33,7 @@ fn main() {
             let manifest = args.get(1).expect("usage: sign <manifest.json>");
             let key_hex = std::env::var("FERRAUS_REGISTRY_SIGNING_KEY")
                 .expect("FERRAUS_REGISTRY_SIGNING_KEY must hold the hex secret key (CI secret)");
-            let bytes: [u8; 32] = hex::decode(key_hex.trim())
-                .expect("hex key")
-                .try_into()
-                .expect("32-byte key");
+            let bytes: [u8; 32] = hex::decode(key_hex.trim()).expect("hex key").try_into().expect("32-byte key");
             let sk = SigningKey::from_bytes(&bytes);
             let body = std::fs::read(manifest).expect("read manifest");
             let sig = sk.sign(&body);
@@ -46,17 +43,11 @@ fn main() {
         }
         Some("verify") => {
             let manifest = args.get(1).expect("usage: verify <manifest> [<sig>]");
-            let sig_path = args
-                .get(2)
-                .cloned()
-                .unwrap_or_else(|| format!("{manifest}.sig"));
+            let sig_path = args.get(2).cloned().unwrap_or_else(|| format!("{manifest}.sig"));
             let body = std::fs::read(manifest).expect("read manifest");
             let sig = std::fs::read_to_string(sig_path).expect("read sig");
-            match ferraus_models::manifest::parse_signed(
-                &ferraus_models::manifest::embedded_public_key(),
-                &body,
-                &sig,
-            ) {
+            match ferraus_models::manifest::parse_signed(&ferraus_models::manifest::embedded_public_key(), &body, &sig)
+            {
                 Ok(m) => println!("ok: {} models", m.models.len()),
                 Err(e) => {
                     eprintln!("{e}");
@@ -73,10 +64,7 @@ fn main() {
 
 fn seed() -> [u8; 32] {
     if let Ok(h) = std::env::var("FERRAUS_KEYGEN_SEED_HEX") {
-        return hex::decode(h.trim())
-            .expect("hex seed")
-            .try_into()
-            .expect("32-byte seed");
+        return hex::decode(h.trim()).expect("hex seed").try_into().expect("32-byte seed");
     }
     let mut s = [0u8; 32];
     std::fs::File::open("/dev/urandom")

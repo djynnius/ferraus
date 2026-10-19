@@ -22,11 +22,7 @@ pub struct SessionOptions {
 
 impl Default for SessionOptions {
     fn default() -> Self {
-        SessionOptions {
-            device: "auto".into(),
-            deterministic: false,
-            threads: 0,
-        }
+        SessionOptions { device: "auto".into(), deterministic: false, threads: 0 }
     }
 }
 
@@ -73,26 +69,15 @@ pub struct TensorF32 {
 
 impl TensorF32 {
     pub fn new(name: &str, shape: Vec<i64>, data: Vec<f32>) -> TensorF32 {
-        TensorF32 {
-            name: name.to_string(),
-            shape,
-            data,
-        }
+        TensorF32 { name: name.to_string(), shape, data }
     }
 }
 
 fn environment() -> Result<&'static ort::environment::Environment> {
-    static ENV: OnceLock<std::result::Result<ort::environment::Environment, String>> =
-        OnceLock::new();
-    ENV.get_or_init(|| {
-        ort::init()
-            .with_name("ferraus")
-            .with_telemetry(false)
-            .build()
-            .map_err(|e| e.to_string())
-    })
-    .as_ref()
-    .map_err(|e| Error::processing(format!("ONNX Runtime failed to start: {e}")))
+    static ENV: OnceLock<std::result::Result<ort::environment::Environment, String>> = OnceLock::new();
+    ENV.get_or_init(|| ort::init().with_name("ferraus").with_telemetry(false).build().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|e| Error::processing(format!("ONNX Runtime failed to start: {e}")))
 }
 
 type CacheKey = (PathBuf, SessionOptions);
@@ -131,14 +116,18 @@ fn register(
     use ort::ep;
     let s = |e: ort::Error<ort::session::builder::SessionBuilder>| e.to_string();
     match provider {
+        // `ort` sets a "max efficiency" automatic device policy on every new builder, which
+        // silently picks CoreML/NPU devices; the CPU EP registration does not append a
+        // provider, so the policy must be reset explicitly or "cpu" would not mean CPU.
         Provider::Cpu => b
+            .with_auto_device(ort::session::builder::AutoDevicePolicy::Default)
+            .map_err(s)?
             .with_execution_providers([ep::CPU::default().build().error_on_failure()])
             .map_err(s),
         Provider::Cuda => {
             #[cfg(feature = "cuda")]
             {
-                b.with_execution_providers([ep::CUDA::default().build().error_on_failure()])
-                    .map_err(s)
+                b.with_execution_providers([ep::CUDA::default().build().error_on_failure()]).map_err(s)
             }
             #[cfg(not(feature = "cuda"))]
             {
@@ -149,8 +138,7 @@ fn register(
         Provider::CoreMl => {
             #[cfg(any(feature = "coreml", target_os = "macos"))]
             {
-                b.with_execution_providers([ep::CoreML::default().build().error_on_failure()])
-                    .map_err(s)
+                b.with_execution_providers([ep::CoreML::default().build().error_on_failure()]).map_err(s)
             }
             #[cfg(not(any(feature = "coreml", target_os = "macos")))]
             {
@@ -161,8 +149,7 @@ fn register(
         Provider::DirectMl => {
             #[cfg(any(feature = "directml", windows))]
             {
-                b.with_execution_providers([ep::DirectML::default().build().error_on_failure()])
-                    .map_err(s)
+                b.with_execution_providers([ep::DirectML::default().build().error_on_failure()]).map_err(s)
             }
             #[cfg(not(any(feature = "directml", windows)))]
             {
@@ -176,10 +163,7 @@ fn register(
 /// Load (or reuse) a session for `path`, selecting a provider with fallback. Returns the
 /// session and the fallback warnings (only on first load).
 pub fn load(path: &Path, opts: &SessionOptions) -> Result<(Arc<ModelSession>, Vec<String>)> {
-    let key = (
-        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
-        opts.clone(),
-    );
+    let key = (std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()), opts.clone());
     if let Some(s) = cache().lock().expect("session cache").get(&key) {
         return Ok((s.clone(), Vec::new()));
     }
@@ -194,12 +178,7 @@ pub fn load(path: &Path, opts: &SessionOptions) -> Result<(Arc<ModelSession>, Ve
     let input_shapes = session
         .inputs()
         .iter()
-        .map(|i| {
-            i.dtype()
-                .tensor_shape()
-                .map(|s| s.iter().copied().collect())
-                .unwrap_or_default()
-        })
+        .map(|i| i.dtype().tensor_shape().map(|s| s.iter().copied().collect()).unwrap_or_default())
         .collect();
     let ms = Arc::new(ModelSession {
         session: Mutex::new(session),
@@ -209,10 +188,7 @@ pub fn load(path: &Path, opts: &SessionOptions) -> Result<(Arc<ModelSession>, Ve
         output_names,
         input_shapes,
     });
-    cache()
-        .lock()
-        .expect("session cache")
-        .insert(key, ms.clone());
+    cache().lock().expect("session cache").insert(key, ms.clone());
     Ok((ms, sel.warnings))
 }
 
@@ -243,22 +219,14 @@ impl ModelSession {
             values.push((t.name, tensor.into()));
         }
         let mut session = self.session.lock().expect("session lock");
-        let outputs = session
-            .run(values)
-            .map_err(|e| Error::processing(format!("model inference failed: {e}")))?;
+        let outputs = session.run(values).map_err(|e| Error::processing(format!("model inference failed: {e}")))?;
         let mut out = Vec::new();
         for name in &self.output_names {
-            let v = outputs
-                .get(name)
-                .ok_or_else(|| Error::processing(format!("model produced no output '{name}'")))?;
+            let v = outputs.get(name).ok_or_else(|| Error::processing(format!("model produced no output '{name}'")))?;
             let (shape, data) = v
                 .try_extract_tensor::<f32>()
                 .map_err(|e| Error::processing(format!("output {name} is not f32: {e}")))?;
-            out.push(TensorF32 {
-                name: name.clone(),
-                shape: shape.iter().copied().collect(),
-                data: data.to_vec(),
-            });
+            out.push(TensorF32 { name: name.clone(), shape: shape.iter().copied().collect(), data: data.to_vec() });
         }
         Ok(out)
     }

@@ -42,11 +42,7 @@ pub fn run_waveform_chunked(
     plan: &ChunkPlan,
     tick: &mut dyn FnMut(usize, usize) -> Result<()>,
 ) -> Result<Block> {
-    let name = session
-        .input_names
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "input".into());
+    let name = session.input_names.first().cloned().unwrap_or_else(|| "input".into());
     let channels = input.len();
     let mut f = |w: &[Vec<f32>], _k: usize| -> Result<Block> {
         let t = w.first().map(|c| c.len()).unwrap_or(0);
@@ -54,15 +50,8 @@ pub fn run_waveform_chunked(
         for c in w {
             data.extend_from_slice(c);
         }
-        let out = session.run(vec![TensorF32::new(
-            &name,
-            vec![1, channels as i64, t as i64],
-            data,
-        )])?;
-        let o = out
-            .into_iter()
-            .next()
-            .ok_or_else(|| ferraus_core::Error::processing("model has no outputs"))?;
+        let out = session.run(vec![TensorF32::new(&name, vec![1, channels as i64, t as i64], data)])?;
+        let o = out.into_iter().next().ok_or_else(|| ferraus_core::Error::processing("model has no outputs"))?;
         split_output(&o, t)
     };
     overlap_add(input, plan, &mut f, tick)
@@ -98,11 +87,7 @@ mod tests {
     use ferraus_core::testing::TempDir;
 
     fn cpu() -> SessionOptions {
-        SessionOptions {
-            device: "cpu".into(),
-            deterministic: true,
-            threads: 1,
-        }
+        SessionOptions { device: "cpu".into(), deterministic: true, threads: 1 }
     }
 
     #[test]
@@ -113,9 +98,7 @@ mod tests {
         let (s, warnings) = load(&p, &cpu()).unwrap();
         assert!(warnings.is_empty());
         assert_eq!(s.provider, Provider::Cpu);
-        let out = s
-            .run(vec![TensorF32::new("x", vec![1, 2, 3], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])])
-            .unwrap();
+        let out = s.run(vec![TensorF32::new("x", vec![1, 2, 3], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0])]).unwrap();
         assert_eq!(out[0].shape, vec![1, 2, 3]);
         assert_eq!(out[0].data, vec![0.5, 1.0, 1.5, 2.0, 2.5, 3.0]);
         // session cache: same path + options → same session
@@ -173,10 +156,7 @@ mod tests {
                 continue;
             }
             let local = energy(b - 32, b + 32);
-            assert!(
-                (local / global - 1.0).abs() < 0.25,
-                "boundary {b}: local HF energy {local} vs global {global}"
-            );
+            assert!((local / global - 1.0).abs() < 0.25, "boundary {b}: local HF energy {local} vs global {global}");
         }
     }
 
@@ -217,10 +197,7 @@ mod tests {
         let dir = TempDir::new("ml-dev");
         let p = dir.path("gain.onnx");
         std::fs::write(&p, onnx_proto::gain_model(1, 1.0)).unwrap();
-        let bad = SessionOptions {
-            device: "tpu".into(),
-            ..cpu()
-        };
+        let bad = SessionOptions { device: "tpu".into(), ..cpu() };
         assert!(load(&p, &bad).is_err());
     }
 
@@ -233,11 +210,7 @@ mod tests {
         if Provider::Cuda.compiled() {
             return;
         }
-        let opts = SessionOptions {
-            device: "cuda".into(),
-            deterministic: false,
-            threads: 1,
-        };
+        let opts = SessionOptions { device: "cuda".into(), deterministic: false, threads: 1 };
         let (s, warnings) = load(&p, &opts).unwrap();
         assert_eq!(s.provider, Provider::Cpu);
         assert_eq!(warnings.len(), 1);

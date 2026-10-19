@@ -6,9 +6,7 @@
 
 use crate::cache::{max_cache_bytes, Cache, LockEntry};
 use crate::download::{download, DownloadRequest};
-use crate::manifest::{
-    embedded_public_key, parse_signed, Entry, Manifest, Status,
-};
+use crate::manifest::{embedded_public_key, parse_signed, Entry, Manifest, Status};
 use crate::spec::ModelSpec;
 use ferraus_core::{Error, ErrorKind, OpCtx, Result};
 use std::path::PathBuf;
@@ -99,42 +97,25 @@ pub struct Active {
 /// from the embedded manifest (updates never change behavior silently).
 pub fn active_registry(cache: &Cache) -> Active {
     if let Some(m) = read_signed(&pinned_manifest_path(cache)) {
-        return Active {
-            manifest: m,
-            source: "pinned",
-        };
+        return Active { manifest: m, source: "pinned" };
     }
     let mut m = Manifest::embedded();
     if let Some(updated) = read_signed(&updated_manifest_path(cache)) {
         for e in updated.models {
-            if !m
-                .models
-                .iter()
-                .any(|x| x.name == e.name && x.version == e.version)
-            {
+            if !m.models.iter().any(|x| x.name == e.name && x.version == e.version) {
                 m.models.push(e);
             }
         }
-        return Active {
-            manifest: m,
-            source: "embedded+updated",
-        };
+        return Active { manifest: m, source: "embedded+updated" };
     }
-    Active {
-        manifest: m,
-        source: "embedded",
-    }
+    Active { manifest: m, source: "embedded" }
 }
 
 pub fn ensure_model(ctx: &mut OpCtx, name: &str) -> Result<CachedModel> {
     ensure_model_with(ctx, name, &EnsureOptions::default())
 }
 
-pub fn ensure_model_with(
-    ctx: &mut OpCtx,
-    name: &str,
-    opts: &EnsureOptions,
-) -> Result<CachedModel> {
+pub fn ensure_model_with(ctx: &mut OpCtx, name: &str, opts: &EnsureOptions) -> Result<CachedModel> {
     let cache = opts.cache.clone().unwrap_or_else(Cache::default_root);
     let manifest = match &opts.manifest {
         Some(m) => m.clone(),
@@ -142,10 +123,7 @@ pub fn ensure_model_with(
     };
     let entry = manifest.resolve(name)?.clone();
     if entry.is_builtin() {
-        return Err(Error::usage(format!(
-            "{} is built into ferraus and has no model file",
-            entry.name
-        )));
+        return Err(Error::usage(format!("{} is built into ferraus and has no model file", entry.name)));
     }
     check_license(ctx, &cache, &entry, opts.accept_license)?;
     let rec = match cache.cached(&entry) {
@@ -165,11 +143,7 @@ pub fn ensure_model_with(
         }
     };
     ctx.model_used(&entry.name, &entry.version, &rec.sha256);
-    Ok(CachedModel {
-        path: cache.root.join(&rec.path),
-        spec: ModelSpec::from_entry(&entry),
-        entry,
-    })
+    Ok(CachedModel { path: cache.root.join(&rec.path), spec: ModelSpec::from_entry(&entry), entry })
 }
 
 /// Research-only licenses need `--accept-license` once; unclear licenses warn.
@@ -208,11 +182,7 @@ pub fn check_license(ctx: &mut OpCtx, cache: &Cache, e: &Entry, accept: bool) ->
 /// Download, verify, and record one entry (explicit or policy-approved).
 pub fn install(ctx: &mut OpCtx, cache: &Cache, e: &Entry) -> Result<LockEntry> {
     if offline(ctx) {
-        return Err(Error::new(
-            ErrorKind::Network,
-            "offline",
-            format!("--offline is set; cannot download {}", e.id()),
-        ));
+        return Err(Error::new(ErrorKind::Network, "offline", format!("--offline is set; cannot download {}", e.id())));
     }
     if e.is_builtin() {
         return Err(Error::usage(format!("{} is built in; nothing to download", e.name)));
@@ -239,14 +209,8 @@ pub fn install(ctx: &mut OpCtx, cache: &Cache, e: &Entry) -> Result<LockEntry> {
             format!("{} has no download URL yet", e.id()),
         ));
     }
-    let size = e
-        .size_bytes
-        .map(human_bytes)
-        .unwrap_or_else(|| "unknown size".into());
-    ctx.warn(
-        "model_download",
-        format!("downloading {} ({size}, license {})", e.id(), e.license.label()),
-    );
+    let size = e.size_bytes.map(human_bytes).unwrap_or_else(|| "unknown size".into());
+    ctx.warn("model_download", format!("downloading {} ({size}, license {})", e.id(), e.license.label()));
     if ctx.globals.dry_run {
         return Err(Error::new(
             ErrorKind::ModelNotCached,
@@ -271,11 +235,7 @@ pub fn install(ctx: &mut OpCtx, cache: &Cache, e: &Entry) -> Result<LockEntry> {
     if e.sha256.is_none() {
         ctx.warn(
             "model_unverified",
-            format!(
-                "{} was downloaded without hash verification (sha256 {})",
-                e.id(),
-                report.sha256
-            ),
+            format!("{} was downloaded without hash verification (sha256 {})", e.id(), report.sha256),
         );
     }
     let mut spec = ModelSpec::from_entry(e);
@@ -285,10 +245,7 @@ pub fn install(ctx: &mut OpCtx, cache: &Cache, e: &Entry) -> Result<LockEntry> {
     let budget = max_cache_bytes();
     let pruned = cache.prune_lru(budget, &[e.id()])?;
     if !pruned.is_empty() {
-        let names: Vec<String> = pruned
-            .iter()
-            .map(|p| format!("{}@{}", p.name, p.version))
-            .collect();
+        let names: Vec<String> = pruned.iter().map(|p| format!("{}@{}", p.name, p.version)).collect();
         ctx.warn(
             "model_cache_pruned",
             format!(
@@ -329,12 +286,7 @@ mod tests {
         e.sha256 = Some(hex::encode(sha2::Sha256::digest(data)));
         e.size_bytes = Some(data.len() as u64);
         e.status = Status::Verified;
-        e.license = License {
-            spdx: Some("MIT".into()),
-            url: None,
-            commercial_use: Some(true),
-            note: None,
-        };
+        e.license = License { spdx: Some("MIT".into()), url: None, commercial_use: Some(true), note: None };
         e
     }
 
@@ -394,9 +346,10 @@ mod tests {
         assert!(m.path.ends_with("separate/test-model/1/model.onnx"));
         assert!(m.path.with_file_name("spec.json").exists());
         assert_eq!(ctx.models.len(), 1);
-        assert!(ctx.warnings.iter().any(|w| w.code == "model_download"
-            && w.message.contains("20.0 kB")
-            && w.message.contains("MIT")));
+        assert!(ctx
+            .warnings
+            .iter()
+            .any(|w| w.code == "model_download" && w.message.contains("20.0 kB") && w.message.contains("MIT")));
         let lock = Cache::new(dir.0.clone()).load_lock();
         assert_eq!(lock.models.len(), 1);
         // second call: cached, no network (server not hit again), works offline

@@ -75,16 +75,12 @@ impl ModelSpec {
 
     /// Window length in samples at the model rate (`None` = whole input in one pass).
     pub fn chunk_len(&self) -> Option<usize> {
-        self.chunk_samples.or_else(|| {
-            self.chunk_seconds
-                .map(|s| (s * self.sample_rate as f64).round() as usize)
-        })
+        self.chunk_samples.or_else(|| self.chunk_seconds.map(|s| (s * self.sample_rate as f64).round() as usize))
     }
 
     pub fn load(path: &Path) -> Result<ModelSpec> {
         let bytes = std::fs::read(path)?;
-        serde_json::from_slice(&bytes)
-            .map_err(|e| Error::usage(format!("{}: invalid model spec: {e}", path.display())))
+        serde_json::from_slice(&bytes).map_err(|e| Error::usage(format!("{}: invalid model spec: {e}", path.display())))
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {

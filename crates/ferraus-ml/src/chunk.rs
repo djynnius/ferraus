@@ -29,11 +29,7 @@ impl ChunkPlan {
     /// `overlap` is a fraction of the valid region (`--overlap 25%` → 0.25).
     pub fn new(window: usize, overlap: f64, context: usize) -> Result<ChunkPlan> {
         if window == 0 {
-            return Ok(ChunkPlan {
-                window: 0,
-                overlap: 0,
-                context: 0,
-            });
+            return Ok(ChunkPlan { window: 0, overlap: 0, context: 0 });
         }
         if window <= 2 * context + 1 {
             return Err(Error::usage(format!(
@@ -45,19 +41,11 @@ impl ChunkPlan {
         }
         let valid = window - 2 * context;
         let ov = ((valid as f64) * overlap).round() as usize;
-        Ok(ChunkPlan {
-            window,
-            overlap: ov.min(valid - 1),
-            context,
-        })
+        Ok(ChunkPlan { window, overlap: ov.min(valid - 1), context })
     }
 
     pub fn whole() -> ChunkPlan {
-        ChunkPlan {
-            window: 0,
-            overlap: 0,
-            context: 0,
-        }
+        ChunkPlan { window: 0, overlap: 0, context: 0 }
     }
 
     pub fn valid(&self) -> usize {
@@ -103,9 +91,7 @@ impl ChunkPlan {
         if l == 0 {
             return 1.0;
         }
-        let ramp = |j: usize| {
-            (0.5 - 0.5 * (std::f64::consts::PI * (j as f64 + 0.5) / l as f64).cos()) as f32
-        };
+        let ramp = |j: usize| (0.5 - 0.5 * (std::f64::consts::PI * (j as f64 + 0.5) / l as f64).cos()) as f32;
         if i < l {
             ramp(i)
         } else if i >= v - l {
@@ -145,20 +131,12 @@ pub fn overlap_add(
         for (c, ch) in input.iter().enumerate() {
             for (i, w) in window[c].iter_mut().enumerate() {
                 let idx = start + i as isize;
-                *w = if idx >= 0 && (idx as usize) < n {
-                    ch[idx as usize]
-                } else {
-                    0.0
-                };
+                *w = if idx >= 0 && (idx as usize) < n { ch[idx as usize] } else { 0.0 };
             }
         }
         let out = f(&window, k)?;
         check_block(&out, plan.window)?;
-        let acc = acc.get_or_insert_with(|| {
-            out.iter()
-                .map(|o| vec![vec![0f32; n]; o.len()])
-                .collect()
-        });
+        let acc = acc.get_or_insert_with(|| out.iter().map(|o| vec![vec![0f32; n]; o.len()]).collect());
         if acc.len() != out.len() || acc.iter().zip(&out).any(|(a, o)| a.len() != o.len()) {
             return Err(Error::processing("model output shape changed between windows"));
         }
@@ -195,10 +173,7 @@ fn check_block(b: &Block, len: usize) -> Result<()> {
     for o in b {
         for c in o {
             if c.len() != len {
-                return Err(Error::processing(format!(
-                    "model returned {} samples for a window of {len}",
-                    c.len()
-                )));
+                return Err(Error::processing(format!("model returned {} samples for a window of {len}", c.len())));
             }
         }
     }
@@ -259,12 +234,8 @@ mod tests {
         for (window, ov, ctx) in [(1000usize, 0.25, 8usize), (777, 0.5, 4), (512, 0.0, 6), (20_000, 0.25, 8)] {
             let p = ChunkPlan::new(window, ov, ctx).unwrap();
             let mut f = |w: &[Vec<f32>], _k: usize| -> Result<Block> { Ok(vec![vec![conv(&w[0], &k)]]) };
-            let out = overlap_add(&[x.clone()], &p, &mut f, &mut |_, _| Ok(())).unwrap();
-            let err = out[0][0]
-                .iter()
-                .zip(&whole)
-                .map(|(a, b)| (a - b).abs())
-                .fold(0f32, f32::max);
+            let out = overlap_add(std::slice::from_ref(&x), &p, &mut f, &mut |_, _| Ok(())).unwrap();
+            let err = out[0][0].iter().zip(&whole).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
             assert!(err < 1e-5, "window {window}: max err {err}");
         }
     }

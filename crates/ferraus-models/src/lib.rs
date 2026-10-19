@@ -14,8 +14,8 @@ pub mod spec;
 
 pub use cache::Cache;
 pub use ensure::{
-    active_registry, downloads_allowed, ensure_model, ensure_model_with, not_cached_error,
-    offline, CachedModel, EnsureOptions,
+    active_registry, downloads_allowed, ensure_model, ensure_model_with, not_cached_error, offline, CachedModel,
+    EnsureOptions,
 };
 pub use manifest::{Entry, License, Manifest, Member, Status, TensorSpec, TierSpec};
 pub use spec::ModelSpec;

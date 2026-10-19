@@ -3,8 +3,8 @@
 use crate::cache::Cache;
 use crate::download::{get_bytes, sha256_file};
 use crate::ensure::{
-    active_registry, check_license, human_bytes, install, offline, pinned_manifest_path,
-    sig_path, updated_manifest_path,
+    active_registry, check_license, human_bytes, install, offline, pinned_manifest_path, sig_path,
+    updated_manifest_path,
 };
 use crate::manifest::{embedded_public_key, parse_ref, parse_signed, Entry, Manifest, Status};
 use crate::spec::ModelSpec;
@@ -95,11 +95,7 @@ fn cache() -> Cache {
 }
 
 fn entry_json(m: &Manifest, c: &Cache, e: &Entry) -> Value {
-    let cached = if e.is_builtin() {
-        json!("builtin")
-    } else {
-        json!(c.cached(e).is_some())
-    };
+    let cached = if e.is_builtin() { json!("builtin") } else { json!(c.cached(e).is_some()) };
     let mut flags = Vec::new();
     if e.license.research_only() {
         flags.push("non_commercial");
@@ -181,8 +177,7 @@ fn pull(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         refs.extend(found);
     }
     if refs.is_empty() {
-        return Err(Error::usage("name a model to pull, or pass --all-for <command>")
-            .with_hint("ferraus models list"));
+        return Err(Error::usage("name a model to pull, or pass --all-for <command>").with_hint("ferraus models list"));
     }
     let mut results = Vec::new();
     let mut seen = BTreeSet::new();
@@ -226,11 +221,7 @@ fn pull(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
 fn matching_cached(c: &Cache, reference: &str, m: &Manifest) -> Vec<(String, String)> {
     let (name, version) = parse_ref(reference);
-    let full = m
-        .versions_of(name)
-        .first()
-        .map(|e| e.name.clone())
-        .unwrap_or_else(|| name.to_string());
+    let full = m.versions_of(name).first().map(|e| e.name.clone()).unwrap_or_else(|| name.to_string());
     c.load_lock()
         .models
         .into_iter()
@@ -245,8 +236,7 @@ fn rm(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let name = a.str("name").unwrap_or_default();
     let targets = matching_cached(&c, &name, &active.manifest);
     if targets.is_empty() {
-        return Err(Error::usage(format!("{name} is not in the cache"))
-            .with_hint("ferraus models list --cached"));
+        return Err(Error::usage(format!("{name} is not in the cache")).with_hint("ferraus models list --cached"));
     }
     let mut removed = Vec::new();
     for (n, v) in targets {
@@ -279,16 +269,8 @@ fn prune(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             removed.push(id);
         }
     }
-    let partials = if ctx.globals.dry_run {
-        Vec::new()
-    } else {
-        c.clean_partials()
-    };
-    let lru = if ctx.globals.dry_run {
-        Vec::new()
-    } else {
-        c.prune_lru(crate::cache::max_cache_bytes(), &[])?
-    };
+    let partials = if ctx.globals.dry_run { Vec::new() } else { c.clean_partials() };
+    let lru = if ctx.globals.dry_run { Vec::new() } else { c.prune_lru(crate::cache::max_cache_bytes(), &[])? };
     Ok(json!({
         "removed": removed,
         "partial_downloads_removed": partials.len(),
@@ -306,12 +288,7 @@ fn verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     for r in c.load_lock().models {
         if let Some(f) = &filter {
             let (n, v) = parse_ref(f);
-            let full = active
-                .manifest
-                .versions_of(n)
-                .first()
-                .map(|e| e.name.clone())
-                .unwrap_or_else(|| n.to_string());
+            let full = active.manifest.versions_of(n).first().map(|e| e.name.clone()).unwrap_or_else(|| n.to_string());
             if r.name != full || v.map(|v| v != r.version).unwrap_or(false) {
                 continue;
             }
@@ -333,17 +310,13 @@ fn verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         if status != "ok" {
             bad.push(format!("{}@{}", r.name, r.version));
         }
-        rows.push(json!({"model": format!("{}@{}", r.name, r.version), "path": path, "sha256": expected, "status": status}));
+        rows.push(
+            json!({"model": format!("{}@{}", r.name, r.version), "path": path, "sha256": expected, "status": status}),
+        );
     }
     if !bad.is_empty() {
-        return Err(Error::verification(format!(
-            "cached model(s) failed verification: {}",
-            bad.join(", ")
-        ))
-        .with_hint(format!(
-            "ferraus models rm {0} && ferraus models pull {0}",
-            bad[0]
-        )));
+        return Err(Error::verification(format!("cached model(s) failed verification: {}", bad.join(", ")))
+            .with_hint(format!("ferraus models rm {0} && ferraus models pull {0}", bad[0])));
     }
     ctx.metric("verified", rows.len());
     Ok(Value::Array(rows))
@@ -354,12 +327,7 @@ fn info(a: &Args, _ctx: &mut OpCtx) -> Result<Value> {
     let active = active_registry(&c);
     let e = active.manifest.resolve(&a.str("name").unwrap_or_default())?.clone();
     let rec = c.cached(&e);
-    let versions: Vec<String> = active
-        .manifest
-        .versions_of(&e.name)
-        .iter()
-        .map(|x| x.version.clone())
-        .collect();
+    let versions: Vec<String> = active.manifest.versions_of(&e.name).iter().map(|x| x.version.clone()).collect();
     Ok(json!({
         "entry": e,
         "spec": ModelSpec::from_entry(&e),
@@ -400,11 +368,7 @@ fn registry_update(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         ctx.check_allowed(&pin)?;
         let body = std::fs::read(&pin)?;
         let sig = std::fs::read_to_string(sig_path(&pin)).map_err(|_| {
-            Error::verification(format!(
-                "{} has no signature file {}",
-                pin.display(),
-                sig_path(&pin).display()
-            ))
+            Error::verification(format!("{} has no signature file {}", pin.display(), sig_path(&pin).display()))
         })?;
         let m = parse_signed(&key, &body, &sig)?;
         let dest = pinned_manifest_path(&c);
@@ -416,11 +380,7 @@ fn registry_update(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         return Ok(json!({"pinned": dest, "models": m.models.len()}));
     }
     if offline(ctx) {
-        return Err(Error::new(
-            ErrorKind::Network,
-            "offline",
-            "--offline is set; cannot refresh the registry",
-        ));
+        return Err(Error::new(ErrorKind::Network, "offline", "--offline is set; cannot refresh the registry"));
     }
     let urls: Vec<String> = match a.str("url").or_else(|| std::env::var("FERRAUS_REGISTRY_URL").ok()) {
         Some(u) => vec![u],
@@ -446,12 +406,8 @@ fn registry_update(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
                     })
                     .map(|e| e.id())
                     .collect();
-                let added: Vec<String> = m
-                    .models
-                    .iter()
-                    .filter(|e| embedded.versions_of(&e.name).is_empty())
-                    .map(|e| e.id())
-                    .collect();
+                let added: Vec<String> =
+                    m.models.iter().filter(|e| embedded.versions_of(&e.name).is_empty()).map(|e| e.id()).collect();
                 if !ctx.globals.dry_run {
                     let dest = updated_manifest_path(&c);
                     std::fs::create_dir_all(&c.root)?;

@@ -89,11 +89,7 @@ pub fn get_bytes(url: &str, limit: u64) -> Result<Vec<u8>> {
         return Err(net(format!("HTTP {status}")));
     }
     let mut out = Vec::new();
-    resp.into_body()
-        .into_reader()
-        .take(limit)
-        .read_to_end(&mut out)
-        .map_err(|e| net(e.to_string()))?;
+    resp.into_body().into_reader().take(limit).read_to_end(&mut out).map_err(|e| net(e.to_string()))?;
     Ok(out)
 }
 
@@ -143,8 +139,7 @@ pub fn download(req: DownloadRequest<'_>) -> Result<DownloadReport> {
             } else {
                 (req.log)(&format!("downloading {url}"));
             }
-            match fetch_once(&agent, url, &part, have, &mut report.bytes_fetched, req.check_cancel)
-            {
+            match fetch_once(&agent, url, &part, have, &mut report.bytes_fetched, req.check_cancel) {
                 Ok(()) => break true,
                 Err(FetchError::Abort(e)) => return Err(e),
                 Err(FetchError::Permanent(m)) => {
@@ -152,10 +147,7 @@ pub fn download(req: DownloadRequest<'_>) -> Result<DownloadReport> {
                     last_net_error = Some(format!("{url}: {m}"));
                     break false;
                 }
-                Err(FetchError::Retryable {
-                    progressed,
-                    message,
-                }) => {
+                Err(FetchError::Retryable { progressed, message }) => {
                     (req.log)(&format!("{url}: {message}"));
                     last_net_error = Some(format!("{url}: {message}"));
                     if !progressed || attempts >= RESUME_ATTEMPTS {
@@ -169,10 +161,7 @@ pub fn download(req: DownloadRequest<'_>) -> Result<DownloadReport> {
             continue;
         }
         let digest = sha256_file(&part)?;
-        let ok = req
-            .sha256
-            .map(|want| want.eq_ignore_ascii_case(&digest))
-            .unwrap_or(true);
+        let ok = req.sha256.map(|want| want.eq_ignore_ascii_case(&digest)).unwrap_or(true);
         if ok {
             report.size_bytes = std::fs::metadata(&part)?.len();
             report.sha256 = digest;
@@ -183,9 +172,7 @@ pub fn download(req: DownloadRequest<'_>) -> Result<DownloadReport> {
         let _ = std::fs::remove_file(&part);
         report.mismatches += 1;
         let want = req.sha256.unwrap_or_default();
-        (req.log)(&format!(
-            "checksum mismatch from {url} (got {digest}, want {want}); deleted the download"
-        ));
+        (req.log)(&format!("checksum mismatch from {url} (got {digest}, want {want}); deleted the download"));
         if report.mismatches >= 2 {
             return Err(Error::new(
                 ErrorKind::ModelDownload,
@@ -217,17 +204,9 @@ fn fetch_once(
     }
     let resp = match req.call() {
         Ok(r) => r,
-        Err(ureq::Error::Io(e)) => {
-            return Err(FetchError::Retryable {
-                progressed: false,
-                message: e.to_string(),
-            })
-        }
+        Err(ureq::Error::Io(e)) => return Err(FetchError::Retryable { progressed: false, message: e.to_string() }),
         Err(ureq::Error::Timeout(t)) => {
-            return Err(FetchError::Retryable {
-                progressed: false,
-                message: format!("timeout ({t})"),
-            })
+            return Err(FetchError::Retryable { progressed: false, message: format!("timeout ({t})") })
         }
         Err(e) => return Err(FetchError::Permanent(e.to_string())),
     };
@@ -257,12 +236,7 @@ fn fetch_once(
             // we already have everything the server has; let verification decide
             return Ok(());
         }
-        s if s >= 500 => {
-            return Err(FetchError::Retryable {
-                progressed: false,
-                message: format!("HTTP {s}"),
-            })
-        }
+        s if s >= 500 => return Err(FetchError::Retryable { progressed: false, message: format!("HTTP {s}") }),
         s => return Err(FetchError::Permanent(format!("HTTP {s}"))),
     };
     let mut file = std::fs::OpenOptions::new()
@@ -282,14 +256,10 @@ fn fetch_once(
             Ok(n) => n,
             Err(e) => {
                 let _ = file.flush();
-                return Err(FetchError::Retryable {
-                    progressed,
-                    message: format!("connection interrupted: {e}"),
-                });
+                return Err(FetchError::Retryable { progressed, message: format!("connection interrupted: {e}") });
             }
         };
-        file.write_all(&buf[..n])
-            .map_err(|e| FetchError::Abort(e.into()))?;
+        file.write_all(&buf[..n]).map_err(|e| FetchError::Abort(e.into()))?;
         *fetched += n as u64;
         progressed = true;
     }
@@ -353,21 +323,13 @@ pub(crate) mod test_server {
                         range_start = v.trim().trim_end_matches('-').parse::<u64>().ok();
                     }
                 }
-                let behavior = routes
-                    .iter()
-                    .find(|(p, _)| *p == path)
-                    .map(|(_, b)| b.clone())
-                    .unwrap_or(Behavior::NotFound);
+                let behavior =
+                    routes.iter().find(|(p, _)| *p == path).map(|(_, b)| b.clone()).unwrap_or(Behavior::NotFound);
                 let (data, cut) = match behavior {
                     Behavior::NotFound => {
-                        let _ = stream.write_all(
-                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                        );
-                        hits2.lock().unwrap().push(Hit {
-                            path,
-                            range_start,
-                            bytes_sent: 0,
-                        });
+                        let _ = stream
+                            .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: 0 });
                         continue;
                     }
                     Behavior::Serve(d) => (d, None),
@@ -396,11 +358,7 @@ pub(crate) mod test_server {
                 let send = cut.map(|c| c.min(body.len())).unwrap_or(body.len());
                 let _ = stream.write_all(&body[..send]);
                 let _ = stream.flush();
-                hits2.lock().unwrap().push(Hit {
-                    path,
-                    range_start,
-                    bytes_sent: send as u64,
-                });
+                hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: send as u64 });
                 // dropping the stream closes the connection (early when cut)
                 let _ = stream.shutdown(std::net::Shutdown::Both);
             }
@@ -424,13 +382,7 @@ mod tests {
 
     fn run(urls: Vec<String>, want: &str, dest: &Path) -> Result<DownloadReport> {
         let mut log = |_: &str| {};
-        download(DownloadRequest {
-            urls: &urls,
-            sha256: Some(want),
-            dest,
-            log: &mut log,
-            check_cancel: &|| Ok(()),
-        })
+        download(DownloadRequest { urls: &urls, sha256: Some(want), dest, log: &mut log, check_cancel: &|| Ok(()) })
     }
 
     #[test]
@@ -470,26 +422,18 @@ mod tests {
         let data = payload(10_000);
         let mut corrupt = data.clone();
         corrupt[5_000] ^= 0xFF;
-        let srv = start(vec![
-            ("/bad.onnx", Behavior::Serve(corrupt)),
-            ("/good.onnx", Behavior::Serve(data.clone())),
-        ]);
+        let srv = start(vec![("/bad.onnx", Behavior::Serve(corrupt)), ("/good.onnx", Behavior::Serve(data.clone()))]);
         let dir = ferraus_core::testing::TempDir::new("dl-mirror");
         let dest = dir.path("model.onnx");
-        let rep = run(
-            vec![
-                format!("{}/bad.onnx", srv.base),
-                format!("{}/good.onnx", srv.base),
-            ],
-            &sha(&data),
-            &dest,
-        )
-        .unwrap();
+        let rep =
+            run(vec![format!("{}/bad.onnx", srv.base), format!("{}/good.onnx", srv.base)], &sha(&data), &dest).unwrap();
         assert_eq!(rep.mismatches, 1);
         assert!(rep.url.ends_with("/good.onnx"));
         assert_eq!(std::fs::read(&dest).unwrap(), data);
         // the mirror download started from scratch (corrupt bytes were deleted)
         let hits = srv.hits.lock().unwrap().clone();
+        assert_eq!(hits[0].path, "/bad.onnx");
+        assert_eq!(hits[1].path, "/good.onnx");
         assert_eq!(hits[1].range_start, None);
     }
 
@@ -498,18 +442,11 @@ mod tests {
         let data = payload(4_000);
         let mut corrupt = data.clone();
         corrupt[0] ^= 1;
-        let srv = start(vec![
-            ("/a.onnx", Behavior::Serve(corrupt.clone())),
-            ("/b.onnx", Behavior::Serve(corrupt)),
-        ]);
+        let srv = start(vec![("/a.onnx", Behavior::Serve(corrupt.clone())), ("/b.onnx", Behavior::Serve(corrupt))]);
         let dir = ferraus_core::testing::TempDir::new("dl-mismatch");
         let dest = dir.path("model.onnx");
-        let e = run(
-            vec![format!("{}/a.onnx", srv.base), format!("{}/b.onnx", srv.base)],
-            &sha(&data),
-            &dest,
-        )
-        .unwrap_err();
+        let e =
+            run(vec![format!("{}/a.onnx", srv.base), format!("{}/b.onnx", srv.base)], &sha(&data), &dest).unwrap_err();
         assert_eq!(e.kind, ErrorKind::ModelDownload);
         assert_eq!(e.exit_code, 6);
         assert!(!dest.exists());
@@ -523,10 +460,7 @@ mod tests {
         let dest = dir.path("model.onnx");
         // 404 on the first, refused connection on the second
         let e = run(
-            vec![
-                format!("{}/missing.onnx", srv.base),
-                "http://127.0.0.1:9/never".to_string(),
-            ],
+            vec![format!("{}/missing.onnx", srv.base), "http://127.0.0.1:9/never".to_string()],
             &"0".repeat(64),
             &dest,
         )
@@ -541,12 +475,8 @@ mod tests {
         let srv = start(vec![("/ok.onnx", Behavior::Serve(data.clone()))]);
         let dir = ferraus_core::testing::TempDir::new("dl-fallback");
         let dest = dir.path("model.onnx");
-        let rep = run(
-            vec![format!("{}/gone.onnx", srv.base), format!("{}/ok.onnx", srv.base)],
-            &sha(&data),
-            &dest,
-        )
-        .unwrap();
+        let rep =
+            run(vec![format!("{}/gone.onnx", srv.base), format!("{}/ok.onnx", srv.base)], &sha(&data), &dest).unwrap();
         assert!(rep.url.ends_with("/ok.onnx"));
     }
 }

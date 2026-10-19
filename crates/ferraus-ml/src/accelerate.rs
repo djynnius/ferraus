@@ -67,10 +67,7 @@ pub struct InstalledPackage {
 }
 
 pub fn load_installed(dir: &Path) -> Installed {
-    std::fs::read(dir.join("installed.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+    std::fs::read(dir.join("installed.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 
 /// The GPU package for this platform: (archive file name, libraries it must contain).
@@ -78,17 +75,11 @@ pub fn cuda_package(os: &str, arch: &str) -> Option<(String, Vec<&'static str>)>
     match (os, arch) {
         ("linux", "x86_64") => Some((
             format!("onnxruntime-linux-x64-gpu-{ORT_VERSION}.tgz"),
-            vec![
-                "libonnxruntime_providers_cuda.so",
-                "libonnxruntime_providers_shared.so",
-            ],
+            vec!["libonnxruntime_providers_cuda.so", "libonnxruntime_providers_shared.so"],
         )),
         ("windows", "x86_64") => Some((
             format!("onnxruntime-win-x64-gpu-{ORT_VERSION}.zip"),
-            vec![
-                "onnxruntime_providers_cuda.dll",
-                "onnxruntime_providers_shared.dll",
-            ],
+            vec!["onnxruntime_providers_cuda.dll", "onnxruntime_providers_shared.dll"],
         )),
         _ => None,
     }
@@ -106,12 +97,7 @@ fn cuda_runtime_found() -> Value {
             dirs.extend(std::env::split_paths(&v));
         }
     }
-    for d in [
-        "/usr/local/cuda/lib64",
-        "/usr/lib/x86_64-linux-gnu",
-        "/usr/lib64",
-        "/usr/lib/aarch64-linux-gnu",
-    ] {
+    for d in ["/usr/local/cuda/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib/aarch64-linux-gnu"] {
         dirs.push(PathBuf::from(d));
     }
     let find = |prefix: &str| -> Option<String> {
@@ -165,19 +151,12 @@ pub fn report() -> Value {
             })
         })
         .collect();
-    let available: Vec<&str> = crate::provider::AUTO_ORDER
-        .iter()
-        .filter(|p| provider_available(**p))
-        .map(|p| p.name())
-        .collect();
+    let available: Vec<&str> =
+        crate::provider::AUTO_ORDER.iter().filter(|p| provider_available(**p)).map(|p| p.name()).collect();
     let active = available.first().copied().unwrap_or("cpu");
     let dir = providers_dir();
     let installed = load_installed(&dir);
-    let gpu_present = installed.packages.iter().any(|p| {
-        p.libraries
-            .iter()
-            .all(|l| Path::new(&p.dir).join(l).exists())
-    });
+    let gpu_present = installed.packages.iter().any(|p| p.libraries.iter().all(|l| Path::new(&p.dir).join(l).exists()));
     json!({
         "providers": available,
         "active": active,
@@ -245,11 +224,7 @@ fn install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         return Ok(json!({"provider": "cuda", "would_download": url, "into": pkg_dir}));
     }
     if ferraus_models::offline(ctx) {
-        return Err(Error::new(
-            ErrorKind::Network,
-            "offline",
-            "--offline is set; cannot download execution providers",
-        ));
+        return Err(Error::new(ErrorKind::Network, "offline", "--offline is set; cannot download execution providers"));
     }
     std::fs::create_dir_all(&dir)?;
     let archive = dir.join(&file);
@@ -271,16 +246,9 @@ fn install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         let _ = std::fs::remove_dir_all(&pkg_dir);
     })?;
     let _ = std::fs::remove_file(&archive);
-    let missing: Vec<&str> = libs
-        .iter()
-        .filter(|l| !pkg_dir.join(l).exists())
-        .copied()
-        .collect();
+    let missing: Vec<&str> = libs.iter().filter(|l| !pkg_dir.join(l).exists()).copied().collect();
     if !missing.is_empty() {
-        return Err(Error::verification(format!(
-            "{file} did not contain {}",
-            missing.join(", ")
-        )));
+        return Err(Error::verification(format!("{file} did not contain {}", missing.join(", "))));
     }
     let mut installed = load_installed(&dir);
     installed.packages.retain(|p| p.provider != "cuda");
@@ -319,15 +287,9 @@ fn extract(archive: &Path, into: &Path, libs: &[&str]) -> Result<Vec<String>> {
     if name.ends_with(".tgz") || name.ends_with(".tar.gz") {
         let f = std::fs::File::open(archive)?;
         let mut ar = tar::Archive::new(flate2::read::GzDecoder::new(f));
-        for entry in ar
-            .entries()
-            .map_err(|e| Error::verification(format!("corrupt archive: {e}")))?
-        {
+        for entry in ar.entries().map_err(|e| Error::verification(format!("corrupt archive: {e}")))? {
             let mut entry = entry.map_err(|e| Error::verification(format!("corrupt archive: {e}")))?;
-            let path = entry
-                .path()
-                .map_err(|e| Error::verification(e.to_string()))?
-                .to_path_buf();
+            let path = entry.path().map_err(|e| Error::verification(e.to_string()))?.to_path_buf();
             let Some(fname) = path.file_name().map(|f| f.to_string_lossy().to_string()) else {
                 continue;
             };
@@ -346,10 +308,7 @@ fn extract(archive: &Path, into: &Path, libs: &[&str]) -> Result<Vec<String>> {
         let mut z = zip::ZipArchive::new(f).map_err(|e| Error::verification(format!("corrupt archive: {e}")))?;
         for i in 0..z.len() {
             let mut e = z.by_index(i).map_err(|e| Error::verification(e.to_string()))?;
-            let fname = Path::new(e.name())
-                .file_name()
-                .map(|f| f.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let fname = Path::new(e.name()).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
             if libs.iter().any(|l| fname == *l) {
                 let mut w = std::fs::File::create(into.join(&fname))?;
                 std::io::copy(&mut e, &mut w)?;

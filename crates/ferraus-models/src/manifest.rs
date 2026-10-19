@@ -164,10 +164,7 @@ fn default_format() -> String {
 impl Entry {
     /// `separate/htdemucs` → `htdemucs`.
     pub fn short_name(&self) -> &str {
-        self.name
-            .split_once('/')
-            .map(|(_, s)| s)
-            .unwrap_or(&self.name)
+        self.name.split_once('/').map(|(_, s)| s).unwrap_or(&self.name)
     }
     pub fn id(&self) -> String {
         format!("{}@{}", self.name, self.version)
@@ -247,11 +244,7 @@ pub fn parse_ref(s: &str) -> (&str, Option<&str>) {
 impl Manifest {
     pub fn parse(text: &str) -> Result<Manifest> {
         let m: Manifest = serde_json::from_str(text).map_err(|e| {
-            Error::new(
-                ErrorKind::ModelDownload,
-                "invalid_manifest",
-                format!("model registry manifest is invalid: {e}"),
-            )
+            Error::new(ErrorKind::ModelDownload, "invalid_manifest", format!("model registry manifest is invalid: {e}"))
         })?;
         if m.schema_version > MANIFEST_SCHEMA_VERSION {
             return Err(Error::new(
@@ -277,11 +270,7 @@ impl Manifest {
         if !exact.is_empty() {
             return exact;
         }
-        let short: Vec<&Entry> = self
-            .models
-            .iter()
-            .filter(|e| e.short_name() == name)
-            .collect();
+        let short: Vec<&Entry> = self.models.iter().filter(|e| e.short_name() == name).collect();
         let first = short.first().map(|e| e.name.clone());
         if short.iter().all(|e| Some(&e.name) == first.as_ref()) {
             short
@@ -296,17 +285,13 @@ impl Manifest {
         let (name, version) = parse_ref(reference);
         let candidates = self.versions_of(name);
         if candidates.is_empty() {
-            return Err(Error::usage(format!("unknown model '{name}'"))
-                .with_hint("ferraus models list"));
+            return Err(Error::usage(format!("unknown model '{name}'")).with_hint("ferraus models list"));
         }
         if let Some(v) = version {
-            return candidates
-                .into_iter()
-                .find(|e| e.version == v)
-                .ok_or_else(|| {
-                    Error::usage(format!("model '{name}' has no version '{v}'"))
-                        .with_hint(format!("ferraus models info {name}"))
-                });
+            return candidates.into_iter().find(|e| e.version == v).ok_or_else(|| {
+                Error::usage(format!("model '{name}' has no version '{v}'"))
+                    .with_hint(format!("ferraus models info {name}"))
+            });
         }
         let full = candidates[0].name.clone();
         for spec in self.tiers.values().flat_map(|t| t.values()) {
@@ -319,10 +304,7 @@ impl Manifest {
                 }
             }
         }
-        Ok(candidates
-            .into_iter()
-            .max_by(|a, b| a.version.cmp(&b.version))
-            .expect("non-empty"))
+        Ok(candidates.into_iter().max_by(|a, b| a.version.cmp(&b.version)).expect("non-empty"))
     }
 
     /// Tier labels (`separate:fast`) that use this entry.
@@ -389,11 +371,8 @@ impl Manifest {
 
 /// Parse a hex public key.
 pub fn public_key(hex_key: &str) -> Result<VerifyingKey> {
-    let bytes = hex::decode(hex_key.trim())
-        .map_err(|_| Error::internal("registry public key is not valid hex"))?;
-    let arr: [u8; 32] = bytes
-        .try_into()
-        .map_err(|_| Error::internal("registry public key must be 32 bytes"))?;
+    let bytes = hex::decode(hex_key.trim()).map_err(|_| Error::internal("registry public key is not valid hex"))?;
+    let arr: [u8; 32] = bytes.try_into().map_err(|_| Error::internal("registry public key must be 32 bytes"))?;
     VerifyingKey::from_bytes(&arr).map_err(|_| Error::internal("registry public key is invalid"))
 }
 
@@ -413,19 +392,15 @@ pub fn verify_signature(key: &VerifyingKey, manifest: &[u8], signature_hex: &str
         .with_hint("ferraus models registry update")
     };
     let sig_bytes = hex::decode(signature_hex.trim()).map_err(|_| bad("signature is not hex"))?;
-    let arr: [u8; 64] = sig_bytes
-        .try_into()
-        .map_err(|_| bad("signature must be 64 bytes"))?;
+    let arr: [u8; 64] = sig_bytes.try_into().map_err(|_| bad("signature must be 64 bytes"))?;
     let sig = Signature::from_bytes(&arr);
-    key.verify(manifest, &sig)
-        .map_err(|_| bad("signature does not match the manifest"))
+    key.verify(manifest, &sig).map_err(|_| bad("signature does not match the manifest"))
 }
 
 /// Verify and parse a signed manifest.
 pub fn parse_signed(key: &VerifyingKey, manifest: &[u8], signature_hex: &str) -> Result<Manifest> {
     verify_signature(key, manifest, signature_hex)?;
-    let text = std::str::from_utf8(manifest)
-        .map_err(|_| Error::verification("registry manifest is not UTF-8"))?;
+    let text = std::str::from_utf8(manifest).map_err(|_| Error::verification("registry manifest is not UTF-8"))?;
     Manifest::parse(text)
 }
 

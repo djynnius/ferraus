@@ -34,10 +34,7 @@ pub struct Lock {
 }
 
 pub fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 /// Cache budget from `FERRAUS_MAX_CACHE_GB` (set by the CLI from `models.max_cache_gb`).
@@ -66,10 +63,7 @@ impl Cache {
     }
 
     pub fn model_dir(&self, e: &Entry) -> PathBuf {
-        self.root
-            .join(sanitize(&e.task))
-            .join(sanitize(e.short_name()))
-            .join(sanitize(&e.version))
+        self.root.join(sanitize(&e.task)).join(sanitize(e.short_name())).join(sanitize(&e.version))
     }
 
     pub fn model_path(&self, e: &Entry) -> PathBuf {
@@ -85,10 +79,7 @@ impl Cache {
     }
 
     pub fn load_lock(&self) -> Lock {
-        std::fs::read(self.lock_path())
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+        std::fs::read(self.lock_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
     }
 
     pub fn save_lock(&self, lock: &Lock) -> Result<()> {
@@ -102,10 +93,7 @@ impl Cache {
     /// The lock record for an entry when its file is present.
     pub fn cached(&self, e: &Entry) -> Option<LockEntry> {
         let lock = self.load_lock();
-        let rec = lock
-            .models
-            .into_iter()
-            .find(|m| m.name == e.name && m.version == e.version)?;
+        let rec = lock.models.into_iter().find(|m| m.name == e.name && m.version == e.version)?;
         let path = self.root.join(&rec.path);
         let meta = std::fs::metadata(&path).ok()?;
         if meta.len() != rec.size_bytes {
@@ -122,8 +110,7 @@ impl Cache {
     /// Record a freshly installed model.
     pub fn record(&self, e: &Entry, sha256: &str, size: u64, url: Option<&str>) -> Result<LockEntry> {
         let mut lock = self.load_lock();
-        lock.models
-            .retain(|m| !(m.name == e.name && m.version == e.version));
+        lock.models.retain(|m| !(m.name == e.name && m.version == e.version));
         let rel = self
             .model_path(e)
             .strip_prefix(&self.root)
@@ -177,10 +164,7 @@ impl Cache {
     /// Remove one cached model (file, spec, directory) and its lock record.
     pub fn remove(&self, name: &str, version: &str) -> Result<Option<LockEntry>> {
         let mut lock = self.load_lock();
-        let pos = lock
-            .models
-            .iter()
-            .position(|m| m.name == name && m.version == version);
+        let pos = lock.models.iter().position(|m| m.name == name && m.version == version);
         let Some(pos) = pos else { return Ok(None) };
         let rec = lock.models.remove(pos);
         let file = self.root.join(&rec.path);
@@ -225,8 +209,7 @@ impl Cache {
     pub fn clean_partials(&self) -> Vec<PathBuf> {
         let mut out = Vec::new();
         walk(&self.root, &mut |p| {
-            if p.extension().map(|e| e == "part").unwrap_or(false) && std::fs::remove_file(p).is_ok()
-            {
+            if p.extension().map(|e| e == "part").unwrap_or(false) && std::fs::remove_file(p).is_ok() {
                 out.push(p.to_path_buf());
             }
         });
@@ -250,13 +233,7 @@ fn walk(dir: &Path, f: &mut dyn FnMut(&Path)) {
 fn sanitize(s: &str) -> String {
     let cleaned: String = s
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '+') {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '+') { c } else { '_' })
         .collect();
     if cleaned.is_empty() || cleaned.chars().all(|c| c == '.') {
         "_".into()
@@ -270,10 +247,7 @@ pub fn ensure_inside(root: &Path, p: &Path) -> Result<()> {
     if p.starts_with(root) {
         Ok(())
     } else {
-        Err(Error::internal(format!(
-            "refusing to touch {} outside the model cache",
-            p.display()
-        )))
+        Err(Error::internal(format!("refusing to touch {} outside the model cache", p.display())))
     }
 }
 

@@ -271,10 +271,7 @@ pub fn separator_model(kernels: &[Vec<f32>]) -> Vec<u8> {
     }
     GraphBuilder::new()
         .input("mix", vec![Dim::Fixed(1), Dim::Fixed(2), Dim::Named("T")])
-        .output(
-            "stems",
-            vec![Dim::Fixed(1), Dim::Fixed(s), Dim::Fixed(2), Dim::Named("T")],
-        )
+        .output("stems", vec![Dim::Fixed(1), Dim::Fixed(s), Dim::Fixed(2), Dim::Named("T")])
         .init_f32("w", vec![2 * s, 1, k], w)
         .init_i64("shape", vec![4], vec![1, 2, s, -1])
         .node(
