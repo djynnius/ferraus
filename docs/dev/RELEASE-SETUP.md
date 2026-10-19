@@ -1,0 +1,96 @@
+# One-time release setup (maintainer)
+
+Everything in the release pipeline is built; these steps need the maintainer's accounts and
+must be done by a person. Afterwards, `git tag vX.Y.Z && git push origin vX.Y.Z` releases
+everything, with a human approval before anything is published.
+
+Run these from a clone of `djynnius/ferraus` with the GitHub CLI logged in (`gh auth login`).
+Keep every secret file outside the repository and delete it after uploading.
+
+## 1. The `release` environment (the human approval gate)
+
+```bash
+gh api -X PUT repos/djynnius/ferraus/environments/release \
+  -F "reviewers[][type]=User" -F "reviewers[][id]=$(gh api user -q .id)" \
+  -F "deployment_branch_policy[protected_branches]=false" \
+  -F "deployment_branch_policy[custom_branch_policies]=true"
+gh api -X POST repos/djynnius/ferraus/environments/release/deployment-branch-policies -f name='v*' -f type=tag
+```
+
+Also protect `main` (required CI checks) and add a tag protection rule for `v*`.
+
+## 2. Registry signing keys (models and sounds)
+
+```bash
+# model registry
+cargo run -q -p ferraus-models --example registry_sign -- keygen ~/model-registry.secret \
+  > crates/ferraus-models/registry/registry.pub
+gh secret set MODEL_REGISTRY_SIGNING_KEY --env release < ~/model-registry.secret
+# sounds registry
+cargo run -q -p ferraus-plugins --example sign_registry -- --generate ~/sounds-registry.secret
+#   → prints the public key: put it in crates/ferraus-plugins/sounds/registry-public-key.txt
+gh secret set SOUNDS_REGISTRY_SIGNING_KEY --env release < ~/sounds-registry.secret
+git commit -am "Release registry public keys" && git push
+```
+
+The committed public keys are development keys until you do this.
+
+## 3. Homebrew tap
+
+Create the public repository `djynnius/homebrew-tap` (empty is fine) and a fine-grained token
+with contents read/write on it:
+
+```bash
+gh repo create djynnius/homebrew-tap --public --description "Homebrew formulae for ferraus"
+gh secret set HOMEBREW_TAP_TOKEN --env release   # paste the token
+```
+
+## 4. macOS signing and notarization (dist `macos-sign = true`)
+
+From an Apple Developer ID Application certificate exported as `.p12`:
+
+```bash
+base64 -i DeveloperID.p12 | gh secret set CODESIGN_CERTIFICATE --env release
+gh secret set CODESIGN_CERTIFICATE_PASSWORD --env release
+gh secret set CODESIGN_IDENTITY --env release        # e.g. "Developer ID Application: Name (TEAMID)"
+```
+
+## 5. Windows signing
+
+cargo-dist signs Windows artifacts with SSL.com eSigner. Set `ssldotcom-windows-sign = "prod"` in
+`dist-workspace.toml`, run `dist generate`, and add `SSLDOTCOM_USERNAME`, `SSLDOTCOM_PASSWORD`,
+`SSLDOTCOM_CREDENTIAL_ID`, `SSLDOTCOM_TOTP_SECRET` to the `release` environment.
+
+## 6. apt and dnf repositories (GitHub Pages)
+
+```bash
+gpg --quick-gen-key "ferraus release <release@ferraus.invalid>" rsa4096 sign never
+gpg --armor --export-secret-keys "ferraus release" | gh secret set PACKAGE_SIGNING_KEY --env release
+git switch --orphan gh-pages && git commit --allow-empty -m "Pages" && git push origin gh-pages && git switch main
+gpg --armor --export "ferraus release" > docs/guides/ferraus-archive-keyring.asc   # publish the public key
+```
+
+Enable GitHub Pages from the `gh-pages` branch (Settings → Pages).
+
+## 7. Package managers and crates.io
+
+* crates.io: `cargo login`, then create an API token scoped to publish-new/publish-update and
+  `gh secret set CARGO_REGISTRY_TOKEN --env release`. The first CI release reserves the names.
+* winget: fork `microsoft/winget-pkgs`, create a classic token with `public_repo`, and
+  `gh secret set WINGET_TOKEN --env release`.
+* scoop: `gh repo create djynnius/scoop-bucket --public` and
+  `gh secret set SCOOP_BUCKET_TOKEN --env release` with contents write on it.
+
+## 8. Model hosting for the `quality`/`max` separation tiers
+
+The RoFormer checkpoints the PRD targets must be exported (`tools/export/*.py`, parity-checked
+with `tools/export/parity.py`), license-reviewed, and uploaded as assets of a
+`djynnius/ferraus-models` release. Then add their URL, SHA-256, and size to
+`crates/ferraus-models/registry/registry.json` and set `status: verified`; `separate --tier
+auto` will pick them up.
+
+## 9. Legal review
+
+Have counsel review `docs/legal/LICENSE-REVIEW.md` (VST3 host under GPLv3 as a separate
+executable; Verovio under LGPL in the separate `ferraus-engrave` executable; model and sound
+licenses) before the 1.0 release (PRD gates G3 and G4).

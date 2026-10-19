@@ -26,11 +26,14 @@ sign, or publish anything built on a laptop or an agent's machine.
 | `PACKAGE_SIGNING_KEY` | signing apt/dnf repository metadata |
 | `WINGET_TOKEN`, `SCOOP_BUCKET_TOKEN` | package-manager PRs |
 | `CARGO_REGISTRY_TOKEN` | crates.io |
-| `MODEL_REGISTRY_SIGNING_KEY` | Ed25519 signature of `crates/ferraus-models/registry/registry.json` |
-| Apple Developer ID cert + notarization credentials | macOS code signing (configure in the dist workflow's macOS build) |
+| `MODEL_REGISTRY_SIGNING_KEY` | Ed25519 signature of the model registry |
+| `SOUNDS_REGISTRY_SIGNING_KEY` | Ed25519 signature of the sounds registry |
+| `CODESIGN_CERTIFICATE`, `CODESIGN_CERTIFICATE_PASSWORD`, `CODESIGN_IDENTITY` | macOS signing (dist `macos-sign = true`) |
 | Windows Authenticode certificate | MSI and exe signing |
 
 ## Local dry runs
 
 `cargo build --release` and `dist build --artifacts=local` are fine for testing. Their
 outputs are not attested, so the publish job refuses them even if someone tries to upload them.
+
+See [RELEASE-SETUP.md](RELEASE-SETUP.md) for the one-time setup with exact commands.

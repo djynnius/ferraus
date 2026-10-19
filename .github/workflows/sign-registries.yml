@@ -1,0 +1,43 @@
+# dist global-artifacts job: sign the model and sounds registries with the release keys (Ed25519,
+# held only in the `release` environment) and attach the manifests and signatures to the release.
+name: Sign registries
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  sign:
+    runs-on: ubuntu-22.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - name: Sign the model registry
+        env:
+          FERRAUS_REGISTRY_SIGNING_KEY: ${{ secrets.MODEL_REGISTRY_SIGNING_KEY }}
+        run: |
+          mkdir -p out
+          cp crates/ferraus-models/registry/registry.json out/model-registry.json
+          cargo run -q -p ferraus-models --example registry_sign -- sign out/model-registry.json
+      - name: Sign the sounds registry
+        env:
+          FERRAUS_REGISTRY_SIGNING_KEY: ${{ secrets.SOUNDS_REGISTRY_SIGNING_KEY }}
+        run: |
+          cp crates/ferraus-plugins/sounds/registry.json out/sounds-registry.json
+          cargo run -q -p ferraus-plugins --example sign_registry -- out/sounds-registry.json
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-registries
+          path: out/*

@@ -26,7 +26,7 @@ install-path = ["$FERRAUS_INSTALL_DIR/", "~/.ferraus/bin"]
 # Publish jobs to run in CI
 publish-jobs = ["homebrew", "./publish-packages"]
 # Extra artifacts built once per release (deb/rpm, container images, signed model registry)
-global-artifacts-jobs = ["./build-linux-packages"]
+global-artifacts-jobs = ["./build-linux-packages", "./sign-registries"]
 # Whether to install an updater program
 install-updater = false
 # Whether to enable GitHub Attestations
@@ -35,3 +35,5 @@ github-attestations = true
 pr-run-mode = "plan"
 # Extra static files to include in each app archive
 include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
+# Sign and notarize macOS binaries in CI (needs the CODESIGN_* secrets, see docs/dev/RELEASING.md)
+macos-sign = true
