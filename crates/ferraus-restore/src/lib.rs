@@ -20,5 +20,6 @@ pub fn ops() -> Vec<OpSpec> {
     v.extend(ops::filters::ops());
     v.extend(ops::space::ops());
     v.extend(ops::automation::ops());
+    v.extend(ops::generate::ops());
     v
 }

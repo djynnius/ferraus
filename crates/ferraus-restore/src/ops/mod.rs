@@ -3,6 +3,7 @@
 pub mod automation;
 pub mod clicks;
 pub mod filters;
+pub mod generate;
 pub mod hum;
 pub mod level;
 pub mod space;
