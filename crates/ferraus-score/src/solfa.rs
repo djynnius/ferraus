@@ -118,7 +118,6 @@ struct Seg {
     end: u64,
     text: Option<String>,
     cont: bool,
-    lyric: Option<String>,
 }
 
 /// One bar of sol-fa text plus its lyric syllables.
@@ -135,19 +134,18 @@ fn bar_text(m: &Measure, time: TimeSig, div: u32, key: KeySig, kind: SolfaKind, 
             }
             let d = e.duration as u64;
             if e.is_rest() {
-                segs.push(Seg { start: pos, end: pos + d, text: None, cont: false, lyric: None });
+                segs.push(Seg { start: pos, end: pos + d, text: None, cont: false });
             } else {
                 let top = e.notes.iter().max_by_key(|n| n.midi).unwrap();
                 let cont = top.tie_stop;
                 let text = if cont { None } else { Some(syllable_marked(top.pitch, key, kind, doh_ref)) };
-                let lyric = e.lyrics.first().map(|l| match l.syllabic.as_str() {
-                    "begin" | "middle" => format!("{}-", l.text),
-                    _ => l.text.clone(),
-                });
-                if let Some(l) = &lyric {
-                    lyrics.push(l.clone());
+                if let Some(l) = e.lyrics.first() {
+                    lyrics.push(match l.syllabic.as_str() {
+                        "begin" | "middle" => format!("{}-", l.text),
+                        _ => l.text.clone(),
+                    });
                 }
-                segs.push(Seg { start: pos, end: pos + d, text, cont, lyric });
+                segs.push(Seg { start: pos, end: pos + d, text, cont });
             }
             pos += d;
         }
@@ -223,7 +221,6 @@ fn bar_text(m: &Measure, time: TimeSig, div: u32, key: KeySig, kind: SolfaKind, 
         };
         cells.push(cell);
     }
-    let _ = segs.iter().map(|s| &s.lyric).count();
     (cells.join(" :"), lyrics)
 }
 

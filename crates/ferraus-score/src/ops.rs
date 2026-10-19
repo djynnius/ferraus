@@ -116,7 +116,7 @@ fn play_params() -> Vec<ferraus_core::ParamSpec> {
         param("tempo", ParamKind::Str).default("auto").help("Tempo override in quarter notes per minute; auto follows the score's tempo marks (120 when none)"),
         param("repeats", ParamKind::Switch).default("on").help("Unroll repeats and first/second endings"),
         param("dynamics", ParamKind::Switch).default("on").help("Map dynamics (pp..ff) to velocities"),
-        param("articulation", ParamKind::Switch).default("on").help("Map articulations to note lengths: staccato 50%, staccatissimo 25%, tenuto and slurred (legato) 100%, others 95%; accents add velocity"),
+        param("articulation", ParamKind::Switch).default("on").help("Map articulations to note lengths: staccato 50%, staccatissimo 25%, tenuto and slurred (legato) 100%, other notes 95% (gap at most a 64th note); accents add velocity"),
         param("humanize", ParamKind::Percent).default("0%").help("Random timing (up to ±20 ms) and velocity (up to ±12) variation, seeded by --seed"),
         param("swing", ParamKind::Percent).default("0%").help("Delay off-beat eighths: 100% moves them to the triplet position (2:1)"),
         param("instrument-map", ParamKind::Str).help("Programs per part, e.g. \"P1=piano,P2=strings\" (GM names, short names, or numbers 0-127)"),
@@ -271,6 +271,7 @@ fn role_for(fmt: Format) -> &'static str {
 }
 
 /// Write `score` to `path` in format `fmt` (engraving when needed). Returns written paths.
+#[allow(clippy::too_many_arguments)]
 fn write_as(ctx: &mut OpCtx, score: &Score, path: &Path, fmt: Format, pretty: bool, kind: SolfaKind, engraver: &str, role: Option<&str>) -> Result<Vec<String>> {
     let role = role.unwrap_or(role_for(fmt));
     match fmt {
@@ -417,11 +418,13 @@ pub fn transpose_score(score: &mut Score, semis: i32) {
 }
 
 fn notate_options(a: &Args) -> Result<NotateOptions> {
-    let mut o = NotateOptions::default();
-    o.triplets = match a.choice("triplets").as_str() {
-        "on" => Triplets::On,
-        "off" => Triplets::Off,
-        _ => Triplets::Auto,
+    let mut o = NotateOptions {
+        triplets: match a.choice("triplets").as_str() {
+            "on" => Triplets::On,
+            "off" => Triplets::Off,
+            _ => Triplets::Auto,
+        },
+        ..NotateOptions::default()
     };
     if let Some(g) = a.grid("quantize")? {
         o.set_grid(g);
@@ -699,7 +702,14 @@ fn op_perform(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let audio = ctx.output_path(None, "wav")?;
     let xml_path = audio.with_extension("musicxml");
     let mid_path = audio.with_extension("mid");
-    ctx.write_file(&xml_path, crate::musicxml::write(&score).as_bytes(), Some("musicxml"))?;
+    // the notation input itself may already sit at the MusicXML/MIDI path beside the audio
+    let is_input = |p: &Path, ctx: &OpCtx| ctx.inputs.iter().any(|i| ferraus_core::ctx::absolutize(i) == ferraus_core::ctx::absolutize(p));
+    if !is_input(&xml_path, ctx) {
+        ctx.write_file(&xml_path, crate::musicxml::write(&score).as_bytes(), Some("musicxml"))?;
+    }
+    if is_input(&mid_path, ctx) {
+        return Err(Error::usage(format!("the performance MIDI would overwrite the input {}", mid_path.display())).with_hint("choose another -o name for the audio"));
+    }
     ctx.write_file(&mid_path, &midi::write_midi(&m)?, Some("midi"))?;
     let inst = a.str_or("instrument", "piano");
     let mut render = Value::Null;

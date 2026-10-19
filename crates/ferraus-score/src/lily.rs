@@ -138,8 +138,7 @@ fn quality_ly(q: &str) -> &'static str {
 }
 
 fn spelled_ly(s: Spelled) -> String {
-    let p = ly_pitch(Pitch { step: s.step, alter: s.alter, octave: 3 });
-    p
+    ly_pitch(Pitch { step: s.step, alter: s.alter, octave: 3 })
 }
 
 /// Serialize as LilyPond source.

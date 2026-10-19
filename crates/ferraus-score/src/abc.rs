@@ -210,10 +210,8 @@ fn write_staff(s: &mut String, score: &Score, st: &Staff, perc: bool) {
                             }
                         }
                         t.push_str(&abc_pitch(p));
-                        if chord {
-                            if nt.tie_start {
-                                t.push('-');
-                            }
+                        if chord && nt.tie_start {
+                            t.push('-');
                         }
                     }
                     if chord {
@@ -430,7 +428,7 @@ pub fn read(text: &str) -> Result<Score> {
                 }
                 'Q' => {
                     // Q:1/4=120 or Q:120
-                    let bpm = val.rsplit('=').next().and_then(|x| x.trim().split_whitespace().next()?.parse::<f64>().ok());
+                    let bpm = val.rsplit('=').next().and_then(|x| x.split_whitespace().next()?.parse::<f64>().ok());
                     let beat = val.split_once('=').and_then(|(b, _)| parse_frac(b.trim()));
                     if let Some(b) = bpm {
                         tempo = Some(match beat {

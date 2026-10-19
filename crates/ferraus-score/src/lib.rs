@@ -8,6 +8,9 @@
 //! * [`engrave`] — SVG/PDF/PNG through the `ferraus-engrave` helper (Verovio) or LilyPond.
 //! * [`omr`] — `score read` engines; [`audio`] — audio → notation orchestration.
 
+// `is_multiple_of` needs Rust 1.87; the workspace MSRV is 1.85.
+#![allow(clippy::manual_is_multiple_of)]
+
 pub mod abc;
 pub mod audio;
 pub mod audiveris;

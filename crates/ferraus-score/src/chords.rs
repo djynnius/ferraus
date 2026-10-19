@@ -187,6 +187,14 @@ pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[
                 lowest = Some((m, ov));
             }
         }
+        // the bass is scored separately below; count it at half weight in the chroma so a
+        // doubled bass note does not outvote the upper voices (Fmaj7/A is not Am)
+        if let Some((lm, lov)) = lowest {
+            let distinct = chroma.iter().filter(|x| **x > 0.0).count();
+            if distinct >= 3 {
+                chroma[lm.rem_euclid(12) as usize] -= lov as f64 * 0.5;
+            }
+        }
         let total: f64 = chroma.iter().sum();
         voiced.push(total > 0.0);
         let bass = lowest.map(|(m, _)| m.rem_euclid(12));

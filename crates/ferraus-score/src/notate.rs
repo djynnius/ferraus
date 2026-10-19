@@ -260,10 +260,8 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
     }
     if spans[0].implicit {
         info.pickup_divisions = spans[0].len as u32;
-        let mut n = 0u32;
-        for s in spans.iter_mut() {
-            s.number = n;
-            n += 1;
+        for (n, s) in spans.iter_mut().enumerate() {
+            s.number = n as u32;
         }
     }
 

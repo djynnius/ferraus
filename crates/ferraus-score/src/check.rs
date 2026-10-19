@@ -103,7 +103,7 @@ pub fn check(score: &Score, unsupported: &[String]) -> Report {
         }
         for st in &p.staves {
             let n = st.measures.len();
-            let pickup_len: u64 = st.measures.first().filter(|m| m.implicit).map(|m| longest(m)).unwrap_or(0);
+            let pickup_len: u64 = st.measures.first().filter(|m| m.implicit).map(longest).unwrap_or(0);
             for (mi, m) in st.measures.iter().enumerate() {
                 let t = Score::time_at(st, mi);
                 let expected = t.measure_divisions(div) as u64;

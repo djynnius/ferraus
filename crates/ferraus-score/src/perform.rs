@@ -269,16 +269,16 @@ pub fn perform(score: &Score, opts: &PlayOptions) -> (MidiData, PlayInfo) {
                             let mut len = dur as f64;
                             if opts.articulation {
                                 let a = &e.articulations;
-                                let f = if a.iter().any(|x| x == "staccatissimo") {
-                                    0.25
+                                if a.iter().any(|x| x == "staccatissimo") {
+                                    len *= 0.25;
                                 } else if a.iter().any(|x| x == "staccato") {
-                                    0.5
+                                    len *= 0.5;
                                 } else if a.iter().any(|x| x == "tenuto" || x == "legato") || slur {
-                                    1.0
+                                    // full length
                                 } else {
-                                    0.95
-                                };
-                                len *= f;
+                                    // plain notes: a small articulation gap (5%, at most a 64th note)
+                                    len -= (len * 0.05).min(div as f64 / 16.0);
+                                }
                                 if a.iter().any(|x| x == "fermata") {
                                     len *= 1.5;
                                 }

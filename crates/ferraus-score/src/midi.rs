@@ -146,10 +146,8 @@ pub fn read_midi(bytes: &[u8]) -> Result<MidiData> {
                                 }
                             }
                         }
-                        MidiMessage::ProgramChange { program } => {
-                            if tr.program.is_none() {
-                                tr.program = Some((ch, program.as_int()));
-                            }
+                        MidiMessage::ProgramChange { program } if tr.program.is_none() => {
+                            tr.program = Some((ch, program.as_int()));
                         }
                         _ => {}
                     }
@@ -189,7 +187,7 @@ pub fn read_midi(bytes: &[u8]) -> Result<MidiData> {
         d.end_tick = d.end_tick.max(tick);
         d.tracks.push(tr);
     }
-    d.notes.sort_by(|a, b| (a.start, a.track, a.key).cmp(&(b.start, b.track, b.key)));
+    d.notes.sort_by_key(|n| (n.start, n.track, n.key));
     d.tempos.sort_by_key(|t| t.0);
     d.tempos.dedup_by_key(|t| t.0);
     d.time_sigs.sort_by_key(|t| t.0);
