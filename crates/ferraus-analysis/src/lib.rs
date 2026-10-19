@@ -4,6 +4,8 @@
 //! serde-serialisable struct, so other crates (mastering, stretch, delay sync, scores)
 //! reuse the same numbers the `analyze` commands print.
 
+pub mod chords;
+pub mod compare;
 pub mod levels;
 pub mod loudness;
 pub mod spectrum;
