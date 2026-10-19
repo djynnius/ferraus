@@ -10,33 +10,41 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("command", ParamKind::Str).help("Command name (e.g. separate, 'midi quantize'), 'errors', or 'troubleshooting'"))
             .positional("command")
             .example("ferraus docs separate", "Read the separate reference offline")
-            .example("ferraus docs errors", "Every exit code with its cause and fix"),
+            .example("ferraus docs errors", "Every exit code with its cause and fix")
+            .example("ferraus docs \"midi quantize\"", "Quote a multi-word command")
+            .example("ferraus docs troubleshooting", "The troubleshooting guide, offline"),
         OpSpec::custom("docs build-site", Category::Docs, "Generate the mdBook docs site source from the command definitions", docs_build_site)
             .inputs(Inputs::NONE)
             .param(param("out", ParamKind::Path).default("target/docs-site").help("Directory to write book.toml and src/ into"))
             .param(param("guides", ParamKind::Path).default("docs/guides").help("Directory of hand-written guides copied into the site"))
             .param(param("check", ParamKind::Flag).help("Fail when any command is below the documentation depth bar"))
             .example("ferraus docs build-site --out target/docs-site", "Write the docs site source")
-            .example("ferraus docs build-site --check", "Fail if any command lacks examples or help text"),
+            .example("ferraus docs build-site --check", "Fail if any command lacks examples or help text")
+            .example("ferraus docs build-site --guides docs/guides --out site --check", "Check the depth bar and write the site with guides from a custom folder"),
         OpSpec::custom("completions", Category::System, "Print a shell completion script", completions)
             .param(param("shell", ParamKind::Choice).choices(&["bash", "zsh", "fish", "powershell", "elvish"]).required().help("Shell to generate completions for"))
             .positional("shell")
             .example("ferraus completions zsh > ~/.zfunc/_ferraus", "Install zsh completions")
-            .example("ferraus completions bash > ~/.local/share/bash-completion/completions/ferraus", "Install bash completions"),
+            .example("ferraus completions bash > ~/.local/share/bash-completion/completions/ferraus", "Install bash completions")
+            .example("ferraus completions fish > ~/.config/fish/completions/ferraus.fish", "Install fish completions"),
         OpSpec::custom("man", Category::Docs, "Print a man page (roff) for ferraus", man_page)
             .inputs(Inputs::NONE)
             .example("ferraus man > ferraus.1", "Write the man page")
-            .example("ferraus man | man -l -", "Read it now"),
+            .example("ferraus man | man -l -", "Read it now")
+            .example("ferraus man > /usr/local/share/man/man1/ferraus.1", "Install it so that man ferraus works"),
         OpSpec::custom("doctor", Category::System, "Report what is installed: version, paths, FFmpeg, models, devices, plugins", doctor)
             .inputs(Inputs::NONE)
             .param(param("install-ffmpeg", ParamKind::Flag).help("Download a pinned, checksummed static FFmpeg build into the ferraus cache"))
             .param(param("install-audiveris", ParamKind::Flag).help("Download the Audiveris OMR engine (Java, AGPL) for 'score read --engine audiveris'"))
             .example("ferraus doctor", "Check the installation")
-            .example("ferraus doctor --install-ffmpeg -y", "Install the managed FFmpeg for the bridge"),
+            .example("ferraus doctor --install-ffmpeg -y", "Install the managed FFmpeg for the bridge")
+            .example("ferraus doctor --json", "The same report as JSON: version, paths, FFmpeg, models, devices, plugins")
+            .example("ferraus doctor --install-audiveris -y", "Download the optional Audiveris OMR engine for score read"),
         OpSpec::custom("licenses", Category::System, "Print every third-party license and attribution", licenses)
             .inputs(Inputs::NONE)
             .example("ferraus licenses > THIRD-PARTY-LICENSES.md", "Save the attributions")
-            .example("ferraus licenses | grep -i mpl", "Find copyleft-at-file-level components"),
+            .example("ferraus licenses | grep -i mpl", "Find copyleft-at-file-level components")
+            .example("ferraus licenses --json", "Every component with its license as JSON"),
         OpSpec::custom("bench", Category::System, "Measure real-time factors of every effect on this machine", bench)
             .about("Runs each single-input effect with its defaults on a synthetic stereo signal and reports how many times faster than real time it ran. With --baseline, fails (exit 9) when any effect is more than --tolerance slower than the saved numbers.")
             .inputs(Inputs::NONE)
@@ -46,17 +54,21 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("baseline", ParamKind::Path).help("Compare against a baseline JSON file"))
             .param(param("tolerance", ParamKind::Percent).default("15%").help("Allowed slowdown versus the baseline before failing"))
             .example("ferraus bench --only compress,reverb,limit", "Measure three effects")
-            .example("ferraus bench --save bench.json && ferraus bench --baseline bench.json", "Detect performance regressions"),
+            .example("ferraus bench --save bench.json && ferraus bench --baseline bench.json", "Detect performance regressions")
+            .example("ferraus bench --duration 30s --json", "Measure every effect on a 30-second signal; results as JSON")
+            .example("ferraus bench --baseline bench.json --tolerance 25%", "Fail only when an effect is more than 25% slower than the baseline"),
         OpSpec::custom("self-update", Category::System, "Update ferraus to the latest release (opt-in, never automatic)", self_update)
             .inputs(Inputs::NONE)
             .param(param("version", ParamKind::Str).help("Install this version instead of the latest, e.g. 1.2.0"))
             .example("ferraus self-update", "Install the newest signed release")
-            .example("ferraus self-update --version 1.2.0", "Pin a version"),
+            .example("ferraus self-update --version 1.2.0", "Pin a version")
+            .example("ferraus self-update --dry-run --json", "Show which version would be installed without changing anything"),
         OpSpec::custom("self-uninstall", Category::System, "Remove everything the URL installer placed", self_uninstall)
             .inputs(Inputs::NONE)
             .param(param("purge", ParamKind::Flag).help("Also delete the config, cache (models), and data (sounds, jobs) directories"))
             .example("ferraus self-uninstall -y", "Remove the binary installed by the shell installer")
-            .example("ferraus self-uninstall --purge -y", "Remove the binary, models, sounds, and config"),
+            .example("ferraus self-uninstall --purge -y", "Remove the binary, models, sounds, and config")
+            .example("ferraus self-uninstall --dry-run", "List what would be removed without removing it"),
     ]
 }
 

@@ -18,48 +18,69 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("chain", ParamKind::Str).repeatable().advanced().help("Stages as a JSON array of {op, ...args} objects (used by pipeline files)"))
             .no_mix()
             .example("ferraus fx take.wav -o clean.wav --fx \"denoise:auto\" --fx \"fade:in=1s,out=2s\" --fx \"normalize:lufs=-14\"", "Denoise, fade, and normalize in one run")
-            .example("ferraus fx vox.wav -o vox_fx.wav --fx \"compress:preset=vocal\" --fx deess --fx \"reverb:type=plate,mix=18%\"", "A vocal chain"),
+            .example("ferraus fx vox.wav -o vox_fx.wav --fx \"compress:preset=vocal\" --fx deess --fx \"reverb:type=plate,mix=18%\"", "A vocal chain")
+            .example("ferraus fx drums.wav -o drums_fx.wav --fx \"highpass:freq=40Hz\" --fx \"compress:ratio=4:1,attack=5ms\" --fx \"limit:ceiling=-1dBTP\" --dry-run --json", "Plan a drum-bus chain and print the resolved stages without processing"),
         OpSpec::custom("pipeline run", Category::Chains, "Run a pipeline file (YAML or JSON) with stage caching", pipeline_run)
             .param(param("set", ParamKind::Str).repeatable().help("Override any field, e.g. stages.tuned.args.strength=90%"))
             .param(param("no-cache", ParamKind::Flag).help("Recompute every stage instead of reusing cached results"))
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
-            .example("ferraus pipeline run job.yaml", "Run every stage and write the outputs listed in the file"),
+            .example("ferraus pipeline run job.yaml", "Run every stage and write the outputs listed in the file")
+            .example("ferraus pipeline run job.yaml --set stages.tuned.args.strength=90% --json", "Override one stage parameter for this run and get a JSON result")
+            .example("ferraus pipeline run job.yaml --no-cache --overwrite", "Recompute every stage from scratch and replace existing outputs"),
         OpSpec::custom("pipeline validate", Category::Chains, "Check a pipeline file without running it", pipeline_validate)
             .param(param("set", ParamKind::Str).repeatable().help("Override any field before validating"))
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
-            .example("ferraus pipeline validate job.yaml --json", "Validate stage names, arguments, and references"),
+            .example("ferraus pipeline validate job.yaml --json", "Validate stage names, arguments, and references")
+            .example("ferraus pipeline validate job.json", "Check a JSON pipeline file; exit code 2 means a stage or argument is wrong")
+            .example("ferraus pipeline validate job.yaml --set stages.master.args.lufs=-16LUFS", "Check that an override is valid before running it"),
         OpSpec::custom("pipeline explain", Category::Chains, "Print the resolved plan with every default filled in", pipeline_validate)
             .param(param("set", ParamKind::Str).repeatable().help("Override any field before explaining"))
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
-            .example("ferraus pipeline explain job.yaml", "Show each stage with all parameters resolved"),
+            .example("ferraus pipeline explain job.yaml", "Show each stage with all parameters resolved")
+            .example("ferraus pipeline explain job.yaml --json", "The resolved plan as JSON, for an agent to inspect")
+            .example("ferraus pipeline explain job.yaml --set stages.clean.args.amount=12dB", "See how an override changes the plan"),
         OpSpec::custom("presets list", Category::Chains, "List built-in and user presets", presets_list)
             .param(param("effect", ParamKind::Str).help("Only presets for this effect"))
             .positional("effect")
-            .example("ferraus presets list compress", "Presets for the compressor"),
+            .example("ferraus presets list compress", "Presets for the compressor")
+            .example("ferraus presets list", "Every built-in and user preset, grouped by effect")
+            .example("ferraus presets list reverb --json", "Reverb presets as JSON"),
         OpSpec::custom("presets show", Category::Chains, "Show a preset's values, e.g. compress/tighten", presets_show)
             .param(param("name", ParamKind::Str).required().help("effect/preset, e.g. compress/vocal"))
             .positional("name")
-            .example("ferraus presets show compress/tighten", "Print the tighten preset"),
+            .example("ferraus presets show compress/tighten", "Print the tighten preset")
+            .example("ferraus presets show compress/vocal --json", "The vocal compressor preset's values as JSON")
+            .example("ferraus presets show compress/mine", "Show a user preset saved earlier with presets save"),
         OpSpec::custom("presets save", Category::Chains, "Save parameter values as a user preset", presets_save)
             .param(param("name", ParamKind::Str).required().help("effect/preset, e.g. compress/mine"))
             .param(param("set", ParamKind::Str).repeatable().help("key=value pairs to store"))
             .positional("name")
-            .example("ferraus presets save compress/mine --set threshold=-16dB --set ratio=3:1", "Save a compressor preset"),
+            .example("ferraus presets save compress/mine --set threshold=-16dB --set ratio=3:1", "Save a compressor preset")
+            .example("ferraus presets save reverb/booth --set type=room --set mix=15%", "Save a small-room reverb as a user preset")
+            .example("ferraus presets save compress/mine --set ratio=2:1 --overwrite", "Replace an existing user preset"),
         OpSpec::custom("schema", Category::Agents, "List commands, or print the JSON Schema of one command's arguments and result", schema)
             .param(param("command", ParamKind::Str).help("Command to describe (omit to list every command)"))
             .positional("command")
-            .example("ferraus schema separate", "Arguments and result schema for separate"),
+            .example("ferraus schema separate", "Arguments and result schema for separate")
+            .example("ferraus schema", "List every command that has a schema")
+            .example("ferraus schema \"denoise profile\" --json", "The schema of a multi-word command (quote it)"),
         OpSpec::custom("describe", Category::Agents, "Compact catalog of every command for agents", describe)
             .inputs(Inputs::NONE)
             .param(param("agent", ParamKind::Flag).help("One line per command sized to fit in a model's context"))
             .param(param("format", ParamKind::Choice).choices(&["text", "markdown", "json"]).default("text").help("Output format"))
-            .example("ferraus describe --agent", "The whole surface in under 4,000 tokens"),
+            .example("ferraus describe --agent", "The whole surface in under 4,000 tokens")
+            .example("ferraus describe --format markdown", "The catalog as a Markdown table, e.g. for AGENTS.md")
+            .example("ferraus describe --format json", "The catalog as JSON for programmatic tool discovery"),
         OpSpec::custom("replay", Category::Agents, "Re-run the command recorded in a sidecar", replay)
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
-            .example("ferraus replay take.tuned.wav.ferraus.json --overwrite", "Reproduce an output from its sidecar"),
+            .example("ferraus replay take.tuned.wav.ferraus.json --overwrite", "Reproduce an output from its sidecar")
+            .example("ferraus replay take.tuned.wav.ferraus.json --dry-run --json", "Show the recorded command and parameters without running it")
+            .example("ferraus replay take.tuned.wav.ferraus.json -o retake.wav", "Re-run the recorded command but write to a new file"),
         OpSpec::custom("verify", Category::Agents, "Check that a sidecar's inputs and outputs still match their hashes", verify)
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
-            .example("ferraus verify take.tuned.wav.ferraus.json --json", "Confirm nothing changed since the run"),
+            .example("ferraus verify take.tuned.wav.ferraus.json --json", "Confirm nothing changed since the run")
+            .example("ferraus verify master.wav.ferraus.json", "Check a master against its provenance; exit code 9 if a hash differs")
+            .example("ferraus verify stems/vocals.wav.ferraus.json --quiet", "Silent check for scripts: only the exit code matters"),
     ]
 }
 

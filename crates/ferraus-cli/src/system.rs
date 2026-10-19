@@ -6,13 +6,22 @@ use std::path::PathBuf;
 pub fn ops() -> Vec<OpSpec> {
     vec![
         OpSpec::custom("jobs list", Category::Agents, "List background jobs started with --async", jobs_list)
-            .inputs(Inputs::NONE),
+            .inputs(Inputs::NONE)
+            .example("ferraus jobs list", "Every background job with its state (running, done, failed, cancelled)")
+            .example("ferraus jobs list --json", "The job list as JSON: job_id, state, percent, and the original command line")
+            .example("ferraus separate song.wav --async --json && ferraus jobs list", "Start a long separation in the background, then see it listed"),
         OpSpec::custom("jobs status", Category::Agents, "Status of a background job", jobs_status)
             .param(param("id", ParamKind::Str).required().help("Job id returned by --async"))
-            .positional("id"),
+            .positional("id")
+            .example("ferraus jobs status 1760873452123-3f2a", "State and percent complete of one job")
+            .example("ferraus jobs status 1760873452123-3f2a --json", "Status as JSON; result is filled in once the job has finished")
+            .example("ferraus denoise interview.wav --async --json", "Start the job whose id you then pass to jobs status"),
         OpSpec::custom("jobs logs", Category::Agents, "Progress and log output of a background job", jobs_logs)
             .param(param("id", ParamKind::Str).required().help("Job id"))
-            .positional("id"),
+            .positional("id")
+            .example("ferraus jobs logs 1760873452123-3f2a", "The progress events and log lines the job has written so far")
+            .example("ferraus jobs logs 1760873452123-3f2a --json", "Progress and logs as JSON")
+            .example("ferraus jobs logs 1760873452123-3f2a | tail -n 5", "Only the latest progress lines"),
         OpSpec::custom(
             "jobs wait",
             Category::Agents,
@@ -21,13 +30,22 @@ pub fn ops() -> Vec<OpSpec> {
         )
         .param(param("id", ParamKind::Str).required().help("Job id"))
         .param(param("poll", ParamKind::Time).default("500ms").help("Polling interval"))
-        .positional("id"),
+        .positional("id")
+        .example("ferraus jobs wait 1760873452123-3f2a", "Block until the job finishes, then print its result")
+        .example("ferraus jobs wait 1760873452123-3f2a --poll 2s --json", "Check every two seconds; print the job's result envelope as JSON")
+        .example("ferraus jobs wait 1760873452123-3f2a --timeout 10m", "Give up waiting after ten minutes (exit code 8)"),
         OpSpec::custom("jobs cancel", Category::Agents, "Cancel a running background job", jobs_cancel)
             .param(param("id", ParamKind::Str).required().help("Job id"))
-            .positional("id"),
+            .positional("id")
+            .example("ferraus jobs cancel 1760873452123-3f2a", "Stop a running job; partial outputs are not kept")
+            .example("ferraus jobs cancel 1760873452123-3f2a --json", "Report whether the job was cancelled, as JSON")
+            .example("ferraus jobs cancel 1760873452123-3f2a --quiet", "Cancel silently, for scripts"),
         OpSpec::custom("jobs result", Category::Agents, "The JSON result envelope of a finished job", jobs_result)
             .param(param("id", ParamKind::Str).required().help("Job id"))
-            .positional("id"),
+            .positional("id")
+            .example("ferraus jobs result 1760873452123-3f2a", "The finished job's result envelope, exactly as the command would have printed it")
+            .example("ferraus jobs result 1760873452123-3f2a --json", "The envelope as JSON (outputs, metrics, warnings)")
+            .example("ferraus jobs result 1760873452123-3f2a --json | jq .outputs", "Just the files the job wrote"),
     ]
 }
 

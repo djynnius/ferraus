@@ -27,19 +27,22 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("args", ParamKind::List).repeatable().help("Arguments passed to ffprobe verbatim; put them after `--`"))
             .positional("args")
             .example("ferraus ffprobe -- -v error -show_format -of json movie.mp4", "Container details as ffprobe JSON")
-            .example("ferraus ffprobe -- -hide_banner -show_streams song.flac", "Stream details in ffprobe's text format"),
+            .example("ferraus ffprobe -- -hide_banner -show_streams song.flac", "Stream details in ffprobe's text format")
+            .example("ferraus ffprobe -- -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels -of csv=p=0 interview.mp4", "Codec, rate, and channel count of the first audio stream as one CSV line"),
         OpSpec::custom("media info", Category::Media, "Container and stream details as JSON (ffprobe -show_format -show_streams)", media_info)
             .about("Runs ffprobe with -show_format -show_streams -show_chapters and returns its JSON, plus a normalized `inventory` \
                     of streams. Without FFmpeg, audio-capable containers are described natively (Symphonia) with a warning.")
             .inputs(Inputs::ONE_ANY)
             .example("ferraus media info movie.mkv --json", "Every stream, chapter, and container field as JSON")
-            .example("ferraus media info podcast.m4a", "Format, duration, bitrate, and tags of an audio file"),
+            .example("ferraus media info podcast.m4a", "Format, duration, bitrate, and tags of an audio file")
+            .example("ferraus media info lecture.mp4 --json | jq .result.inventory", "Only the normalized stream inventory"),
         OpSpec::custom("media streams", Category::Media, "List every stream in a container: video, audio, subtitle, data", media_streams)
             .about("Lists each elementary stream with its kind, codec, language, duration, and per-kind index (the N in \
                     `media extract-audio --track N`). Uses ffprobe when available, otherwise Symphonia (audio containers only).")
             .inputs(Inputs::ONE_ANY)
             .example("ferraus media streams movie.mkv", "Video, audio (with languages), subtitle and attachment streams")
-            .example("ferraus media streams interview.mp4 --json", "The stream inventory as JSON for an agent"),
+            .example("ferraus media streams interview.mp4 --json", "The stream inventory as JSON for an agent")
+            .example("ferraus media streams concert.mka", "Find the index of each audio track before media extract-audio --track"),
         OpSpec::custom("media extract-audio", Category::Media, "Pull an audio track out of a video or multi-track file", extract_audio)
             .about("Decodes the chosen audio track natively (Symphonia) and writes it in any format ferraus encodes (default WAV, \
                     or the -o extension). --copy stream-copies the track without re-encoding through FFmpeg (the default extension \
@@ -64,13 +67,15 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("keep-original", ParamKind::Flag).help("Keep the original audio as a second track [default: off]"))
             .param(param("shortest", ParamKind::Flag).help("End the output when the shorter of video and audio ends [default: off]"))
             .example("ferraus media replace-audio clip.mp4 mastered.wav -o clip-mastered.mp4", "Swap in the mastered mix (AAC 192k)")
-            .example("ferraus media replace-audio talk.mkv clean.flac --keep-original", "New audio first, original kept as track 2"),
+            .example("ferraus media replace-audio talk.mkv clean.flac --keep-original", "New audio first, original kept as track 2")
+            .example("ferraus media replace-audio promo.webm voiceover.wav --codec opus --shortest -o promo-vo.webm", "Opus audio in WebM, trimmed to whichever of video or audio is shorter"),
         OpSpec::custom("media remux", Category::Media, "Change the container without re-encoding (ffmpeg -c copy)", remux)
             .about("Copies every stream into a new container chosen by the -o extension or --format (default .mkv). Nothing is \
                     re-encoded, so it is fast and lossless; it fails when the target container cannot hold a stream's codec.")
             .inputs(Inputs::ONE_ANY)
             .example("ferraus media remux recording.mkv -o recording.mp4", "MKV to MP4 without re-encoding")
-            .example("ferraus media remux broadcast.ts", "Transport stream to broadcast.media-remux.mkv"),
+            .example("ferraus media remux broadcast.ts", "Transport stream to broadcast.media-remux.mkv")
+            .example("ferraus media remux screen.mov --format mp4 --json", "MOV to MP4 chosen with --format; the output path comes back as JSON"),
     ]
 }
 
