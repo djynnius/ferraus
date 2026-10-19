@@ -21,11 +21,22 @@ pub struct SessionOptions {
     /// Providers the model is known to work with (`ModelSpec::provider_hints`); automatic
     /// selection skips the others. Empty = no restriction.
     pub provider_hints: Vec<String>,
+    /// Trade speed for memory: skip ONNX Runtime's constant folding (graphs with static shapes,
+    /// like the Demucs exports, otherwise fold hundreds of index tensors into resident
+    /// constants), its memory pattern, and weight prepacking. htdemucs: about 1.3 GB peak
+    /// instead of 5 GB, roughly 1.5x slower on CPU; Mel-Band RoFormer: 3.7 GB instead of 6 GB.
+    pub lean: bool,
 }
 
 impl Default for SessionOptions {
     fn default() -> Self {
-        SessionOptions { device: "auto".into(), deterministic: false, threads: 0, provider_hints: Vec::new() }
+        SessionOptions {
+            device: "auto".into(),
+            deterministic: false,
+            threads: 0,
+            provider_hints: Vec::new(),
+            lean: false,
+        }
     }
 }
 
@@ -40,6 +51,7 @@ impl SessionOptions {
             deterministic: ctx.globals.deterministic,
             threads: ctx.globals.threads,
             provider_hints: Vec::new(),
+            lean: false,
         }
     }
 
@@ -107,6 +119,18 @@ pub fn build_on(path: &Path, provider: Provider, opts: &SessionOptions) -> std::
             .with_parallel_execution(false)
             .map_err(s)?
             .with_deterministic_compute(true)
+            .map_err(s)?;
+    }
+    if opts.lean {
+        // measured on htdemucs (12 s input, CPU): 5.1 GB peak by default; 2.2 GB without
+        // constant folding; 1.45 GB also without the memory pattern (one preallocated block
+        // sized for every intermediate tensor); 1.3 GB also without weight prepacking
+        b = b
+            .with_config_entry("optimization.disable_specified_optimizers", "ConstantFolding")
+            .map_err(s)?
+            .with_memory_pattern(false)
+            .map_err(s)?
+            .with_config_entry("session.disable_prepacking", "1")
             .map_err(s)?;
     }
     b = register(b, provider)?;
@@ -208,14 +232,27 @@ pub fn load_for(ctx: &mut OpCtx, path: &Path) -> Result<Arc<ModelSession>> {
 /// Like [`load_for`], restricting automatic provider selection to `hints` (a model's
 /// `provider_hints`, e.g. when its graph is known not to compile for CoreML).
 pub fn load_for_hinted(ctx: &mut OpCtx, path: &Path, hints: &[String]) -> Result<Arc<ModelSession>> {
+    load_for_with(ctx, path, hints, false)
+}
+
+/// Like [`load_for_hinted`], optionally building a [lean](SessionOptions::lean) session.
+pub fn load_for_with(ctx: &mut OpCtx, path: &Path, hints: &[String], lean: bool) -> Result<Arc<ModelSession>> {
     let mut opts = SessionOptions::from_ctx(ctx);
     opts.provider_hints = hints.to_vec();
+    opts.lean = lean;
     let (s, warnings) = load(path, &opts)?;
     for w in warnings {
         ctx.warn("provider_fallback", w);
     }
     ctx.note("execution_provider", s.provider.name());
     Ok(s)
+}
+
+/// Forget every cached session of one model file, so its memory is freed as soon as the
+/// caller drops its own handle (separation runs several large models one after another).
+pub fn evict(path: &Path) {
+    let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    cache().lock().expect("session cache").retain(|(p, _), _| *p != canon);
 }
 
 /// Drop every cached session (frees memory between long jobs; used by tests).
