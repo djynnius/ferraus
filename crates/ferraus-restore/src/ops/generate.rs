@@ -101,8 +101,9 @@ pub fn ops() -> Vec<OpSpec> {
     ]
 }
 
-fn duration_frames(a: &Args, sr: u32) -> Result<usize> {
-    let secs = a.seconds("dur")?;
+fn duration_frames(a: &Args, sr: u32, bpm: Option<f64>) -> Result<usize> {
+    // beats (4b, 4b@120) resolve against --bpm
+    let secs = a.time("dur")?.seconds(sr, bpm).map_err(|e| Error::usage(format!("--dur: {}", e.message)))?;
     if secs.is_nan() || secs <= 0.0 || secs > 24.0 * 3600.0 {
         return Err(Error::usage("--dur must be between 0 and 24 hours"));
     }
@@ -190,7 +191,7 @@ pub(crate) fn osc(shape: &str, t: f64, dt: f64) -> f64 {
 fn gen_tone(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let sr = ctx.globals.sample_rate.unwrap_or(48000);
     let ch = ctx.globals.channels.unwrap_or(1).clamp(1, 32);
-    let n = duration_frames(a, sr)?;
+    let n = duration_frames(a, sr, ctx.bpm())?;
     check_memory(ctx, n, ch)?;
     let shape = a.choice("shape");
     let amp = a.gain("amplitude")?.linear();
@@ -299,7 +300,7 @@ fn noise_channel(color: &str, n: usize, seed: u64) -> Vec<f64> {
 fn gen_noise(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let sr = ctx.globals.sample_rate.unwrap_or(48000);
     let ch = ctx.globals.channels.unwrap_or(1).clamp(1, 32);
-    let n = duration_frames(a, sr)?;
+    let n = duration_frames(a, sr, ctx.bpm())?;
     check_memory(ctx, n, ch)?;
     let color = a.choice("color");
     let rms_target = a.gain("amplitude")?.linear();
@@ -334,7 +335,7 @@ fn gen_noise(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 fn gen_silence(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let sr = ctx.globals.sample_rate.unwrap_or(48000);
     let ch = ctx.globals.channels.unwrap_or(1).clamp(1, 32);
-    let n = duration_frames(a, sr)?;
+    let n = duration_frames(a, sr, ctx.bpm())?;
     check_memory(ctx, n, ch)?;
     let buf = AudioBuffer::new(sr, ch, n);
     let path = gen_output(ctx, "silence")?;

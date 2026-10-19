@@ -211,7 +211,12 @@ fn pull(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             continue;
         }
         if ctx.globals.dry_run {
-            results.push(json!({"model": e.id(), "status": "would_download", "size_bytes": e.size_bytes, "license": e.license.label()}));
+            let unverified = e.sha256.is_none() || e.urls.is_empty();
+            let allow = std::env::var("FERRAUS_ALLOW_UNVERIFIED").map(|v| v == "1").unwrap_or(false);
+            let status = if unverified && !allow { "would_refuse_unverified" } else { "would_download" };
+            results.push(
+                json!({"model": e.id(), "status": status, "size_bytes": e.size_bytes, "license": e.license.label()}),
+            );
             continue;
         }
         if offline(ctx) {
