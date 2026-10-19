@@ -22,7 +22,7 @@ ferraus score read minuet.pdf -o minuet.musicxml --review --json -y
  "warnings": [],
  "result": {"engine": "builtin", "parts": 1, "measures": 16, "check_ok": true, "failing_measures": [],
             "recognition": {"pages": [1], "rasterizer": "pdftoppm", "staff_space_px": [13.8], "issues": []},
-            "review": {"ok": true, "notes": 135,
+            "review": {"ok": true, "notes": 77,
                        "issues": [{"severity": "warning", "code": "unsupported", "message": "lyrics and text are not read"}, ...,
                                   {"severity": "info", "code": "low_confidence", "part": "P1", "measure": 10,
                                    "message": "confidence 0.50: duration doubled to fill the measure"}],

@@ -113,10 +113,10 @@ ferraus score perform minuet.pdf --instrument piano -o minuet.wav -y --json
 ```json
 {"ok": true, "command": "score perform",
  "outputs": [{"path": "minuet.musicxml", "role": "musicxml"}, {"path": "minuet.mid", "role": "midi"},
-             {"path": "minuet.wav", "role": "audio", "duration_s": 25.0}],
+             {"path": "minuet.wav", "role": "audio", "duration_s": 26.0}],
  "models": [{"name": "omr/oemer", ...}, {"name": "omr/oemer-seg", ...}],
  "result": {"engine": "builtin",
-            "performance": {"duration_s": 24.0, "notes": 135, "measures_played": 16, ...}}}
+            "performance": {"duration_s": 24.0, "notes": 73, "measures_played": 16, ...}}}
 ```
 
 Reading takes 15–60 seconds per page on a laptop CPU. PDFs are turned into images with
@@ -140,7 +140,9 @@ corrected MusicXML.
 **What it reads:** clean printed (engraved) music: treble, bass, and C clefs; key and time
 signatures; notes from whole to 32nd with beams, flags, and dots; chords; rests;
 sharps, flats, and naturals; one or more staves per system, including piano grand staves.
-On our printed test set it gets about 99% of pitches and durations right.
+On the project's engraved test set (23 pieces, 975 notes, read both as PNG and as PDF) every
+pitch and duration came out right; scans and other engravers' fonts will do worse, which
+is why the review matters.
 
 **What it does not read:** lyrics and other text, tuplets, grace notes, ties, slurs,
 dynamics, articulations, repeats and endings, and two voices on one staff (they come out as

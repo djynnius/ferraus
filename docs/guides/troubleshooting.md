@@ -139,7 +139,7 @@ overlapping tiles); blank areas are skipped. `--device cuda` uses a GPU when one
 | Hum-to-MIDI | Accurate on clean, separated notes; raise `--onset-sensitivity` for repeated notes |
 | Polyphonic transcription (`--mode poly`) | Best-effort; check the per-note confidence |
 | Score from MIDI | Reliable; from audio, as good as the transcription |
-| Sheet music reading (`score read`) | Clean printed scores: about 99% of pitches and durations on our engraved test set; one voice per staff; lyrics, tuplets, ties, slurs, dynamics, and repeats are not read; check `--review` before trusting a page |
+| Sheet music reading (`score read`) | Clean printed scores: all 975 notes of the engraved test set read right (PNG and PDF); scans are best-effort; one voice per staff; lyrics, tuplets, ties, slurs, dynamics, and repeats are not read; check `--review` before trusting a page |
 
 ## Reporting a bug
 

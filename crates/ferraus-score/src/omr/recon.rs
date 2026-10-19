@@ -939,7 +939,9 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         for hb in split_heads(&comp, sp) {
             let pos = st.position(hb.cy());
             let score = hollow_score(c.clean, &hb, st);
-            let hollow = score < 0.45;
+            // filled heads are solid ink in the centre (about 1.0); the holes of half and whole
+            // notes stay well below 0.6 even when blurred
+            let hollow = score < 0.7;
             if trace() {
                 eprintln!("  head {:?} pos {pos} centre ink {score:.2}", hb);
             }
