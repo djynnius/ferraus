@@ -77,6 +77,12 @@ pub fn parse(text: &str, sets: &[String]) -> Result<PipelineFile> {
 /// `stages.tuned.args.strength=90%` (stages addressed by id), `inputs.vocal=x.wav`,
 /// `outputs.0.path=out.wav`.
 fn apply_set(v: &mut Value, key: &str, val: &str) -> Result<()> {
+    // JSON arrays/objects in --set values are parsed (e.g. a replacement fx chain)
+    let parsed = if val.trim_start().starts_with(['[', '{']) {
+        serde_json::from_str::<Value>(val).unwrap_or_else(|_| Value::String(val.to_string()))
+    } else {
+        Value::String(val.to_string())
+    };
     let parts: Vec<&str> = key.split('.').collect();
     let mut cur = v;
     for (i, part) in parts.iter().enumerate() {
@@ -94,7 +100,7 @@ fn apply_set(v: &mut Value, key: &str, val: &str) -> Result<()> {
             }
             Value::Object(obj) => {
                 if last {
-                    obj.insert(part.to_string(), Value::String(val.to_string()));
+                    obj.insert(part.to_string(), parsed);
                     return Ok(());
                 }
                 obj.entry(part.to_string()).or_insert_with(|| Value::Object(Map::new()))
@@ -102,7 +108,7 @@ fn apply_set(v: &mut Value, key: &str, val: &str) -> Result<()> {
             _ => return Err(Error::usage(format!("--set: cannot descend into '{part}'"))),
         };
     }
-    *cur = Value::String(val.to_string());
+    *cur = parsed;
     Ok(())
 }
 
