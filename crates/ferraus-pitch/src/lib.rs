@@ -1,5 +1,7 @@
 //! ferraus-pitch
 
+pub mod key;
+pub mod notes;
 pub mod pyin;
 mod util;
 
