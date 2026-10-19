@@ -1,0 +1,66 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/djynnius/ferraus"
+homepage = "https://djynnius.github.io/ferraus"
+authors = ["Sunday Ikpe <ikakke.ikpe@gmail.com>"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+ferraus-core = { path = "crates/ferraus-core", version = "0.1.0" }
+ferraus-codec = { path = "crates/ferraus-codec", version = "0.1.0" }
+ferraus-dsp = { path = "crates/ferraus-dsp", version = "0.1.0" }
+ferraus-pitch = { path = "crates/ferraus-pitch", version = "0.1.0" }
+ferraus-ml = { path = "crates/ferraus-ml", version = "0.1.0" }
+ferraus-separate = { path = "crates/ferraus-separate", version = "0.1.0" }
+ferraus-denoise = { path = "crates/ferraus-denoise", version = "0.1.0" }
+ferraus-midi = { path = "crates/ferraus-midi", version = "0.1.0" }
+ferraus-synth = { path = "crates/ferraus-synth", version = "0.1.0" }
+ferraus-plugins = { path = "crates/ferraus-plugins", version = "0.1.0" }
+ferraus-models = { path = "crates/ferraus-models", version = "0.1.0" }
+ferraus-mcp = { path = "crates/ferraus-mcp", version = "0.1.0" }
+ferraus-score = { path = "crates/ferraus-score", version = "0.1.0" }
+ferraus-media = { path = "crates/ferraus-media", version = "0.1.0" }
+ferraus-analysis = { path = "crates/ferraus-analysis", version = "0.1.0" }
+ferraus-master = { path = "crates/ferraus-master", version = "0.1.0" }
+ferraus-edit = { path = "crates/ferraus-edit", version = "0.1.0" }
+ferraus-restore = { path = "crates/ferraus-restore", version = "0.1.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+toml = "0.8"
+thiserror = "2"
+sha2 = "0.10"
+hex = "0.4"
+rayon = "1.10"
+glob = "0.3"
+rustfft = "6"
+realfft = "3"
+rand = "0.8"
+rand_chacha = "0.3"
+
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"

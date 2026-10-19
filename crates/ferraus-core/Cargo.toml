@@ -1,0 +1,22 @@
+[package]
+name = "ferraus-core"
+description = "Core types for ferraus: audio buffers, unit parsing, operation specs, pipelines, provenance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+hex.workspace = true
+rayon.workspace = true
+glob.workspace = true
+
+[dev-dependencies]
+proptest = "1"

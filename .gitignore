@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+/ferraus-out
+*.ferraus.json.tmp
+.DS_Store
