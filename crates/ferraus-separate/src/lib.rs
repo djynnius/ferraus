@@ -13,6 +13,7 @@
 //! requires, so a 60-minute input needs O(model + a few blocks) of memory.
 
 pub mod adapter;
+pub mod host_stft;
 pub mod pipeline;
 pub mod stft;
 pub mod stream;
@@ -294,8 +295,18 @@ fn resolve_members(ctx: &mut OpCtx, members: &[Member], accept: bool) -> Result<
     Ok(resolved)
 }
 
-/// Open one member's session (lean sessions skip constant folding to save memory).
+/// Open one member's session (lean sessions skip constant folding to save memory). Models
+/// whose registry entry names host-STFT cut points run with the transforms on the host.
 fn open_model(ctx: &mut OpCtx, r: &Resolved, lean: bool) -> Result<Box<dyn SeparationModel>> {
+    if let Some(cut) = host_stft::HostStftCut::from_spec(&r.spec) {
+        match host_stft::HostStftDemucs::load(ctx, &r.label, &r.spec, &r.path, cut, lean) {
+            Ok(m) => return Ok(Box::new(m)),
+            Err(e) => ctx.warn(
+                "host_stft_unavailable",
+                format!("{}: running the graph's own STFT instead ({})", r.label, e.message),
+            ),
+        }
+    }
     let session = ferraus_ml::session::load_for_with(ctx, &r.path, &r.spec.provider_hints, lean)?;
     adapter::open(&r.label, r.spec.clone(), session)
 }
@@ -386,11 +397,26 @@ impl Writer {
         o
     }
 
-    fn write(&mut self, ctx: &mut OpCtx, stem: &str, buf: &AudioBuffer, quality: Value) -> Result<()> {
+    /// Write a (possibly spilled) track block by block: the encoder streams when the format
+    /// allows, so only one block of one stem is in memory (otherwise the stem is collected
+    /// whole); the bytes are the same either way.
+    fn write_track(&mut self, ctx: &mut OpCtx, stem: &str, t: &Track, sr: u32, quality: Value) -> Result<()> {
         ctx.check_cancel()?;
         let path = ctx.output_path(Some(stem), &self.ext)?;
         let opts = self.opts(ctx, &path);
-        ctx.write_audio_with(&path, buf, Some(stem), &opts)?;
+        let cancel = ctx.cancel.clone();
+        ctx.write_audio_blocks(&path, Some(stem), &opts, sr, t.channels, t.frames, &mut |sink| {
+            let mut a = 0;
+            while a < t.frames {
+                cancel.check()?;
+                let b = (a + WRITE_BLOCK).min(t.frames);
+                let data = t.read(a, b)?;
+                let planes: Vec<&[f32]> = data.iter().map(|c| c.as_slice()).collect();
+                sink(&planes)?;
+                a = b;
+            }
+            Ok(())
+        })?;
         if let Some(q) = quality.get("score").and_then(|v| v.as_f64()) {
             ctx.metric(&format!("quality_{stem}"), (q * 1000.0).round() / 1000.0);
         }
@@ -401,11 +427,32 @@ impl Writer {
         }));
         Ok(())
     }
+}
 
-    /// Load a (possibly spilled) track and write it; only one stem is in memory at a time.
-    fn write_track(&mut self, ctx: &mut OpCtx, stem: &str, t: &Track, sr: u32, quality: Value) -> Result<()> {
-        let buf = t.to_buffer(sr)?;
-        self.write(ctx, stem, &buf, quality)
+/// Frames per block when writing a stem.
+const WRITE_BLOCK: usize = 1 << 16;
+
+/// The input mix: a codec stream, or the whole buffer when the input cannot be streamed.
+enum MixSource {
+    Stream(Box<dyn ferraus_core::AudioReader>),
+    Whole(AudioBuffer),
+}
+
+impl MixSource {
+    /// Channels and length in frames (as declared by the container when streaming; 0 if it
+    /// declares neither a length nor a duration).
+    fn shape(&self) -> (usize, usize) {
+        match self {
+            MixSource::Whole(b) => (b.channels(), b.frames()),
+            MixSource::Stream(r) => {
+                let i = r.info();
+                let n = r
+                    .frames_hint()
+                    .map(|f| f as usize)
+                    .unwrap_or_else(|| (i.duration_s.max(0.0) * i.sample_rate as f64).ceil() as usize);
+                (i.channels, n)
+            }
+        }
     }
 }
 
@@ -616,10 +663,13 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         }
     }
 
-    let mix = ctx.read_audio(0)?;
-    let sr = mix.sample_rate;
-    let ch = mix.channels();
-    let n = mix.frames();
+    // the input streams straight into its track (memory or spill file) when the codec can
+    // stream it; the plan uses the length the container declares
+    let source = match ctx.open_audio_stream(0)? {
+        Some(r) => MixSource::Stream(r),
+        None => MixSource::Whole(ctx.read_audio(0)?),
+    };
+    let (ch, n_hint) = source.shape();
     if ch > 2 {
         return Err(Error::unsupported(format!(
             "separation needs mono or stereo input, got {ch} channels (downmix first with --channels 2)"
@@ -652,7 +702,7 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let new_outs: Vec<String> = out_names.iter().filter(|s| !estimated.contains(s)).cloned().collect();
     let n_tracks = 1 + n_estimates + new_outs.len() + usize::from(instrumental_only);
     let peaks: Vec<(u64, u64)> = resolved.iter().map(|r| model_peaks(&r.spec)).collect();
-    let mem = plan_memory(ctx.globals.max_memory, n, ch, n_tracks, &peaks);
+    let mem = plan_memory(ctx.globals.max_memory, n_hint, ch, n_tracks, &peaks);
     // A model whose own ONNX Runtime peak exceeds the budget runs lean with spilled signals
     // anyway (result.memory.fits = false); only a budget the user lowered is worth a warning.
     if !mem.fits && mem.budget != ferraus_core::Globals::default().max_memory {
@@ -666,7 +716,24 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         );
     }
     let spill = if mem.spill { Some(stream::SpillDir::new()?) } else { None };
-    let mix_track = Track::from_buffer(mix, spill.as_ref())?;
+    let (mix_track, sr) = match source {
+        MixSource::Whole(buf) => {
+            let sr = buf.sample_rate;
+            (Track::from_buffer(buf, spill.as_ref())?, sr)
+        }
+        MixSource::Stream(mut r) => {
+            let cancel = ctx.cancel.clone();
+            let (t, rate) = Track::from_reader(r.as_mut(), n_hint, spill.as_ref(), &mut || cancel.check())?;
+            ctx.record_stream_input(r.info(), rate, t.channels, t.frames as u64);
+            (t, rate)
+        }
+    };
+    let (n, ch) = (mix_track.frames, mix_track.channels);
+    if ch > 2 {
+        return Err(Error::unsupported(format!(
+            "separation needs mono or stereo input, got {ch} channels (downmix first with --channels 2)"
+        )));
+    }
 
     // phase 1: every member streams over the mix, one model in memory at a time
     let n_members = resolved.len();

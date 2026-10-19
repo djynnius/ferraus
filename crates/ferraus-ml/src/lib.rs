@@ -21,6 +21,7 @@ pub mod accelerate;
 pub mod archive;
 pub mod basic_pitch;
 pub mod chunk;
+pub mod onnx_edit;
 pub mod onnx_proto;
 pub mod pitch;
 pub mod provider;

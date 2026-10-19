@@ -415,6 +415,71 @@ fn max_memory_spills_to_temp_files_with_identical_results() {
     assert!(spill_dirs().is_empty(), "spill files removed after failure");
 }
 
+/// `SimpleIo` without its streaming reader and writer: the whole-buffer read and encode path.
+struct WholeIo;
+
+impl ferraus_core::AudioIo for WholeIo {
+    fn read(&self, path: &Path) -> Result<(AudioBuffer, ferraus_core::SourceInfo)> {
+        ferraus_core::wav::SimpleIo.read(path)
+    }
+    fn read_bytes(&self, bytes: &[u8], hint: Option<&str>) -> Result<(AudioBuffer, ferraus_core::SourceInfo)> {
+        ferraus_core::wav::SimpleIo.read_bytes(bytes, hint)
+    }
+    fn probe(&self, path: &Path) -> Result<ferraus_core::SourceInfo> {
+        ferraus_core::wav::SimpleIo.probe(path)
+    }
+    fn write(&self, path: &Path, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<()> {
+        ferraus_core::wav::SimpleIo.write(path, buf, opts)
+    }
+    fn write_bytes(&self, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<Vec<u8>> {
+        ferraus_core::wav::SimpleIo.write_bytes(buf, opts)
+    }
+    fn can_encode(&self, ext: &str) -> bool {
+        ext == "wav"
+    }
+}
+
+static WHOLE_IO: WholeIo = WholeIo;
+
+/// Streaming the input into its track and the stems into their files gives byte-identical
+/// stems to decoding and encoding whole buffers, in memory and spilled, mono and stereo.
+#[test]
+fn streamed_input_and_stems_are_identical_to_whole_buffer_io() {
+    let _g = stream::tests::spill_lock();
+    let dir = TempDir::new("sep-stream-io-model");
+    let model = toy_model(&dir, "a", &kernels(), &["drums", "bass", "other", "vocals"]);
+    let model = model.display().to_string();
+    for (mono, spill) in [(false, false), (false, true), (true, true)] {
+        let mut m = mix(1.3, 44_100);
+        if mono {
+            m = m.with_channels(1);
+        }
+        let r = setup(&format!("sep-stream-io-{mono}-{spill}"), &m);
+        let pairs = [("model", model.as_str()), ("segment", "0.2s")];
+        let tweak = |c: &mut OpCtx| {
+            c.globals.overwrite = true;
+            if spill {
+                c.globals.max_memory = 1 << 20;
+            }
+        };
+        let (v, ctx) = run(&r, &pairs, |c| {
+            tweak(c);
+            c.io = &WHOLE_IO;
+        })
+        .unwrap();
+        assert_eq!(v["memory"]["spilled"], spill);
+        let inputs_whole = serde_json::to_value(&ctx.input_records).unwrap();
+        let whole: Vec<Vec<u8>> = STEMS_4.iter().map(|s| std::fs::read(stem_path(&r, s)).unwrap()).collect();
+        let (v, ctx) = run(&r, &pairs, tweak).unwrap();
+        assert_eq!(v["memory"]["spilled"], spill);
+        assert_eq!(serde_json::to_value(&ctx.input_records).unwrap(), inputs_whole, "the input is recorded alike");
+        for (s, want) in STEMS_4.iter().zip(&whole) {
+            assert!(std::fs::read(stem_path(&r, s)).unwrap() == *want, "{s} (mono {mono}, spilled {spill}) differs");
+        }
+    }
+    assert!(spill_dirs().is_empty());
+}
+
 #[test]
 fn cascades_extended_and_partial_results_survive_failure() {
     let m = mix(0.5, 44_100);

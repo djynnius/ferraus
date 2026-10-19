@@ -55,6 +55,42 @@ pub trait AudioIo: Send + Sync {
     fn write_bytes(&self, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<Vec<u8>>;
     /// Extensions this build can encode.
     fn can_encode(&self, ext: &str) -> bool;
+    /// Open `path` for streaming decode, or `None` when it can only be read whole (callers then
+    /// use [`AudioIo::read`]). The chunks concatenate to exactly the samples `read` returns.
+    fn open_reader(&self, _path: &Path) -> Result<Option<Box<dyn AudioReader>>> {
+        Ok(None)
+    }
+    /// Open `path` for streaming encode of `frames` frames, or `None` when the format needs the
+    /// whole buffer (resampling, an external encoder). The file's bytes equal what
+    /// [`AudioIo::write`] writes for the same samples.
+    fn open_writer(
+        &self,
+        _path: &Path,
+        _sample_rate: u32,
+        _channels: usize,
+        _frames: u64,
+        _opts: &EncodeOptions,
+    ) -> Result<Option<Box<dyn AudioWriter>>> {
+        Ok(None)
+    }
+}
+
+/// A streaming decoder (see [`AudioIo::open_reader`]): planar chunks in file order, every
+/// chunk with the channel count of the first.
+pub trait AudioReader {
+    /// What the container declares (sample rate, channels, duration).
+    fn info(&self) -> &SourceInfo;
+    /// Frames the container declares, if it does.
+    fn frames_hint(&self) -> Option<u64>;
+    fn next_chunk(&mut self) -> Result<Option<AudioBuffer>>;
+}
+
+/// A streaming encoder for one file (see [`AudioIo::open_writer`]).
+pub trait AudioWriter {
+    /// Encode one planar block (every channel the same length).
+    fn write(&mut self, planes: &[&[f32]]) -> Result<()>;
+    /// Finish the file (sizes in headers, tags).
+    fn finish(self: Box<Self>) -> Result<()>;
 }
 
 /// Progress sink (stderr bar, NDJSON events, or nothing).
@@ -343,6 +379,34 @@ impl<'a> OpCtx<'a> {
         Ok(buf)
     }
 
+    /// Input `i` as a stream of chunks when the IO layer can stream it; `Ok(None)` means use
+    /// [`OpCtx::read_audio`]. Call [`OpCtx::record_stream_input`] once the stream is consumed.
+    pub fn open_audio_stream(&mut self, i: usize) -> Result<Option<Box<dyn AudioReader>>> {
+        let path = self.input(i)?.to_path_buf();
+        if path.as_os_str() == "-" {
+            return Ok(None);
+        }
+        self.check_allowed(&path)?;
+        if !path.exists() {
+            return Err(Error::new(
+                ErrorKind::InputMissing,
+                "input_not_found",
+                format!("input not found: {}", path.display()),
+            ));
+        }
+        self.io.open_reader(&path)
+    }
+
+    /// Record a streamed input as [`OpCtx::read_audio`] would (`frames` = what was decoded).
+    pub fn record_stream_input(&mut self, info: &SourceInfo, sample_rate: u32, channels: usize, frames: u64) {
+        self.input_records.push(InputRecord {
+            path: info.path.clone(),
+            duration_s: Some(frames as f64 / sample_rate.max(1) as f64),
+            sample_rate: Some(sample_rate),
+            channels: Some(channels),
+        });
+    }
+
     /// Record a non-audio input (MIDI, score, profile...).
     pub fn note_input(&mut self, path: &Path) {
         self.input_records.push(InputRecord {
@@ -497,6 +561,64 @@ impl<'a> OpCtx<'a> {
         });
         self.progress.output(&path.display().to_string(), role);
         Ok(())
+    }
+
+    /// Write an audio output block by block: `produce(sink)` hands `sink` consecutive planar
+    /// blocks covering exactly `frames` frames. The output streams to the encoder when the IO
+    /// layer can (memory independent of the length); otherwise the blocks are collected and
+    /// written with [`OpCtx::write_audio_with`]. The file's bytes are the same either way.
+    #[allow(clippy::too_many_arguments)]
+    pub fn write_audio_blocks(
+        &mut self,
+        path: &Path,
+        role: Option<&str>,
+        opts: &EncodeOptions,
+        sample_rate: u32,
+        channels: usize,
+        frames: usize,
+        produce: &mut dyn FnMut(&mut dyn FnMut(&[&[f32]]) -> Result<()>) -> Result<()>,
+    ) -> Result<()> {
+        if path.as_os_str() != "-" && !self.globals.dry_run && !(self.globals.in_place && path.exists()) {
+            self.prepare_output(path)?;
+            let tmp = tmp_path(path);
+            if let Some(mut w) = self.io.open_writer(&tmp, sample_rate, channels, frames as u64, opts)? {
+                let mut written = 0usize;
+                let mut sink = |p: &[&[f32]]| {
+                    if p.len() != channels {
+                        return Err(Error::internal("audio block with the wrong channel count"));
+                    }
+                    written += p.first().map(|c| c.len()).unwrap_or(0);
+                    w.write(p)
+                };
+                let mut r = produce(&mut sink);
+                if r.is_ok() && written != frames {
+                    r = Err(Error::internal(format!("streamed {written} frames of {frames}")));
+                }
+                let r = r.and_then(|_| w.finish()).and_then(|_| std::fs::rename(&tmp, path).map_err(Error::from));
+                if let Err(e) = r {
+                    let _ = std::fs::remove_file(&tmp);
+                    return Err(e);
+                }
+                self.outputs.push(OutputRecord {
+                    path: path.display().to_string(),
+                    role: role.map(|r| r.to_string()),
+                    duration_s: Some(frames as f64 / sample_rate.max(1) as f64),
+                    sample_rate: Some(sample_rate),
+                    channels: Some(channels),
+                    extra: Map::new(),
+                });
+                self.progress.output(&path.display().to_string(), role);
+                return Ok(());
+            }
+        }
+        let mut data: Vec<Vec<f32>> = (0..channels).map(|_| Vec::with_capacity(frames)).collect();
+        produce(&mut |p: &[&[f32]]| {
+            for (d, s) in data.iter_mut().zip(p) {
+                d.extend_from_slice(s);
+            }
+            Ok(())
+        })?;
+        self.write_audio_with(path, &AudioBuffer { sample_rate, data }, role, opts)
     }
 
     /// Write a non-audio file (JSON, MIDI, text...) and record it.

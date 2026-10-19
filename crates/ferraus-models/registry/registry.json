@@ -29,7 +29,7 @@
         "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}],
         "chunk_samples": 343980,
         "context_samples": 0,
-        "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}
+        "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}
       },
       "provider_hints": ["cuda", "directml", "cpu"],
       "export_date": "2026-05-21",
@@ -52,7 +52,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}},
       "notes": "Fine-tuned specialist of the htdemucs_ft bag (PyTorch f7e0c4bc-ba3fe64a.th); only its drums output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -72,7 +72,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}},
       "notes": "htdemucs_ft bass specialist (d12395a8-e57c48e6.th); only its bass output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -92,7 +92,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}},
       "notes": "htdemucs_ft other specialist (92cfc3b6-ef3bcb9c.th); only its other output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -112,7 +112,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}},
       "notes": "htdemucs_ft vocals specialist (04573f0d-f3cf25b2.th); only its vocals output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -133,7 +133,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 6, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1700}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 6, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1700, "host_stft": {"n_fft": 4096, "hop": 1024, "spec": "/real_stft/Reshape_3_output_0", "zout": "/Pad_2_output_0", "time": "/Add_4_output_0"}}},
       "notes": "From official htdemucs_6s weights (5c90dfd2-34c22ccb.th); same I/O as htdemucs with 6 sources in the order drums, bass, other, vocals, guitar, piano. Guitar and piano are best-effort quality. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -162,7 +162,7 @@
         "outputs": [{"name": "stems_spec", "shape": [1, 4, 1025, 801]}],
         "chunk_samples": 352800,
         "context_samples": 22050,
-        "params": {"n_fft": 2048, "hop": 441, "dim_f": 1025, "dim_t": 801, "compensate": 1.0, "ort_peak_mb": 6000, "ort_lean_peak_mb": 3800}
+        "params": {"n_fft": 2048, "hop": 441, "dim_f": 1025, "dim_t": 801, "compensate": 1.0, "ort_peak_mb": 6000, "ort_lean_peak_mb": 2800}
       },
       "notes": "Kimberley Jensen's Mel-Band RoFormer vocal model as audiojs exported it: the network between STFT and iSTFT (STFT n 2048, hop 441, Hann, centered with reflect padding; L re, L im, R re, R im), float16 weights computed in float32. Its output is the vocal spectrogram; the instrumental is the mix minus the vocals, which is exactly the MDX adapter's contract (compensate 1.0). 0.5 s of context is discarded at each window edge. Downloaded, hashed (sha256 equals the Hugging Face LFS oid and the card's table; the phuongnse mirror is byte-identical), and run by the project on 2026-10-19."
     },

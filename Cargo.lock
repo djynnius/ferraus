@@ -1098,6 +1098,7 @@ dependencies = [
  "ferraus-models",
  "rand 0.8.8",
  "rand_chacha",
+ "rayon",
  "realfft",
  "serde",
  "serde_json",

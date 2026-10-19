@@ -18,7 +18,7 @@ use crate::adapter::SeparationModel;
 use crate::pipeline::{plan_for, shift_offsets, RunOptions};
 use crate::stft::hann;
 use ferraus_core::resample::{resample_channel, Quality};
-use ferraus_core::{AudioBuffer, Error, Result};
+use ferraus_core::{AudioBuffer, AudioReader, Error, Result};
 use ferraus_ml::chunk::{Block, ChunkPlan};
 use realfft::num_complex::Complex32;
 use realfft::RealFftPlanner;
@@ -62,6 +62,13 @@ impl SpillDir {
     pub fn path(&self) -> &Path {
         &self.guard.0
     }
+
+    /// A new, empty spill file in this directory.
+    fn new_file(&self) -> Result<(File, PathBuf)> {
+        let path = self.path().join(format!("t{}.f32", self.next.fetch_add(1, Ordering::Relaxed)));
+        let file = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).map_err(io_err)?;
+        Ok((file, path))
+    }
 }
 
 enum Store {
@@ -95,9 +102,7 @@ impl Track {
         match spill {
             None => Ok(Track { frames, channels, store: Store::Mem(vec![vec![0f32; frames]; channels]) }),
             Some(dir) => {
-                let path = dir.path().join(format!("t{}.f32", dir.next.fetch_add(1, Ordering::Relaxed)));
-                let file =
-                    std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).map_err(io_err)?;
+                let (file, path) = dir.new_file()?;
                 // sparse: unwritten ranges read back as zeros
                 file.set_len((frames * channels * 4) as u64).map_err(io_err)?;
                 Ok(Track { frames, channels, store: Store::Disk { file, path, _dir: dir.guard.clone() } })
@@ -123,6 +128,68 @@ impl Track {
                 Ok(t)
             }
         }
+    }
+
+    /// Decode a stream into a track: appended to a spill file chunk by chunk, or collected in
+    /// memory (`hint` = expected frames, for the allocation). Returns the track and the
+    /// stream's sample rate. `tick` runs once per chunk (cancellation).
+    pub fn from_reader(
+        r: &mut dyn AudioReader,
+        hint: usize,
+        spill: Option<&SpillDir>,
+        tick: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<(Track, u32)> {
+        let mut rate = r.info().sample_rate;
+        let mut channels = 0usize;
+        let track = match spill {
+            None => {
+                let mut data: Vec<Vec<f32>> = Vec::new();
+                while let Some(b) = r.next_chunk()? {
+                    tick()?;
+                    rate = b.sample_rate;
+                    if data.is_empty() {
+                        channels = b.channels();
+                        data = (0..channels).map(|_| Vec::with_capacity(hint.min(1 << 28))).collect();
+                    }
+                    for (d, s) in data.iter_mut().zip(&b.data) {
+                        d.extend_from_slice(s);
+                    }
+                }
+                if data.is_empty() {
+                    channels = r.info().channels.max(1);
+                    data = vec![Vec::new(); channels];
+                }
+                for d in data.iter_mut() {
+                    d.shrink_to_fit();
+                }
+                Track { frames: data[0].len(), channels, store: Store::Mem(data) }
+            }
+            Some(dir) => {
+                let (mut file, path) = dir.new_file()?;
+                let mut frames = 0usize;
+                let mut bytes = Vec::new();
+                while let Some(b) = r.next_chunk()? {
+                    tick()?;
+                    rate = b.sample_rate;
+                    if channels == 0 {
+                        channels = b.channels();
+                    }
+                    bytes.clear();
+                    for i in 0..b.frames() {
+                        for c in &b.data {
+                            bytes.extend_from_slice(&c[i].to_le_bytes());
+                        }
+                    }
+                    file.write_all(&bytes).map_err(io_err)?;
+                    frames += b.frames();
+                }
+                if channels == 0 {
+                    channels = r.info().channels.max(1);
+                }
+                Track { frames, channels, store: Store::Disk { file, path, _dir: dir.guard.clone() } }
+            }
+        };
+        Ok((track, rate.max(1)))
     }
 
     pub fn is_spilled(&self) -> bool {
