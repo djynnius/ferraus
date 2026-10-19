@@ -39,10 +39,12 @@ pub fn encode(buf: &AudioBuffer, bit_depth: u16, float: bool) -> Result<Vec<u8>>
             match (fmt_tag, bits) {
                 (3, 32) => out.extend_from_slice(&s.to_le_bytes()),
                 (3, 64) => out.extend_from_slice(&(s as f64).to_le_bytes()),
-                (1, 8) => out.push(((s.clamp(-1.0, 1.0) * 127.0).round() as i16 + 128) as u8),
-                (1, 16) => out.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes()),
+                (1, 8) => out.push(((s as f64 * 128.0).round().clamp(-128.0, 127.0) as i16 + 128) as u8),
+                (1, 16) => {
+                    out.extend_from_slice(&((s as f64 * 32768.0).round().clamp(-32768.0, 32767.0) as i16).to_le_bytes())
+                }
                 (1, 24) => {
-                    let v = (s.clamp(-1.0, 1.0) * 8_388_607.0).round() as i32;
+                    let v = (s as f64 * 8_388_608.0).round().clamp(-8_388_608.0, 8_388_607.0) as i32;
                     out.extend_from_slice(&v.to_le_bytes()[..3]);
                 }
                 _ => unreachable!(),

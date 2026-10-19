@@ -26,7 +26,7 @@ sign, or publish anything built on a laptop or an agent's machine.
 | `PACKAGE_SIGNING_KEY` | signing apt/dnf repository metadata |
 | `WINGET_TOKEN`, `SCOOP_BUCKET_TOKEN` | package-manager PRs |
 | `CARGO_REGISTRY_TOKEN` | crates.io |
-| `MODEL_REGISTRY_SIGNING_KEY` | Ed25519 signature of `models/registry.json` |
+| `MODEL_REGISTRY_SIGNING_KEY` | Ed25519 signature of `crates/ferraus-models/registry/registry.json` |
 | Apple Developer ID cert + notarization credentials | macOS code signing (configure in the dist workflow's macOS build) |
 | Windows Authenticode certificate | MSI and exe signing |
 

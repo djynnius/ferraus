@@ -1,7 +1,7 @@
 //! The registry manifest: a JSON document listing every model ferraus knows how to fetch,
 //! plus the per-release tier pins. Remote manifests are Ed25519-signed (detached
 //! signature, hex encoded); the public key ships in the binary. The manifest compiled into
-//! the binary (`models/registry.json` at build time) is trusted by construction.
+//! the binary (`crates/ferraus-models/registry/registry.json` at build time) is trusted by construction.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use ferraus_core::{Error, ErrorKind, Result};
@@ -10,14 +10,14 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// The source manifest compiled into the binary (offline default).
-pub const EMBEDDED_MANIFEST: &str = include_str!("../../../models/registry.json");
+pub const EMBEDDED_MANIFEST: &str = include_str!("../registry/registry.json");
 
 /// Hex-encoded Ed25519 public key that verifies remote and pinned manifests.
 ///
 /// This is the development key committed to the repository. Release builds must replace
 /// `models/registry.pub` with the public half of the CI signing key (a GitHub Actions
 /// secret); the private key never exists outside CI.
-pub const REGISTRY_PUBLIC_KEY_HEX: &str = include_str!("../../../models/registry.pub");
+pub const REGISTRY_PUBLIC_KEY_HEX: &str = include_str!("../registry/registry.pub");
 
 pub const MANIFEST_SCHEMA_VERSION: u32 = 1;
 

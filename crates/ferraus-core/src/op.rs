@@ -76,7 +76,17 @@ impl ParamKind {
         // `auto` and `off` are accepted sentinels for measured kinds; ops resolve them
         // (the `opt_*` accessors return None for them).
         if matches!(raw, "auto" | "off")
-            && matches!(self, ParamKind::Time | ParamKind::Gain | ParamKind::Freq | ParamKind::Percent | ParamKind::Ratio | ParamKind::Pitch | ParamKind::FreqRange | ParamKind::Range)
+            && matches!(
+                self,
+                ParamKind::Time
+                    | ParamKind::Gain
+                    | ParamKind::Freq
+                    | ParamKind::Percent
+                    | ParamKind::Ratio
+                    | ParamKind::Pitch
+                    | ParamKind::FreqRange
+                    | ParamKind::Range
+            )
         {
             return Ok(());
         }

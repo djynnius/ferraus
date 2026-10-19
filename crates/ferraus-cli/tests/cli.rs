@@ -18,7 +18,9 @@ fn bin() -> Command {
 fn run_json(dir: &Path, args: &[&str]) -> (i32, Value) {
     let out = bin().current_dir(dir).args(args).arg("--json").output().unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
-    let v: Value = serde_json::from_str(text.trim()).unwrap_or_else(|e| panic!("bad JSON from {args:?}: {e}\nstdout: {text}\nstderr: {}", String::from_utf8_lossy(&out.stderr)));
+    let v: Value = serde_json::from_str(text.trim()).unwrap_or_else(|e| {
+        panic!("bad JSON from {args:?}: {e}\nstdout: {text}\nstderr: {}", String::from_utf8_lossy(&out.stderr))
+    });
     (out.status.code().unwrap_or(-1), v)
 }
 
@@ -33,7 +35,19 @@ fn envelope_shape_and_sidecar() {
     fixture(&d);
     let (code, v) = run_json(&d.0, &["gain", "tone.wav", "--by", "-6dB"]);
     assert_eq!(code, 0, "{v}");
-    for k in ["ok", "command", "ferraus_version", "schema_version", "inputs", "outputs", "params", "models", "metrics", "warnings", "timing_ms"] {
+    for k in [
+        "ok",
+        "command",
+        "ferraus_version",
+        "schema_version",
+        "inputs",
+        "outputs",
+        "params",
+        "models",
+        "metrics",
+        "warnings",
+        "timing_ms",
+    ] {
         assert!(v.get(k).is_some(), "missing {k} in {v}");
     }
     assert_eq!(v["command"], "gain");
@@ -106,7 +120,8 @@ fn replay_and_verify() {
 fn dry_run_writes_nothing() {
     let d = TempDir::new("cli-dry");
     fixture(&d);
-    let (code, v) = run_json(&d.0, &["fx", "tone.wav", "-o", "x.wav", "--fx", "gain:by=-3dB", "--fx", "fade:in=1s", "--dry-run"]);
+    let (code, v) =
+        run_json(&d.0, &["fx", "tone.wav", "-o", "x.wav", "--fx", "gain:by=-3dB", "--fx", "fade:in=1s", "--dry-run"]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["dry_run"], true);
     assert_eq!(v["result"]["stages"].as_array().unwrap().len(), 2);
@@ -118,7 +133,10 @@ fn dry_run_writes_nothing() {
 fn null_test_through_fx_chain() {
     let d = TempDir::new("cli-null");
     fixture(&d);
-    let (code, v) = run_json(&d.0, &["fx", "tone.wav", "-o", "n.wav", "--fx", "compress:mix=0%", "--fx", "saturate:mix=0%", "--bit-depth", "32"]);
+    let (code, v) = run_json(
+        &d.0,
+        &["fx", "tone.wav", "-o", "n.wav", "--fx", "compress:mix=0%", "--fx", "saturate:mix=0%", "--bit-depth", "32"],
+    );
     assert_eq!(code, 0, "{v}");
     let a = testing::read_wav(&d.path("tone.wav"));
     let b = testing::read_wav(&d.path("n.wav"));
@@ -175,7 +193,17 @@ fn pipeline_runs_and_caches() {
     assert_eq!(v["result"]["computed"], 3);
     assert!(d.path("out/final.wav").exists() && d.path("out/job.ferraus.json").exists());
     // change only the last stage → exactly one stage of work
-    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml", "--set", "stages.chain.args.chain=[{\"op\":\"gain\",\"by\":\"-2dB\"}]", "--overwrite"]);
+    let (code, v) = run_json(
+        &d.0,
+        &[
+            "pipeline",
+            "run",
+            "job.yaml",
+            "--set",
+            "stages.chain.args.chain=[{\"op\":\"gain\",\"by\":\"-2dB\"}]",
+            "--overwrite",
+        ],
+    );
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["result"]["computed"], 1, "{v}");
     assert_eq!(v["result"]["cached"], 2);
@@ -201,7 +229,8 @@ fn progress_json_events() {
     let d = TempDir::new("cli-progress");
     fixture(&d);
     let out = bin().current_dir(&d.0).args(["gain", "tone.wav", "--progress", "json"]).output().unwrap();
-    let events: Vec<Value> = String::from_utf8_lossy(&out.stderr).lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    let events: Vec<Value> =
+        String::from_utf8_lossy(&out.stderr).lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
     assert!(events.iter().any(|e| e["event"] == "progress"));
     assert!(events.iter().any(|e| e["event"] == "output"));
 }
@@ -213,7 +242,8 @@ fn presets_and_explain() {
     let (code, v) = run_json(&d.0, &["presets", "show", "compress/tighten"]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["result"]["values"]["ratio"], "4:1");
-    let (code, v) = run_json(&d.0, &["compress", "tone.wav", "--preset", "vocal", "--ratio", "2:1", "--explain", "--dry-run"]);
+    let (code, v) =
+        run_json(&d.0, &["compress", "tone.wav", "--preset", "vocal", "--ratio", "2:1", "--explain", "--dry-run"]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["params"]["ratio"], "2:1");
     let explain = v["metrics"]["explain"].as_array().unwrap();

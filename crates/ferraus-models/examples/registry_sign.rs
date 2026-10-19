@@ -3,15 +3,15 @@
 //! characters) and runs
 //!
 //! ```text
-//! cargo run -p ferraus-models --example registry_sign -- sign models/registry.json
+//! cargo run -p ferraus-models --example registry_sign -- sign crates/ferraus-models/registry/registry.json
 //! ```
 //!
-//! which writes `models/registry.json.sig` (hex signature over the exact file bytes).
+//! which writes `crates/ferraus-models/registry/registry.json.sig` (hex signature over the exact file bytes).
 //!
 //! Other subcommands:
 //!
 //! * `keygen <secret-out-file>` — create a keypair; writes the secret (hex) to the given file
-//!   (keep it OUTSIDE the repository) and prints the public key for `models/registry.pub`.
+//!   (keep it OUTSIDE the repository) and prints the public key for `crates/ferraus-models/registry/registry.pub`.
 //!   The 32-byte seed is read from `/dev/urandom` (Unix) or must be supplied as
 //!   `FERRAUS_KEYGEN_SEED_HEX` on other platforms.
 //! * `verify <manifest> [<sig>]` — check a signature against the embedded public key.

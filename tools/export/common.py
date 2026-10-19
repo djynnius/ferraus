@@ -19,7 +19,7 @@ Both match torch within ~1e-6 in float32 (``python parity.py --stft-only`` check
 
 Every exporter writes ``<out>/model.onnx`` and ``<out>/spec.json`` (the ``ModelSpec`` that
 ferraus stores next to cached models) and prints a registry entry with the SHA-256 so the
-manifest in ``models/registry.json`` can be updated. Exported files are release assets of
+manifest in ``crates/ferraus-models/registry/registry.json`` can be updated. Exported files are release assets of
 the ferraus-models repository; they are never committed to git.
 
 Requirements: ``torch>=2.2``, ``onnx>=1.16``, ``onnxruntime>=1.18`` (for parity), ``numpy``.

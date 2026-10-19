@@ -20,7 +20,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ferraus/models
-          key: models-${{ hashFiles('models/registry.json') }}
+          key: models-${{ hashFiles('crates/ferraus-models/registry/registry.json') }}
       - name: Pull models for tests
         run: cargo run -q --release -p ferraus-cli -- models pull --all-for separate -y || true
       - name: Full suite with network disabled

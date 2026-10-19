@@ -389,11 +389,17 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
     if g.offline {
         std::env::set_var("FERRAUS_OFFLINE", "1");
     }
-    if g.yes || cfg.models.auto_download == Some(true) {
+    // -y wins over the config; the config opts in or out otherwise (ADR 0004)
+    if g.yes {
         std::env::set_var("FERRAUS_AUTO_DOWNLOAD", "1");
+    } else if let Some(auto) = cfg.models.auto_download {
+        std::env::set_var("FERRAUS_AUTO_DOWNLOAD", if auto { "1" } else { "0" });
     }
-    if cfg.models.auto_download == Some(false) {
-        std::env::set_var("FERRAUS_AUTO_DOWNLOAD", "0");
+    if let Some(gb) = cfg.models.max_cache_gb {
+        std::env::set_var("FERRAUS_MAX_CACHE_GB", gb.to_string());
+    }
+    if let Some(url) = &cfg.models.registry_url {
+        std::env::set_var("FERRAUS_REGISTRY_URL", url);
     }
     if let Some(p) = &cfg.ffmpeg.path {
         std::env::set_var("FERRAUS_FFMPEG", p);
