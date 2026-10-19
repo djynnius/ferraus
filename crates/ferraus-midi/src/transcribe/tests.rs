@@ -64,7 +64,10 @@ fn acceptance_sung_melodies_f_measure_at_least_95() {
         let x = sing(SR, &fix, &voice);
         let t = transcribe(&buf(x), &opts()).unwrap();
         let s = match_notes(&reference(&fix), &estimated(&t), 0.05, 1.0);
-        eprintln!("sung {name}: F={:.3} P={:.3} R={:.3} ({} ref, {} est)", s.f_measure, s.precision, s.recall, s.reference, s.estimated);
+        eprintln!(
+            "sung {name}: F={:.3} P={:.3} R={:.3} ({} ref, {} est)",
+            s.f_measure, s.precision, s.recall, s.reference, s.estimated
+        );
         assert!(s.f_measure >= 0.95, "{name}: F = {:.3}\n{}", s.f_measure, detail(&fix, &t));
         total.0 += s.matched;
         total.1 += s.reference;
@@ -90,7 +93,10 @@ fn acceptance_hummed_melodies_f_measure_at_least_85() {
         let x = sing(SR, &fix, &voice);
         let t = transcribe(&buf(x), &opts()).unwrap();
         let s = match_notes(&reference(&fix), &estimated(&t), 0.05, 1.0);
-        eprintln!("hum {name}: F={:.3} P={:.3} R={:.3} ({} ref, {} est)", s.f_measure, s.precision, s.recall, s.reference, s.estimated);
+        eprintln!(
+            "hum {name}: F={:.3} P={:.3} R={:.3} ({} ref, {} est)",
+            s.f_measure, s.precision, s.recall, s.reference, s.estimated
+        );
         assert!(s.f_measure >= 0.85, "{name}: F = {:.3}\n{}", s.f_measure, detail(&fix, &t));
         total.0 += s.matched;
         total.1 += s.reference;
@@ -109,7 +115,14 @@ fn pooled(label: &str, seeds: std::ops::Range<u64>, voice: &dyn Fn(u64) -> Voice
         let x = sing(SR, &fix, &voice(seed));
         let t = transcribe(&buf(x), &opts()).unwrap();
         let s = match_notes(&reference(&fix), &estimated(&t), 0.05, 1.0);
-        eprintln!("{label} seed {seed} ({bpm} BPM, centre {}): F={:.3} ({} ref, {} est, {} matched)", centre(seed), s.f_measure, s.reference, s.estimated, s.matched);
+        eprintln!(
+            "{label} seed {seed} ({bpm} BPM, centre {}): F={:.3} ({} ref, {} est, {} matched)",
+            centre(seed),
+            s.f_measure,
+            s.reference,
+            s.estimated,
+            s.matched
+        );
         if s.f_measure < 0.9 {
             eprintln!("{}", detail(&fix, &t));
         }
@@ -137,7 +150,13 @@ fn acceptance_random_sung_melodies() {
 
 #[test]
 fn acceptance_random_hummed_melodies() {
-    let f = pooled("random hum", 200..210, &|s| Voice { seed: s, ..Voice::hummed() }, &|s| if s % 2 == 0 { 50 } else { 62 });
+    let f = pooled("random hum", 200..210, &|s| Voice { seed: s, ..Voice::hummed() }, &|s| {
+        if s % 2 == 0 {
+            50
+        } else {
+            62
+        }
+    });
     assert!(f >= 0.85, "pooled F = {f:.3}");
     // harsher than the PRD fixture: 100 ms onsets, ±30 cents drift, breath at −12 dB, room
     // noise at 20 dB SNR
@@ -180,7 +199,8 @@ fn tempo_auto_matches_the_fixture_tempo() {
 fn quantize_puts_every_note_on_the_grid() {
     let fix = melody_a(0.0);
     let x = sing(SR, &fix, &Voice::sung_a());
-    let o = TranscribeOptions { quantize: QuantizeSetting::Grid(Grid::parse("1/8").unwrap()), bpm: Some(100.0), ..opts() };
+    let o =
+        TranscribeOptions { quantize: QuantizeSetting::Grid(Grid::parse("1/8").unwrap()), bpm: Some(100.0), ..opts() };
     let t = transcribe(&buf(x), &o).unwrap();
     assert!(t.quantize.is_some());
     let step = PPQ as u64 / 2;
@@ -243,11 +263,8 @@ fn key_snap_moves_out_of_key_notes_when_confident() {
 #[test]
 fn pitch_bend_encodes_slides() {
     // C4 → D4 with a 150 ms portamento, then a separate E4
-    let fix = melody(
-        100.0,
-        0.3,
-        &[(60.0, 1.0, 0.0, 0.0, 0.0), (62.0, 1.0, 0.15, 0.0, 0.15), (64.0, 1.0, 0.2, 0.0, 0.0)],
-    );
+    let fix =
+        melody(100.0, 0.3, &[(60.0, 1.0, 0.0, 0.0, 0.0), (62.0, 1.0, 0.15, 0.0, 0.15), (64.0, 1.0, 0.2, 0.0, 0.0)]);
     let x = sing(SR, &fix, &Voice { vib_cents: 0.0, ..Voice::sung_a() });
     let off = transcribe(&buf(x.clone()), &TranscribeOptions { key_snap: false, ..opts() }).unwrap();
     let pitches: Vec<u8> = off.notes.iter().map(|n| n.pitch).collect();
@@ -267,6 +284,20 @@ fn pitch_bend_encodes_slides() {
     // bends are reset before the next note and the bend range RPN is written
     assert!(bends.iter().any(|b| b.data.value == 0 && b.tick <= on.midi.tracks[0].notes[1].tick));
     assert!(on.midi.tracks[0].controllers.iter().any(|c| c.data.controller == 6 && c.data.value == 2));
+
+    // with quantize, bends move with their notes (none lands before its note-on)
+    let q = TranscribeOptions {
+        key_snap: false,
+        pitch_bend: true,
+        bpm: Some(97.0),
+        quantize: QuantizeSetting::Grid(Grid::parse("1/4").unwrap()),
+        ..opts()
+    };
+    let x = sing(SR, &fix, &Voice { vib_cents: 0.0, ..Voice::sung_a() });
+    let qt = transcribe(&buf(x), &q).unwrap();
+    let tr = &qt.midi.tracks[0];
+    let first = tr.notes[0].tick;
+    assert!(tr.pitch_bends.iter().all(|b| b.tick >= first), "{:?} vs {first}", tr.pitch_bends.first());
 }
 
 #[test]
@@ -297,7 +328,12 @@ fn velocity_fixed_and_from_rms() {
     let fix = melody(
         100.0,
         0.3,
-        &[(64.0, 1.0, 0.2, 0.0, 0.0), (64.0, 1.0, 0.2, -12.0, 0.0), (64.0, 1.0, 0.2, -6.0, 0.0), (64.0, 1.0, 0.2, -20.0, 0.0)],
+        &[
+            (64.0, 1.0, 0.2, 0.0, 0.0),
+            (64.0, 1.0, 0.2, -12.0, 0.0),
+            (64.0, 1.0, 0.2, -6.0, 0.0),
+            (64.0, 1.0, 0.2, -20.0, 0.0),
+        ],
     );
     let x = sing(SR, &fix, &Voice::sung_a());
     let t = transcribe(&buf(x.clone()), &TranscribeOptions { key_snap: false, ..opts() }).unwrap();
@@ -317,7 +353,8 @@ fn velocity_fixed_and_from_rms() {
 #[test]
 fn min_note_and_onset_sensitivity() {
     // a 108 ms passing note between two longer notes
-    let fix = melody(100.0, 0.3, &[(60.0, 1.0, 0.2, 0.0, 0.0), (62.0, 0.18, 0.0, 0.0, 0.0), (64.0, 1.0, 0.2, 0.0, 0.0)]);
+    let fix =
+        melody(100.0, 0.3, &[(60.0, 1.0, 0.2, 0.0, 0.0), (62.0, 0.18, 0.0, 0.0, 0.0), (64.0, 1.0, 0.2, 0.0, 0.0)]);
     let x = sing(SR, &fix, &Voice { vib_cents: 0.0, ..Voice::sung_a() });
     let t = transcribe(&buf(x.clone()), &TranscribeOptions { key_snap: false, ..opts() }).unwrap();
     let p: Vec<u8> = t.notes.iter().map(|n| n.pitch).collect();
@@ -361,7 +398,8 @@ fn option_parsing() {
     assert_eq!(o.quantize, QuantizeSetting::Off);
     assert!(o.key_snap && !o.pitch_bend);
     assert!((o.min_note_s - 0.06).abs() < 1e-12);
-    let o = options_from_args(&testing::args(&s, &[("bpm", "96"), ("quantize", "1/16"), ("velocity", "fixed:90")]), &c).unwrap();
+    let o = options_from_args(&testing::args(&s, &[("bpm", "96"), ("quantize", "1/16"), ("velocity", "fixed:90")]), &c)
+        .unwrap();
     assert_eq!(o.bpm, Some(96.0));
     assert_eq!(o.quantize, QuantizeSetting::Grid(Grid::parse("1/16").unwrap()));
     assert_eq!(o.velocity, Velocity::Fixed(90));

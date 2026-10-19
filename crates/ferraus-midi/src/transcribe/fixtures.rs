@@ -121,7 +121,8 @@ pub fn sing(sr: u32, notes: &[FixNote], v: &Voice) -> Vec<f32> {
             let t = k as f64 / srf - n.start;
             let frac = t / n.dur;
             let cents = n.detune_cents
-                + drift[i].0 + (drift[i].1 - drift[i].0) * frac
+                + drift[i].0
+                + (drift[i].1 - drift[i].0) * frac
                 + if t > v.vib_delay {
                     let ramp = ((t - v.vib_delay) / 0.15).min(1.0);
                     ramp * v.vib_cents * (2.0 * PI * v.vib_hz * t).sin()
@@ -251,14 +252,7 @@ pub fn melody(bpm: f64, t0: f64, spec: &[(f64, f64, f64, f64, f64)]) -> Vec<FixN
     let mut t = t0;
     spec.iter()
         .map(|&(m, beats, gap, gain, glide)| {
-            let n = FixNote {
-                midi: m,
-                start: t,
-                dur: (beats - gap) * beat,
-                gain_db: gain,
-                glide,
-                detune_cents: 0.0,
-            };
+            let n = FixNote { midi: m, start: t, dur: (beats - gap) * beat, gain_db: gain, glide, detune_cents: 0.0 };
             t += beats * beat;
             n
         })
@@ -368,7 +362,10 @@ pub fn random_melody(seed: u64, centre: i32, n: usize) -> (Vec<FixNote>, f64) {
         let next_same = i + 1 < n && spec[i + 1].0 == m;
         let legato = !next_same && i + 1 < n && r.next() < 0.5;
         let gap = if legato { 0.0 } else { (0.1 + 0.15 * r.next()).min(beats * 0.4) };
-        let glide = if i > 0 && notes_spec.last().map(|p: &(f64, f64, f64, f64, f64)| p.2 == 0.0).unwrap_or(false) && r.next() < 0.3 {
+        let glide = if i > 0
+            && notes_spec.last().map(|p: &(f64, f64, f64, f64, f64)| p.2 == 0.0).unwrap_or(false)
+            && r.next() < 0.3
+        {
             0.05 + 0.07 * r.next()
         } else {
             0.0

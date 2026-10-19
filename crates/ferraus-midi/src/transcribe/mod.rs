@@ -516,11 +516,7 @@ fn finish(
     merge_short(&mut raw, o.min_note_s);
 
     // key detection and snap
-    let key = if raw.len() >= 3 {
-        Some(snap_to_key(&mut raw, o.key_snap))
-    } else {
-        None
-    };
+    let key = if raw.len() >= 3 { Some(snap_to_key(&mut raw, o.key_snap)) } else { None };
 
     // slides as pitch bends (mono only)
     if o.pitch_bend && mode == "mono" {
@@ -571,15 +567,16 @@ fn finish(
                 seed: o.seed,
                 ..Default::default()
             };
-            Some(edit::quantize(&mut midi, &opts)?)
+            let before: Vec<u64> = midi.tracks[0].notes.iter().map(|n| n.tick).collect();
+            let rep = edit::quantize(&mut midi, &opts)?;
+            move_bends_with_notes(&mut midi.tracks[0], &before);
+            Some(rep)
         }
     };
     let notes = describe_notes(&midi, &raw);
     if notes.is_empty() {
-        warnings.push((
-            "no_notes".into(),
-            "no notes were found; the input may be silent, unpitched, or too short".into(),
-        ));
+        warnings
+            .push(("no_notes".into(), "no notes were found; the input may be silent, unpitched, or too short".into()));
     }
     Ok(Transcription {
         midi,
@@ -597,12 +594,26 @@ fn finish(
     })
 }
 
+/// After quantizing a mono track, shift each note's pitch bends by the distance its note
+/// moved (`before` = note ticks before quantizing, in order).
+fn move_bends_with_notes(t: &mut Track, before: &[u64]) {
+    if t.pitch_bends.is_empty() || t.notes.len() != before.len() || before.is_empty() {
+        return;
+    }
+    let after: Vec<u64> = t.notes.iter().map(|n| n.tick).collect();
+    for b in &mut t.pitch_bends {
+        let i = before.partition_point(|&s| s <= b.tick).saturating_sub(1);
+        b.tick = (b.tick as i64 + after[i] as i64 - before[i] as i64).max(0) as u64;
+    }
+    t.pitch_bends.sort_by_key(|b| b.tick);
+    t.end_tick = t.end_tick.max(t.last_event_tick());
+}
+
 /// Notes shorter than `min_s` merge into a touching neighbour of (nearly) the same pitch,
 /// else are dropped.
 fn merge_short(notes: &mut Vec<RawNote>, min_s: f64) {
     const TOUCH: f64 = 0.030;
-    loop {
-        let Some(i) = notes.iter().position(|n| n.dur() < min_s - 1e-9) else { break };
+    while let Some(i) = notes.iter().position(|n| n.dur() < min_s - 1e-9) {
         let me = notes[i].clone();
         let near = |j: usize| -> bool {
             let n = &notes[j];
@@ -610,9 +621,9 @@ fn merge_short(notes: &mut Vec<RawNote>, min_s: f64) {
             (n.midi - me.midi).abs() <= 1.0 && touching
         };
         let cands: Vec<usize> = (0..notes.len()).filter(|&j| j != i && near(j)).collect();
-        let target = cands.into_iter().min_by(|&a, &b| {
-            (notes[a].midi - me.midi).abs().total_cmp(&(notes[b].midi - me.midi).abs())
-        });
+        let target = cands
+            .into_iter()
+            .min_by(|&a, &b| (notes[a].midi - me.midi).abs().total_cmp(&(notes[b].midi - me.midi).abs()));
         match target {
             Some(j) => {
                 let n = &mut notes[j];
@@ -804,7 +815,12 @@ fn notes_envelope(notes: &[RawNote]) -> OnsetEnvelope {
     OnsetEnvelope { frame_rate: fr, low: vec![0.0; len], low_level_db: vec![-100.0; len], values }
 }
 
-fn estimate_tempo(buf: &AudioBuffer, notes: &[RawNote], fixed: Option<f64>, warnings: &mut Vec<(String, String)>) -> TempoInfo {
+fn estimate_tempo(
+    buf: &AudioBuffer,
+    notes: &[RawNote],
+    fixed: Option<f64>,
+    warnings: &mut Vec<(String, String)>,
+) -> TempoInfo {
     let (bpm, source, confidence) = match fixed {
         Some(b) => (b, "fixed".to_string(), 1.0),
         None => {
@@ -851,7 +867,12 @@ fn estimate_tempo(buf: &AudioBuffer, notes: &[RawNote], fixed: Option<f64>, warn
         let ph = sy.atan2(sx) / (2.0 * std::f64::consts::PI) * period;
         ph.rem_euclid(period)
     };
-    TempoInfo { bpm, source, confidence: (confidence * 1000.0).round() / 1000.0, first_beat_s: (first_beat_s * 1e4).round() / 1e4 }
+    TempoInfo {
+        bpm,
+        source,
+        confidence: (confidence * 1000.0).round() / 1000.0,
+        first_beat_s: (first_beat_s * 1e4).round() / 1e4,
+    }
 }
 
 /// Refine a detected tempo against the note onsets: within ±8% of `bpm`, pick the tempo
@@ -883,6 +904,16 @@ fn refine_bpm(notes: &[RawNote], bpm: f64) -> f64 {
             best = (b, f);
         }
         b += 0.05;
+    }
+    // fine pass around the coarse optimum
+    let centre = best.0;
+    let mut b = centre - 0.05;
+    while b <= centre + 0.05 {
+        let f = fit(b);
+        if f > best.1 + 1e-12 {
+            best = (b, f);
+        }
+        b += 0.002;
     }
     // only trust a clear grid fit
     if best.1 >= 0.5 {
@@ -920,7 +951,10 @@ fn build_midi(notes: &[RawNote], tempo: &TempoInfo, o: &TranscribeOptions, key: 
     f.tempos = tempo_events(tempo);
     if let Some(k) = key.filter(|k| k.confidence > 0.6) {
         if let Some(best) = parse_key(&k.key) {
-            f.key_signatures.push(Timed::new(0, KeySig { sharps: key_sharps(&best), minor: best.mode == KeyMode::Minor, track: 0 }));
+            f.key_signatures.push(Timed::new(
+                0,
+                KeySig { sharps: key_sharps(&best), minor: best.mode == KeyMode::Minor, track: 0 },
+            ));
         }
     }
     let map = f.tempo_map();
@@ -1055,8 +1089,10 @@ pub fn options_from_args(a: &Args, ctx: &OpCtx) -> Result<TranscribeOptions> {
         None => ctx.bpm(),
         Some(s) if s.trim().eq_ignore_ascii_case("auto") => None,
         Some(s) => {
-            let v: f64 =
-                s.trim().parse().map_err(|_| Error::usage(format!("--bpm must be auto or a tempo in BPM, not '{s}'")))?;
+            let v: f64 = s
+                .trim()
+                .parse()
+                .map_err(|_| Error::usage(format!("--bpm must be auto or a tempo in BPM, not '{s}'")))?;
             if !(20.0..=400.0).contains(&v) {
                 return Err(Error::usage("--bpm must be between 20 and 400"));
             }
@@ -1139,11 +1175,8 @@ pub fn record(ctx: &mut OpCtx, t: &Transcription) {
 pub fn summary(t: &Transcription) -> Value {
     let lo = t.notes.iter().map(|n| n.pitch).min();
     let hi = t.notes.iter().map(|n| n.pitch).max();
-    let mean = if t.notes.is_empty() {
-        0.0
-    } else {
-        t.notes.iter().map(|n| n.confidence).sum::<f64>() / t.notes.len() as f64
-    };
+    let mean =
+        if t.notes.is_empty() { 0.0 } else { t.notes.iter().map(|n| n.confidence).sum::<f64>() / t.notes.len() as f64 };
     json!({
         "mode": t.mode,
         "engine": t.engine,
@@ -1192,15 +1225,28 @@ fn transcribe_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     if ctx.globals.dry_run {
         let input = ctx.input(0)?.to_path_buf();
         if input.as_os_str() != "-" && !input.exists() {
-            return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", input.display())));
+            return Err(Error::new(
+                ErrorKind::InputMissing,
+                "input_not_found",
+                format!("input not found: {}", input.display()),
+            ));
         }
         ctx.prepare_output(&out)?;
-        ctx.outputs.push(OutputRecord { path: out.display().to_string(), role: None, duration_s: None, sample_rate: None, channels: None, extra: Default::default() });
+        ctx.outputs.push(OutputRecord {
+            path: out.display().to_string(),
+            role: None,
+            duration_s: None,
+            sample_rate: None,
+            channels: None,
+            extra: Default::default(),
+        });
         if let Some(p) = &npath {
             ctx.prepare_output(p)?;
             ctx.record_output(p, Some("notes"));
         }
-        return Ok(json!({"dry_run": true, "output": out.display().to_string(), "notes_output": npath.map(|p| p.display().to_string())}));
+        return Ok(
+            json!({"dry_run": true, "output": out.display().to_string(), "notes_output": npath.map(|p| p.display().to_string())}),
+        );
     }
     let buf = ctx.read_audio(0)?;
     ctx.set_progress(0.05);

@@ -50,16 +50,28 @@ fn hum_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
     let ext = ctx.globals.format.clone().unwrap_or_else(|| "wav".into());
     let out = ctx.output_path(None, &ext)?;
-    let mid_path: PathBuf = if out.as_os_str() == "-" { ctx.output_path(Some("midi"), "mid")? } else { out.with_extension("mid") };
+    let mid_path: PathBuf =
+        if out.as_os_str() == "-" { ctx.output_path(Some("midi"), "mid")? } else { out.with_extension("mid") };
     if mid_path == out {
-        return Err(Error::usage("the audio output must not have a .mid extension (the MIDI part is written beside it)"));
+        return Err(Error::usage(
+            "the audio output must not have a .mid extension (the MIDI part is written beside it)",
+        ));
     }
     if ctx.globals.dry_run {
         ctx.prepare_output(&mid_path)?;
         ctx.record_output(&mid_path, Some("midi"));
         ctx.prepare_output(&out)?;
-        ctx.outputs.push(OutputRecord { path: out.display().to_string(), role: None, duration_s: None, sample_rate: None, channels: None, extra: Default::default() });
-        return Ok(json!({"dry_run": true, "midi": mid_path.display().to_string(), "audio": out.display().to_string(), "instrument": to}));
+        ctx.outputs.push(OutputRecord {
+            path: out.display().to_string(),
+            role: None,
+            duration_s: None,
+            sample_rate: None,
+            channels: None,
+            extra: Default::default(),
+        });
+        return Ok(
+            json!({"dry_run": true, "midi": mid_path.display().to_string(), "audio": out.display().to_string(), "instrument": to}),
+        );
     }
     // fail before any work if the audio output can't be written
     ctx.prepare_output(&out)?;
@@ -86,8 +98,13 @@ fn hum_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         ctx.warn("no_notes", "no notes were found in the recording; the rendered audio is silent apart from the tail");
     }
     ctx.set_progress(0.7);
-    let (render_result, outs) =
-        run_nested(ctx, "render", &[("instrument", to.as_str()), ("tail", tail.as_str())], vec![mid_path.clone()], Some(&out))?;
+    let (render_result, outs) = run_nested(
+        ctx,
+        "render",
+        &[("instrument", to.as_str()), ("tail", tail.as_str())],
+        vec![mid_path.clone()],
+        Some(&out),
+    )?;
     // the nested render recorded its output on the child context; carry it over
     for r in outs {
         ctx.progress.output(&r.path, r.role.as_deref());
