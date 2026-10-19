@@ -354,12 +354,15 @@ fn first_heading(p: &std::path::Path) -> Option<String> {
     text.lines().find(|l| l.starts_with("# ")).map(|l| l[2..].trim().to_string())
 }
 
+/// Every command page needs at least this many runnable examples (the PRD's depth bar).
+pub const MIN_EXAMPLES: usize = 3;
+
 /// Docs coverage check: commands below the depth bar (missing help, examples, defaults).
 pub fn coverage_problems(reg: &Registry) -> Vec<String> {
     let mut v = Vec::new();
     for op in reg.ops() {
-        if op.examples.is_empty() {
-            v.push(format!("{}: no runnable example", op.name));
+        if op.examples.len() < MIN_EXAMPLES {
+            v.push(format!("{}: {} runnable example(s), the depth bar is {MIN_EXAMPLES}", op.name, op.examples.len()));
         }
         for p in &op.params {
             if p.help.is_empty() {
