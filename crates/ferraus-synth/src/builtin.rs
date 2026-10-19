@@ -108,7 +108,7 @@ fn drum_for_key(k: u8) -> Drum {
 
 fn drum_len(d: Drum) -> f64 {
     match d {
-        Drum::Kick => 1.8,
+        Drum::Kick => 1.2,
         Drum::Snare => 0.9,
         Drum::Clap => 0.6,
         Drum::Rim => 0.12,
@@ -285,12 +285,7 @@ impl Voice {
                     *a /= sum.max(1e-9);
                 }
             }
-            Timbre::Strings => {
-                vc.phase[0] = 0.5;
-                vc.phase[1] = 0.25;
-                vc.phase[2] = 0.6;
-            }
-            Timbre::Pad | Timbre::Brass | Timbre::Lead | Timbre::Pluck | Timbre::Bass => {
+            Timbre::Lead | Timbre::Pluck | Timbre::Bass => {
                 vc.phase[0] = 0.5;
                 vc.phase[1] = 0.5;
             }
@@ -315,7 +310,12 @@ impl Voice {
 
     fn env_level(&self, ts: f64) -> f64 {
         let (a, d, s, _) = adsr_of(self.timbre, self.f0);
-        adsr_level(ts, a, d, s)
+        if a > 0.01 {
+            // slow attacks get a small 2 ms "bow/breath" transient so the onset is defined
+            0.06 * (ts / 0.002).min(1.0) + 0.94 * adsr_level(ts, a, d, s)
+        } else {
+            adsr_level(ts, a, d, s)
+        }
     }
 
     /// One output sample (mono, before channel gain and pan).
@@ -436,7 +436,7 @@ impl Voice {
         match d {
             Drum::Kick => {
                 let f = 48.0 + 120.0 * (-t / 0.025).exp();
-                let s = (TAU * self.phase[0]).sin() * (-t / 0.32).exp();
+                let s = (TAU * self.phase[0]).sin() * (-t / 0.2).exp();
                 self.phase[0] = wrap(self.phase[0] + f / sr);
                 s + 0.3 * n * (-t / 0.002).exp()
             }

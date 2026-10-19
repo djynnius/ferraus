@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 pub struct Sf2Engine {
     synth: Synthesizer,
+    latency: usize,
 }
 
 /// Preset names and numbers in a SoundFont: `(bank, program, name)`.
@@ -45,7 +46,11 @@ impl Sf2Engine {
         settings.enable_reverb_and_chorus = false;
         let synth = Synthesizer::new(&sf, &settings)
             .map_err(|e| Error::unsupported(format!("cannot start the SoundFont synth: {e:?}")))?;
-        Ok(Sf2Engine { synth })
+        // SF2's default volume-envelope delay (-12000 timecents) is 0.98 ms and rustysynth
+        // starts voices on 8-frame blocks; sending events 0.45 ms early centres onsets within
+        // about ±0.55 ms whether or not a preset sets that delay.
+        let latency = (0.00045 * sample_rate as f64).round() as usize;
+        Ok(Sf2Engine { synth, latency })
     }
 }
 
@@ -56,5 +61,9 @@ impl Engine for Sf2Engine {
 
     fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
         self.synth.render(left, right);
+    }
+
+    fn latency_samples(&self) -> usize {
+        self.latency
     }
 }

@@ -146,8 +146,15 @@ fn render_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     check_allowed(ctx, &main)?;
     let mut assigned = parse_map(&a.list("map"), &midi, &resolver)?;
     assigned.extend(parse_swaps(&a.list("swap"), &midi, &resolver)?);
-    for (_, r, _) in &assigned {
+    for (sel, r, how) in &assigned {
         check_allowed(ctx, r)?;
+        let used = match sel {
+            Selector::Track(t) => midi.tracks.get(*t).map(|t| !t.notes.is_empty()).unwrap_or(false),
+            Selector::Channel(c) => midi.tracks.iter().any(|t| t.notes.iter().any(|n| n.channel == *c)),
+        };
+        if !used {
+            ctx.warn("map_unused", format!("{how} has no notes; '{}' is not used", r.given));
+        }
     }
     let tail = a.seconds("tail")?;
     if tail > 600.0 {

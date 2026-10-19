@@ -267,10 +267,8 @@ pub fn words(s: &str) -> Vec<String> {
             Some(p) => p.is_lowercase() && c.is_uppercase(),
             None => false,
         };
-        if !c.is_alphanumeric() || boundary {
-            if !cur.is_empty() {
-                out.push(std::mem::take(&mut cur));
-            }
+        if (!c.is_alphanumeric() || boundary) && !cur.is_empty() {
+            out.push(std::mem::take(&mut cur));
         }
         if c.is_alphanumeric() {
             cur.extend(c.to_lowercase());

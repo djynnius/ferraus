@@ -15,6 +15,10 @@ pub trait Engine: Send {
     fn message(&mut self, status: u8, channel: u8, data1: u8, data2: u8);
     /// Render `left.len()` frames, overwriting `left` and `right`.
     fn render(&mut self, left: &mut [f32], right: &mut [f32]);
+    /// Samples by which events are sent early to compensate the engine's onset latency.
+    fn latency_samples(&self) -> usize {
+        0
+    }
 }
 
 /// Creates engines for `InstrumentSource::Plugin`; registered by the plugin host crate.
@@ -371,17 +375,19 @@ pub fn render_events(
 ) -> Result<(Vec<f32>, Vec<f32>)> {
     let mut l = vec![0.0f32; frames];
     let mut r = vec![0.0f32; frames];
+    let lat = engine.latency_samples() as u64;
+    let due = |e: &Scheduled| e.sample.saturating_sub(lat) as usize;
     let mut pos = 0usize;
     let mut i = 0usize;
     const CHUNK: usize = 8192;
     while pos < frames {
         // apply every event due at `pos`
-        while i < events.len() && events[i].sample as usize <= pos {
+        while i < events.len() && due(&events[i]) <= pos {
             let e = events[i];
             engine.message(e.status, e.channel, e.data1, e.data2);
             i += 1;
         }
-        let next = events.get(i).map(|e| e.sample as usize).unwrap_or(usize::MAX);
+        let next = events.get(i).map(due).unwrap_or(usize::MAX);
         let end = next.min(frames).min(pos + CHUNK).max(pos + 1);
         engine.render(&mut l[pos..end], &mut r[pos..end]);
         if end / CHUNK != pos / CHUNK {
