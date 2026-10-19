@@ -29,7 +29,7 @@
         "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}],
         "chunk_samples": 343980,
         "context_samples": 0,
-        "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}
+        "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}
       },
       "provider_hints": ["cuda", "directml", "cpu"],
       "export_date": "2026-05-21",
@@ -52,7 +52,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
       "notes": "Fine-tuned specialist of the htdemucs_ft bag (PyTorch f7e0c4bc-ba3fe64a.th); only its drums output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -72,7 +72,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
       "notes": "htdemucs_ft bass specialist (d12395a8-e57c48e6.th); only its bass output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -92,7 +92,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
       "notes": "htdemucs_ft other specialist (92cfc3b6-ef3bcb9c.th); only its other output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -112,7 +112,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 4, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1500}},
       "notes": "htdemucs_ft vocals specialist (04573f0d-f3cf25b2.th); only its vocals output is used. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -133,7 +133,7 @@
       "status": "verified",
       "arch": "waveform",
       "provider_hints": ["cuda", "directml", "cpu"],
-      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 6, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1400}},
+      "io": {"inputs": [{"name": "mix", "shape": [1, 2, 343980]}], "outputs": [{"name": "stems", "shape": [1, 6, 2, 343980]}], "chunk_samples": 343980, "params": {"normalize": "track", "ort_peak_mb": 5200, "ort_lean_peak_mb": 1700}},
       "notes": "From official htdemucs_6s weights (5c90dfd2-34c22ccb.th); same I/O as htdemucs with 6 sources in the order drums, bass, other, vocals, guitar, piano. Guitar and piano are best-effort quality. Downloaded, hashed (the sha256 equals the Hugging Face LFS oid), and run through the waveform adapter by the project on 2026-10-19; the StemSplit repo card declares MIT, matching the Demucs weights."
     },
     {
@@ -277,17 +277,25 @@
       "task": "separate",
       "stems": ["kick", "snare", "cymbals", "toms"],
       "format": "onnx",
-      "size_bytes": null,
-      "sha256": null,
-      "urls": [],
+      "size_bytes": 335071223,
+      "sha256": "ecb8509383ccd437d84e12c216b002a00a2d4e88601e29f2711ea581f207c92a",
+      "urls": ["https://huggingface.co/gridshiftstudio/drumsep-onnx/resolve/1dc26f76e6cd9470b8af9ec66803447c089519ab/drumsep.onnx"],
       "sample_rate": 44100,
       "chunk_seconds": 40.0,
       "overlap": 0.25,
-      "license": {"spdx": "MIT", "url": "https://github.com/inagoy/drumsep/blob/main/LICENSE", "commercial_use": true},
-      "source": {"paper": "Thesis (UNQ, 2022)", "weights": "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.5/model_drumsep.th", "code": "https://github.com/inagoy/drumsep", "export_script": "tools/export/demucs_htdemucs.py"},
-      "status": "unverified",
-      "arch": "waveform",
-      "notes": "Hybrid Demucs fine-tune (PyTorch, 167,400,043 B). Four outputs: no separate hi-hat stem (hi-hats land in cymbals). The only community ONNX (gridshiftstudio/drumsep-onnx, 335 MB) keeps the STFT outside the graph; a ferraus export with tools/export/demucs_htdemucs.py --hdemucs is needed before download."
+      "license": {"spdx": "MIT", "url": "https://github.com/inagoy/drumsep/blob/main/LICENSE", "commercial_use": true, "note": "inagoy/drumsep is MIT (GitHub license metadata); the ONNX conversion (gridshiftstudio/drumsep-onnx, card license MIT) inherits it."},
+      "source": {"paper": "Thesis (UNQ, 2022)", "weights": "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.5/model_drumsep.th", "code": "https://github.com/inagoy/drumsep", "export_script": "https://huggingface.co/gridshiftstudio/drumsep-onnx (convert_drumsep_to_onnx.py in the Gridshift source tree)"},
+      "status": "verified",
+      "arch": "hdemucs-spec",
+      "provider_hints": ["cuda", "directml", "cpu"],
+      "io": {
+        "inputs": [{"name": "mix", "shape": [1, 2, 1764000]}, {"name": "mag", "shape": [1, 4, 2048, 1723]}],
+        "outputs": [{"name": "freq_out", "shape": [1, 4, 4, 2048, 1723]}, {"name": "time_out", "shape": [1, 4, 2, 1764000]}],
+        "chunk_samples": 1764000,
+        "context_samples": 0,
+        "params": {"n_fft": 4096, "hop": 1024, "normalize": "track"}
+      },
+      "notes": "Hybrid Demucs (v3) fine-tuned on drum stems; four outputs, no separate hi-hat stem (hi-hats land in cymbals). The Gridshift export (v1, the original weights) keeps the spectrogram outside the graph: ferraus computes Demucs' _spec in Rust and adds _ispec(freq_out) to time_out (adapter hdemucs-spec). The uploader notes that this v1 export had the attention self-reference mask removed by hand, so it can differ slightly from the PyTorch model. Downloaded, hashed (sha256 equals the LFS oid and the repo's manifest), and run by the project on 2026-10-19."
     },
     {
       "name": "denoise/dfn3",

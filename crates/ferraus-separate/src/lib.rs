@@ -495,6 +495,14 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         seed: ctx.seed(),
     };
     let sum_to_mix = a.switch("sum-to-mix", true);
+    // vocals + instrumental with sum-to-mix: the instrumental is the mix minus the vocals, so
+    // tier members that only contribute drums, bass, or other are not needed (nor downloaded)
+    let members: Vec<Member> =
+        if stems_n == "2" && sum_to_mix && members.iter().any(|m| m.stems.iter().any(|s| s == "vocals")) {
+            members.into_iter().filter(|m| m.stems.is_empty() || m.stems.iter().any(|s| s == "vocals")).collect()
+        } else {
+            members
+        };
     let extended: Vec<String> = a.list("extended").iter().map(|s| canonical(s)).collect();
     for e in &extended {
         if !EXTENDED.contains(&e.as_str()) {

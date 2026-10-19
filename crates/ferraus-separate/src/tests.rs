@@ -475,6 +475,83 @@ fn mdx_adapter_round_trip() {
     assert!(testing::rms_diff(&out[1].1, &half) < 1e-4, "complement = mix - primary");
 }
 
+/// Hybrid-Demucs adapter (spectrogram outside the graph) with a generated model whose
+/// `freq_out` passes the spectrogram through (stem 0) or halves it (stem 1) and whose
+/// `time_out` is 0 (stem 0) or a quarter of the mix (stem 1): `_ispec(_spec(x))` must give x
+/// back away from the window edges, so stem 0 ≈ x and stem 1 ≈ 0.75 x.
+#[test]
+fn hdemucs_spec_adapter_round_trip() {
+    isolate_cache();
+    let dir = TempDir::new("sep-hdemucs");
+    let (n_fft, hop, t) = (256usize, 64usize, 2048usize);
+    let (f, fr) = (n_fft / 2, t / hop);
+    let d = |v: &[usize]| v.iter().map(|x| Dim::Fixed(*x as i64)).collect::<Vec<_>>();
+    let bytes = GraphBuilder::new()
+        .input("mix", d(&[1, 2, t]))
+        .input("mag", d(&[1, 4, f, fr]))
+        .output("freq_out", d(&[1, 2, 4, f, fr]))
+        .output("time_out", d(&[1, 2, 2, t]))
+        .init_i64("fshape", vec![5], vec![1, 1, 4, f as i64, fr as i64])
+        .init_i64("tshape", vec![4], vec![1, 1, 2, t as i64])
+        .init_f32("half", vec![1], vec![0.5])
+        .init_f32("zero", vec![1], vec![0.0])
+        .init_f32("quarter", vec![1], vec![0.25])
+        .node(node("Reshape", &["mag", "fshape"], &["f0"]))
+        .node(node("Mul", &["f0", "half"], &["f1"]))
+        .node(node("Concat", &["f0", "f1"], &["freq_out"]).attr("axis", Attr::Int(1)))
+        .node(node("Mul", &["mix", "zero"], &["t0m"]))
+        .node(node("Mul", &["mix", "quarter"], &["t1m"]))
+        .node(node("Reshape", &["t0m", "tshape"], &["t0"]))
+        .node(node("Reshape", &["t1m", "tshape"], &["t1"]))
+        .node(node("Concat", &["t0", "t1"], &["time_out"]).attr("axis", Attr::Int(1)))
+        .build();
+    let p = dir.path("hd.onnx");
+    std::fs::write(&p, bytes).unwrap();
+    let spec = ModelSpec {
+        name: "hd".into(),
+        version: "t".into(),
+        task: "separate".into(),
+        sha256: None,
+        sample_rate: 44_100,
+        stems: vec!["kick".into(), "snare".into()],
+        arch: "hdemucs-spec".into(),
+        inputs: vec![],
+        outputs: vec![],
+        chunk_seconds: None,
+        chunk_samples: None,
+        overlap: 0.25,
+        context_samples: 0,
+        provider_hints: vec![],
+        license: Default::default(),
+        params: json!({"n_fft": n_fft, "hop": hop}),
+    };
+    let (session, _) = ferraus_ml::load(
+        &p,
+        &ferraus_ml::SessionOptions {
+            device: "cpu".into(),
+            deterministic: true,
+            threads: 1,
+            provider_hints: vec![],
+            lean: false,
+        },
+    )
+    .unwrap();
+    let model = adapter::open("hd", spec, session).unwrap();
+    assert_eq!((model.segment(), model.fixed_segment()), (t, true));
+    // no energy at Nyquist (Demucs' _spec drops that bin)
+    let secs = t as f64 / 44_100.0 + 0.01;
+    let m = testing::add(&testing::sine(44_100, 110.0, secs, 0.3), &testing::chirp(44_100, 500.0, 6000.0, secs, 0.15));
+    let w: Vec<Vec<f32>> = vec![m.data[0][..t].to_vec(), m.data[0][..t].iter().map(|v| -0.8 * v).collect()];
+    let out = model.process(&w).unwrap();
+    assert_eq!((out.len(), out[0].len(), out[0][0].len()), (2, 2, t));
+    for c in 0..2 {
+        let mid = n_fft..t - n_fft;
+        let e0 = mid.clone().map(|i| (out[0][c][i] - w[c][i]).abs()).fold(0f32, f32::max);
+        let e1 = mid.map(|i| (out[1][c][i] - 0.75 * w[c][i]).abs()).fold(0f32, f32::max);
+        assert!(e0 < 2e-3 && e1 < 2e-3, "channel {c}: {e0} {e1}");
+    }
+}
+
 /// Real-model check: set FERRAUS_HTDEMUCS_ONNX to the verified htdemucs ONNX file
 /// (sha256 d05c269d…) and run `cargo test -p ferraus-separate -- --ignored real_htdemucs`.
 /// The file is installed into a temporary cache exactly as `models pull` would, then the

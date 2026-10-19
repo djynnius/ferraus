@@ -225,6 +225,173 @@ impl SeparationModel for MdxModel {
     }
 }
 
+/// Hybrid Demucs (v3) exported with its spectrogram outside the graph (the DrumSep ONNX):
+/// inputs `mix [1, 2, T]` and `mag [1, 2·C, F, frames]` (Demucs `_spec`: reflect-pad by
+/// `3·hop/2`, normalized STFT, Nyquist bin and two edge frames dropped; channels re/im
+/// interleaved), outputs `time_out [1, S, C, T]` and `freq_out [1, S, 2·C, F, frames]`; the
+/// stem is `time_out + _ispec(freq_out)`, as `HDemucs.forward` computes it.
+pub struct HdemucsSpecModel {
+    pub name: String,
+    pub spec: ModelSpec,
+    pub session: Arc<ModelSession>,
+    stems: Vec<String>,
+    n_fft: usize,
+    hop: usize,
+    segment: usize,
+}
+
+impl HdemucsSpecModel {
+    pub fn new(name: &str, spec: ModelSpec, session: Arc<ModelSession>) -> Result<HdemucsSpecModel> {
+        let n_fft = spec.param_usize("n_fft").unwrap_or(4096);
+        let hop = spec.param_usize("hop").unwrap_or(n_fft / 4);
+        if hop * 4 != n_fft {
+            return Err(Error::usage(format!("{name}: hybrid Demucs needs hop = n_fft / 4")));
+        }
+        let declared =
+            session.input_shapes.first().and_then(|s| s.last().copied()).filter(|d| *d > 0).map(|d| d as usize);
+        let segment = declared.or_else(|| spec.chunk_len()).ok_or_else(|| {
+            Error::new(ErrorKind::Unsupported, "model_spec_incomplete", format!("{name}: no window length"))
+        })?;
+        if spec.stems.is_empty() {
+            return Err(Error::usage(format!("{name}: the model spec lists no stems")));
+        }
+        Ok(HdemucsSpecModel { name: name.to_string(), stems: spec.stems.clone(), n_fft, hop, segment, spec, session })
+    }
+
+    /// Demucs `_spec` of one channel: `[frame][bin]` with `F = n_fft / 2` bins and
+    /// `ceil(T / hop)` frames, normalized by `1 / sqrt(n_fft)`.
+    pub fn spec_of(&self, x: &[f32]) -> Vec<Vec<Complex32>> {
+        let (hl, t) = (self.hop, x.len());
+        let le = t.div_ceil(hl);
+        let pad = hl / 2 * 3;
+        let total = pad + t + (pad + le * hl - t);
+        let padded: Vec<f32> = (0..total).map(|i| x[reflect_index(i as isize - pad as isize, t)]).collect();
+        let s = stft(&padded, self.n_fft, hl);
+        let norm = 1.0 / (self.n_fft as f32).sqrt();
+        s.frames[2..2 + le]
+            .iter()
+            .map(|f| f[..self.n_fft / 2].iter().map(|v| v * norm).collect())
+            .collect()
+    }
+
+    /// Demucs `_ispec`: zero Nyquist bin and two edge frames, normalized iSTFT, crop to `length`.
+    pub fn ispec(&self, frames: Vec<Vec<Complex32>>, length: usize) -> Vec<f32> {
+        let hl = self.hop;
+        let bins = self.n_fft / 2 + 1;
+        let zero = vec![Complex32::new(0.0, 0.0); bins];
+        let mut all = vec![zero.clone(), zero.clone()];
+        for mut f in frames {
+            f.resize(bins, Complex32::new(0.0, 0.0));
+            all.push(f);
+        }
+        all.push(zero.clone());
+        all.push(zero);
+        let pad = hl / 2 * 3;
+        let le = hl * length.div_ceil(hl) + 2 * pad;
+        let spec = Spec { frames: all, n_fft: self.n_fft, hop: hl, len: le };
+        let scale = (self.n_fft as f32).sqrt();
+        istft(&spec, le)[pad..pad + length].iter().map(|v| v * scale).collect()
+    }
+}
+
+fn reflect_index(i: isize, n: usize) -> usize {
+    let n = n as isize;
+    if n <= 1 {
+        return 0;
+    }
+    let period = 2 * (n - 1);
+    let mut j = i.rem_euclid(period);
+    if j >= n {
+        j = period - j;
+    }
+    j as usize
+}
+
+impl SeparationModel for HdemucsSpecModel {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn stems(&self) -> &[String] {
+        &self.stems
+    }
+    fn sample_rate(&self) -> u32 {
+        self.spec.sample_rate
+    }
+    fn segment(&self) -> usize {
+        self.segment
+    }
+    fn fixed_segment(&self) -> bool {
+        true
+    }
+    fn context(&self) -> usize {
+        self.spec.context_samples
+    }
+    fn normalize_track(&self) -> bool {
+        self.spec.params.get("normalize").and_then(|v| v.as_str()).map(|v| v == "track").unwrap_or(false)
+    }
+    fn process(&self, window: &[Vec<f32>]) -> Result<Block> {
+        let t = window[0].len();
+        if t != self.segment {
+            return Err(Error::processing(format!("{} expects windows of {} samples", self.name, self.segment)));
+        }
+        let c = window.len();
+        let specs: Vec<Vec<Vec<Complex32>>> = window.iter().map(|x| self.spec_of(x)).collect();
+        let (fr, nf) = (specs[0].len(), self.n_fft / 2);
+        let mut mag = vec![0f32; 2 * c * nf * fr];
+        for (ci, s) in specs.iter().enumerate() {
+            for (ti, frame) in s.iter().enumerate() {
+                for (f, v) in frame.iter().enumerate() {
+                    mag[((2 * ci) * nf + f) * fr + ti] = v.re;
+                    mag[((2 * ci + 1) * nf + f) * fr + ti] = v.im;
+                }
+            }
+        }
+        let mut mix = Vec::with_capacity(c * t);
+        for x in window {
+            mix.extend_from_slice(x);
+        }
+        let names = &self.session.input_names;
+        let mix_name = names.iter().find(|n| n.as_str() == "mix").cloned().unwrap_or_else(|| names[0].clone());
+        let mag_name =
+            names.iter().find(|n| n.as_str() == "mag").cloned().unwrap_or_else(|| names.get(1).cloned().unwrap_or_default());
+        let out = self.session.run(vec![
+            TensorF32::new(&mix_name, vec![1, c as i64, t as i64], mix),
+            TensorF32::new(&mag_name, vec![1, 2 * c as i64, nf as i64, fr as i64], mag),
+        ])?;
+        let find = |n: &str| out.iter().find(|o| o.name == n);
+        let (Some(freq), Some(time)) = (find("freq_out"), find("time_out")) else {
+            return Err(Error::processing(format!("{}: expected outputs freq_out and time_out", self.name)));
+        };
+        let s_n = self.stems.len();
+        if freq.data.len() != s_n * 2 * c * nf * fr || time.data.len() != s_n * c * t {
+            return Err(Error::processing(format!(
+                "{}: unexpected output shapes {:?} and {:?}",
+                self.name, freq.shape, time.shape
+            )));
+        }
+        let mut block = Vec::with_capacity(s_n);
+        for s in 0..s_n {
+            let mut chans = Vec::with_capacity(c);
+            for ci in 0..c {
+                let base_re = ((s * 2 * c) + 2 * ci) * nf * fr;
+                let base_im = base_re + nf * fr;
+                let frames: Vec<Vec<Complex32>> = (0..fr)
+                    .map(|ti| {
+                        (0..nf)
+                            .map(|f| Complex32::new(freq.data[base_re + f * fr + ti], freq.data[base_im + f * fr + ti]))
+                            .collect()
+                    })
+                    .collect();
+                let x = self.ispec(frames, t);
+                let tb = (s * c + ci) * t;
+                chans.push(x.iter().zip(&time.data[tb..tb + t]).map(|(a, b)| a + b).collect());
+            }
+            block.push(chans);
+        }
+        Ok(block)
+    }
+}
+
 /// The stems an adapter for `spec` will produce, in output order, without loading the model.
 pub fn stems_of(spec: &ModelSpec) -> Vec<String> {
     match spec.arch.as_str() {
@@ -238,10 +405,11 @@ pub fn open(name: &str, spec: ModelSpec, session: Arc<ModelSession>) -> Result<B
     match spec.arch.as_str() {
         "waveform" | "demucs" => Ok(Box::new(WaveformModel::new(name, spec, session)?)),
         "mdx" => Ok(Box::new(MdxModel::new(name, spec, session)?)),
+        "hdemucs-spec" => Ok(Box::new(HdemucsSpecModel::new(name, spec, session)?)),
         other => Err(Error::new(
             ErrorKind::Unsupported,
             "model_arch_unsupported",
-            format!("{name}: no separation adapter for architecture '{other}' (supported: waveform, mdx)"),
+            format!("{name}: no separation adapter for architecture '{other}' (supported: waveform, mdx, hdemucs-spec)"),
         )),
     }
 }
