@@ -65,6 +65,47 @@ pub fn install() {
     ferraus_synth::set_plugin_offline_renderer(render_plugin);
     ferraus_synth::set_external_resolver(resolve_external);
     install_transcription();
+    install_omr();
+}
+
+/// oemer's segmentation networks for `score read --engine builtin` through ferraus-ml.
+fn omr_prepare(ctx: &mut ferraus_core::OpCtx, models: &[&str]) -> Result<()> {
+    let mut missing = Vec::new();
+    let mut first_err = None;
+    for m in models {
+        match ferraus_models::ensure_model(ctx, m) {
+            Ok(_) => {}
+            Err(e) if e.kind == ferraus_core::ErrorKind::ModelNotCached => missing.push(m.to_string()),
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    if let Some(e) = first_err {
+        return Err(e);
+    }
+    if !missing.is_empty() {
+        return Err(ferraus_models::ensure::not_cached_error(&missing));
+    }
+    Ok(())
+}
+
+fn omr_run(ctx: &mut ferraus_core::OpCtx, model: &str, batch: usize, window: usize, data: Vec<u8>) -> Result<Vec<f32>> {
+    let (session, _) = ferraus_ml::pitch::model_session(ctx, model)?;
+    let name = session.input_names.first().cloned().unwrap_or_else(|| "input".into());
+    let out = session.run_u8(&name, vec![batch as i64, window as i64, window as i64, 3], data)?;
+    out.into_iter()
+        .next()
+        .map(|t| t.data)
+        .ok_or_else(|| ferraus_core::Error::processing(format!("{model} produced no output")))
+}
+
+/// Register the OMR segmentation backend (called from [`install`]).
+pub fn install_omr() {
+    ferraus_score::omr::segment::register_seg_backend(ferraus_score::omr::segment::SegBackend {
+        prepare: omr_prepare,
+        run: omr_run,
+    });
 }
 
 /// Basic Pitch (polyphonic transcription) through ferraus-ml's ONNX runtime.

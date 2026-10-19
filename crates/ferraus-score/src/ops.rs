@@ -100,9 +100,11 @@ accidentals are spelled for the key. MusicXML 4.0 is the main output; add --midi
 fn read_spec() -> OpSpec {
     OpSpec::custom("score read", Category::Score, "Optical music recognition: sheet music to MusicXML", op_read)
         .about(
-            "Reads printed sheet music (PDF pages or photos/scans) into MusicXML with per-measure confidence. The builtin \
-engine uses the oemer and homr models from the model cache (ferraus models pull omr/oemer); --engine audiveris uses the \
-optional Audiveris bridge (ferraus doctor --install-audiveris). --review lists measures whose durations do not add up \
+            "Reads printed sheet music (PDF pages or page images) into MusicXML with per-measure confidence. The builtin \
+engine runs oemer's segmentation networks (ferraus models pull omr/oemer omr/oemer-seg, MIT) and rebuilds staves, \
+clefs, key and time signatures, notes, chords, rests, accidentals, and dots from them; it reads one voice per staff and \
+skips lyrics, tuplets, ties, and dynamics. PDFs are rasterized with pdftoppm or mutool (macOS sips: first page only). \
+--engine audiveris uses the optional Audiveris bridge (ferraus doctor --install-audiveris). --review lists measures whose durations do not add up \
 or whose symbols were uncertain; --fix applies an edit list (measure, voice, note, set) to correct them. Notation \
 inputs (MusicXML, MEI, ABC, LilyPond, JSON) skip recognition, so --fix and --review work on any score.",
         )
@@ -668,22 +670,27 @@ fn op_score(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 // score read
 // ------------------------------------------------------------------------------------
 
-fn load_or_recognize(ctx: &mut OpCtx, a: &Args) -> Result<(Score, Vec<String>, String)> {
+fn load_or_recognize(ctx: &mut OpCtx, a: &Args) -> Result<(Score, Vec<String>, String, Value)> {
     let input = ctx.input(0)?.to_path_buf();
     let bytes = read_bytes(ctx, &input)?;
     match input_format(&input, &bytes) {
         Some(f) if f.readable() => {
             let l = formats::load_as(f, &bytes)?;
-            Ok((l.score, l.unsupported, format!("none ({} input)", f.name())))
+            Ok((l.score, l.unsupported, format!("none ({} input)", f.name()), Value::Null))
         }
         Some(Format::Pdf) | Some(Format::Image) => {
             let dpi = a.int("dpi").unwrap_or(300).clamp(72, 1200) as u32;
             let engine = a.str_or("engine", "builtin");
-            let r = crate::omr::recognize(&input, &engine, a.str("pages").as_deref(), dpi)?;
+            let r = crate::omr::recognize(ctx, &input, &engine, a.str("pages").as_deref(), dpi)?;
             if r.movements > 1 {
                 ctx.warn("movements_merged", format!("{} movements were appended into one score", r.movements));
             }
-            Ok((r.score, r.unsupported, r.engine))
+            if let Some(issues) = r.info["issues"].as_array() {
+                for i in issues.iter().filter_map(|i| i.as_str()) {
+                    ctx.warn("omr_issue", i);
+                }
+            }
+            Ok((r.score, r.unsupported, r.engine, r.info))
         }
         _ => Err(Error::unsupported(format!("{} is not a PDF, image, or notation file", input.display()))),
     }
@@ -703,7 +710,7 @@ fn apply_fix(ctx: &mut OpCtx, a: &Args, score: &mut Score) -> Result<Option<Valu
 }
 
 fn op_read(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
-    let (mut score, unsupported, engine) = load_or_recognize(ctx, a)?;
+    let (mut score, unsupported, engine, info) = load_or_recognize(ctx, a)?;
     let fixes = apply_fix(ctx, a, &mut score)?;
     score.refresh_low_confidence(0.6);
     let report = check::check(&score, &unsupported);
@@ -718,6 +725,9 @@ fn op_read(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         "check_ok": report.ok,
         "failing_measures": report.failing_measures,
     });
+    if !info.is_null() {
+        result["recognition"] = info;
+    }
     if let Some(f) = fixes {
         result["fixes"] = f;
     }
@@ -772,7 +782,7 @@ fn op_play(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 }
 
 fn op_perform(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
-    let (mut score, _unsupported, engine) = load_or_recognize(ctx, a)?;
+    let (mut score, _unsupported, engine, _info) = load_or_recognize(ctx, a)?;
     let fixes = apply_fix(ctx, a, &mut score)?;
     let opts = play_options(a, ctx, &score)?;
     let (m, info) = perform::perform(&score, &opts);
