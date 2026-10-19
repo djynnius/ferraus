@@ -4,7 +4,7 @@
 use crate::ctx::OpCtx;
 use crate::envelope::{sha256_bytes, sha256_file};
 use crate::error::{Error, Result};
-use crate::op::{json_to_pairs, Args, Runner};
+use crate::op::{json_to_pairs, Args, OpSpec, Runner};
 use crate::registry::Registry;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -230,58 +230,93 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
     }
 
     let mut report = RunReport { stages: vec![], outputs: vec![], computed: 0, cached: 0 };
-    let n = order.len();
-    for (k, &i) in order.iter().enumerate() {
-        ctx.check_cancel()?;
-        let s = &p.stages[i];
-        let spec = registry.require(&s.op)?;
-        ctx.progress.stage(&s.id, k + 1, n);
-        let pairs = stage_pairs(s)?;
-        let args = Args::build(spec, pairs.clone(), &|_, _| None)?;
-        let mut input_paths = Vec::new();
-        let mut input_keys = Vec::new();
-        for r in s.input.as_ref().map(|x| x.refs()).unwrap_or_default() {
-            let (base, role) = match r.split_once('.') {
-                Some((b, role)) if produced.contains_key(b) => (b.to_string(), role.to_string()),
-                _ => (r.clone(), "main".to_string()),
-            };
-            let (key, files) =
-                produced.get(&base).ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
-            let path = files
-                .get(&role)
-                .or_else(|| if role == "main" { files.values().next() } else { None })
-                .ok_or_else(|| {
-                    Error::usage(format!(
-                        "stage '{}' reads '{r}', but '{base}' has no output named '{role}' (has: {})",
-                        s.id,
-                        files.keys().cloned().collect::<Vec<_>>().join(", ")
-                    ))
-                })?;
-            input_paths.push(path.clone());
-            input_keys.push(format!("{key}:{role}"));
-        }
-        let key_src = json!({"op": spec.name, "args": args.to_json(), "inputs": input_keys, "v": crate::envelope::FERRAUS_VERSION});
-        let key = sha256_bytes(serde_json::to_string(&key_src)?.as_bytes());
-        let dir = cache_root.join(&key);
-        let manifest = dir.join("manifest.json");
-        let t0 = Instant::now();
-        let mut files: BTreeMap<String, PathBuf> = BTreeMap::new();
-        let mut was_cached = false;
-        if use_cache && manifest.exists() {
-            if let Ok(m) = serde_json::from_slice::<BTreeMap<String, PathBuf>>(&std::fs::read(&manifest)?) {
-                if m.values().all(|p| p.exists()) {
-                    files = m;
-                    was_cached = true;
-                }
+    // dependency levels: stages in the same level do not depend on each other and run in
+    // parallel (each on its own thread with its own context)
+    let ids: HashMap<&str, usize> = p.stages.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
+    let mut level = vec![0usize; p.stages.len()];
+    for &i in &order {
+        for r in p.stages[i].input.as_ref().map(|x| x.refs()).unwrap_or_default() {
+            let base = r.split('.').next().unwrap_or(&r);
+            if let Some(&j) = ids.get(base) {
+                level[i] = level[i].max(level[j] + 1);
             }
         }
-        let mut result = Value::Null;
-        if !was_cached {
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir)?;
-            let out_template = dir.join("{stem}.wav");
-            let mut child = ctx.child(spec.name, input_paths.clone());
-            child.globals.output = Some(out_template.display().to_string());
+    }
+    let max_level = level.iter().copied().max().unwrap_or(0);
+    let n = order.len();
+    let mut done = 0usize;
+    let mut stage_reports: HashMap<usize, Value> = HashMap::new();
+    for lv in 0..=max_level {
+        ctx.check_cancel()?;
+        let members: Vec<usize> = order.iter().copied().filter(|&i| level[i] == lv).collect();
+        // resolve inputs, cache keys, and cache hits sequentially
+        struct Job<'r> {
+            i: usize,
+            spec: &'r OpSpec,
+            args: Args,
+            inputs: Vec<PathBuf>,
+            key: String,
+            dir: PathBuf,
+        }
+        let mut jobs: Vec<Job> = Vec::new();
+        for &i in &members {
+            let s = &p.stages[i];
+            let spec = registry.require(&s.op)?;
+            done += 1;
+            ctx.progress.stage(&s.id, done, n);
+            let args = Args::build(spec, stage_pairs(s)?, &|_, _| None)?;
+            let mut input_paths = Vec::new();
+            let mut input_keys = Vec::new();
+            for r in s.input.as_ref().map(|x| x.refs()).unwrap_or_default() {
+                let (base, role) = match r.split_once('.') {
+                    Some((b, role)) if produced.contains_key(b) => (b.to_string(), role.to_string()),
+                    _ => (r.clone(), "main".to_string()),
+                };
+                let (key, files) =
+                    produced.get(&base).ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
+                let path = files
+                    .get(&role)
+                    .or_else(|| if role == "main" { files.values().next() } else { None })
+                    .ok_or_else(|| {
+                        Error::usage(format!(
+                            "stage '{}' reads '{r}', but '{base}' has no output named '{role}' (has: {})",
+                            s.id,
+                            files.keys().cloned().collect::<Vec<_>>().join(", ")
+                        ))
+                    })?;
+                input_paths.push(path.clone());
+                input_keys.push(format!("{key}:{role}"));
+            }
+            let key_src = json!({"op": spec.name, "args": args.to_json(), "inputs": input_keys, "v": crate::envelope::FERRAUS_VERSION});
+            let key = sha256_bytes(serde_json::to_string(&key_src)?.as_bytes());
+            let dir = cache_root.join(&key);
+            let manifest = dir.join("manifest.json");
+            if use_cache && manifest.exists() {
+                if let Ok(m) = serde_json::from_slice::<BTreeMap<String, PathBuf>>(&std::fs::read(&manifest)?) {
+                    if m.values().all(|p| p.exists()) {
+                        report.cached += 1;
+                        stage_reports.insert(
+                            i,
+                            json!({
+                                "id": s.id, "op": spec.name, "args": args.to_json(), "cached": true, "timing_ms": 0,
+                                "key": key, "result": Value::Null, "outputs": m.keys().cloned().collect::<Vec<_>>(),
+                            }),
+                        );
+                        produced.insert(s.id.clone(), (key, m));
+                        continue;
+                    }
+                }
+            }
+            jobs.push(Job { i, spec, args, inputs: input_paths, key, dir });
+        }
+        // compute the rest in parallel
+        type Done<'c> = (usize, Result<(BTreeMap<String, PathBuf>, Value, OpCtx<'c>)>, u128);
+        let mut children = Vec::new();
+        for j in &jobs {
+            let _ = std::fs::remove_dir_all(&j.dir);
+            std::fs::create_dir_all(&j.dir)?;
+            let mut child = ctx.child(j.spec.name, j.inputs.clone());
+            child.globals.output = Some(j.dir.join("{stem}.wav").display().to_string());
             child.globals.outdir = None;
             child.globals.overwrite = true;
             child.globals.in_place = false;
@@ -289,49 +324,43 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
             child.globals.format = None;
             child.globals.sample_rate = None;
             child.globals.channels = None;
-            let v = match spec.runner {
-                Runner::Custom(f) => f(&args, &mut child)?,
-                Runner::Transform(_) => {
-                    let input = child.read_audio(0)?;
-                    let out = crate::exec::apply_spec(spec, &args, input, &mut child)?;
-                    let path = dir.join("main.wav");
-                    child.write_audio(&path, &out, Some("main"))?;
-                    Value::Null
-                }
-                Runner::Chain => {
-                    let input = child.read_audio(0)?;
-                    let mut buf = input;
-                    for (name, pairs) in crate::exec::chain_stages(&args)? {
-                        buf = crate::exec::run_transform_pairs(registry, &|_, _| None, &name, pairs, buf, &mut child)?;
-                    }
-                    let path = dir.join("main.wav");
-                    child.write_audio(&path, &buf, Some("main"))?;
-                    Value::Null
-                }
-            };
-            result = v;
-            for o in &child.outputs {
-                let role = o.role.clone().unwrap_or_else(|| "main".to_string());
-                files.insert(role, PathBuf::from(&o.path));
-            }
-            for (k2, v2) in &child.notes {
-                result = if result.is_null() { json!({}) } else { result };
-                if let Value::Object(m) = &mut result {
-                    m.insert(k2.clone(), v2.clone());
-                }
-            }
-            ctx.absorb(child);
-            std::fs::write(&manifest, serde_json::to_vec_pretty(&files)?)?;
-            report.computed += 1;
-        } else {
-            report.cached += 1;
+            children.push(child);
         }
-        report.stages.push(json!({
-            "id": s.id, "op": spec.name, "args": args.to_json(), "cached": was_cached,
-            "timing_ms": t0.elapsed().as_millis() as u64, "key": key, "result": result,
-            "outputs": files.keys().cloned().collect::<Vec<_>>(),
-        }));
-        produced.insert(s.id.clone(), (key, files));
+        let results: Vec<Done> = std::thread::scope(|scope| {
+            let handles: Vec<_> = jobs
+                .iter()
+                .zip(children)
+                .map(|(j, mut child)| {
+                    scope.spawn(move || {
+                        let t0 = Instant::now();
+                        let r =
+                            compute_stage(registry, j.spec, &j.args, &j.dir, &mut child).map(|(f, v)| (f, v, child));
+                        (j.i, r, t0.elapsed().as_millis())
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("pipeline stage thread panicked")).collect()
+        });
+        for (j, (i, r, ms)) in jobs.iter().zip(results) {
+            let (files, result, child) = r?;
+            ctx.absorb(child);
+            std::fs::write(j.dir.join("manifest.json"), serde_json::to_vec_pretty(&files)?)?;
+            report.computed += 1;
+            let s = &p.stages[i];
+            stage_reports.insert(
+                i,
+                json!({
+                    "id": s.id, "op": j.spec.name, "args": j.args.to_json(), "cached": false, "timing_ms": ms as u64,
+                    "key": j.key, "result": result, "outputs": files.keys().cloned().collect::<Vec<_>>(),
+                }),
+            );
+            produced.insert(s.id.clone(), (j.key.clone(), files));
+        }
+    }
+    for &i in &order {
+        if let Some(r) = stage_reports.remove(&i) {
+            report.stages.push(r);
+        }
     }
 
     for o in &p.outputs {
@@ -376,6 +405,47 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
         report.outputs.push(json!({"from": o.from, "path": dest.display().to_string()}));
     }
     Ok(report)
+}
+
+/// Run one stage into its cache directory; returns its output files (role → path) and result.
+fn compute_stage(
+    registry: &Registry,
+    spec: &OpSpec,
+    args: &Args,
+    dir: &Path,
+    child: &mut OpCtx,
+) -> Result<(BTreeMap<String, PathBuf>, Value)> {
+    let v = match spec.runner {
+        Runner::Custom(f) => f(args, child)?,
+        Runner::Transform(_) => {
+            let input = child.read_audio(0)?;
+            let out = crate::exec::apply_spec(spec, args, input, child)?;
+            child.write_audio(&dir.join("main.wav"), &out, Some("main"))?;
+            Value::Null
+        }
+        Runner::Chain => {
+            let mut buf = child.read_audio(0)?;
+            for (name, pairs) in crate::exec::chain_stages(args)? {
+                buf = crate::exec::run_transform_pairs(registry, &|_, _| None, &name, pairs, buf, child)?;
+            }
+            child.write_audio(&dir.join("main.wav"), &buf, Some("main"))?;
+            Value::Null
+        }
+    };
+    let mut files = BTreeMap::new();
+    for o in &child.outputs {
+        files.insert(o.role.clone().unwrap_or_else(|| "main".to_string()), PathBuf::from(&o.path));
+    }
+    let mut result = v;
+    for (k, val) in &child.notes {
+        if result.is_null() {
+            result = json!({});
+        }
+        if let Value::Object(m) = &mut result {
+            m.insert(k.clone(), val.clone());
+        }
+    }
+    Ok((files, result))
 }
 
 fn resolve_path(base: &Path, p: &str) -> PathBuf {

@@ -318,3 +318,22 @@ fn async_jobs_and_timeout() {
         .unwrap();
     assert_eq!(out.status.code(), Some(8), "{}", String::from_utf8_lossy(&out.stdout));
 }
+
+#[test]
+fn pipeline_parallel_branches() {
+    let d = TempDir::new("cli-pipe-branches");
+    fixture(&d);
+    std::fs::write(
+        d.path("job.yaml"),
+        "version: 1\ninputs:\n  src: tone.wav\nstages:\n  - id: left\n    op: gain\n    in: src\n    args: { by: -6dB }\n  - id: right\n    op: reverse\n    in: src\n  - id: verb\n    op: reverb\n    in: src\n  - id: sum\n    op: mix\n    in: [left, right, verb]\n    args: { gains: [0dB, -3dB, -6dB] }\noutputs:\n  - { from: sum, path: out/sum.wav }\n  - { from: left, path: out/left.wav, channels: 1 }\n",
+    )
+    .unwrap();
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["computed"], 4);
+    let ids: Vec<&str> = v["result"]["plan"].as_array().unwrap().iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert_eq!(ids.last(), Some(&"sum"));
+    assert_eq!(testing::read_wav(&d.path("out/left.wav")).channels(), 1);
+    let a = testing::read_wav(&d.path("out/sum.wav"));
+    assert_eq!(a.frames(), 88200);
+}
