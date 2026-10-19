@@ -225,6 +225,14 @@ impl SeparationModel for MdxModel {
     }
 }
 
+/// The stems an adapter for `spec` will produce, in output order, without loading the model.
+pub fn stems_of(spec: &ModelSpec) -> Vec<String> {
+    match spec.arch.as_str() {
+        "mdx" if spec.stems.len() != 2 => vec!["primary".into(), "complement".into()],
+        _ => spec.stems.clone(),
+    }
+}
+
 /// Build the adapter for a spec's architecture family.
 pub fn open(name: &str, spec: ModelSpec, session: Arc<ModelSession>) -> Result<Box<dyn SeparationModel>> {
     match spec.arch.as_str() {

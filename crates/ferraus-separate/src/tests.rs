@@ -109,14 +109,17 @@ fn default_tier_without_models_is_exit_5_with_pull_hint() {
     let e = run(&r, &[], |_| {}).err().unwrap();
     assert_eq!(e.exit_code, 5, "{e}");
     assert_eq!(e.code, "model_not_cached");
-    // the default tier is auto: the best tier whose models are verified (fast today)
-    let hint = e.hint.unwrap();
-    assert!(hint.starts_with("ferraus models pull separate/htdemucs@"), "{hint}");
-    let e = run(&r, &[("tier", "quality")], |_| {}).err().unwrap();
-    assert_eq!(e.exit_code, 5, "{e}");
+    // the default tier is auto: the best tier whose models are verified (quality today)
     let hint = e.hint.unwrap();
     assert!(hint.starts_with("ferraus models pull separate/mel-roformer-kj@2024.08 "), "{hint}");
     assert!(hint.contains("separate/htdemucs-ft-drums@v4-onnx.2026-05-21"));
+    let e = run(&r, &[("tier", "balanced")], |_| {}).err().unwrap();
+    assert_eq!(e.exit_code, 5, "{e}");
+    let hint = e.hint.unwrap();
+    assert!(hint.starts_with("ferraus models pull separate/htdemucs-ft-drums@v4-onnx.2026-05-21 "), "{hint}");
+    assert!(hint.ends_with("separate/htdemucs-ft-vocals@v4-onnx.2026-05-21"), "{hint}");
+    let e = run(&r, &[("tier", "fast"), ("stems", "6")], |_| {}).err().unwrap();
+    assert_eq!(e.hint.as_deref(), Some("ferraus models pull separate/htdemucs-6s@v4-onnx.2026-05-21"));
     let e = run(&r, &[("tier", "fast")], |c| c.globals.offline = true).err().unwrap();
     assert_eq!(e.exit_code, 5);
     assert_eq!(e.hint.as_deref(), Some("ferraus models pull separate/htdemucs@v4-onnx.2026-05-21"));
@@ -289,6 +292,88 @@ fn dry_run_plans_without_writing() {
     assert_eq!(v["outputs"].as_array().unwrap().len(), 4);
     assert!(ctx.outputs.is_empty() || !stem_path(&r, "vocals").exists());
     assert!(!stem_path(&r, "vocals").exists());
+
+    // cascades are planned with their models and extra outputs
+    let pairs = [("tier", "fast"), ("vocal-split", "true"), ("drum-split", "true"), ("extended", "guitar,piano,strings")];
+    let (v, _) = run(&r, &pairs, |c| c.globals.dry_run = true).unwrap();
+    let c = v["cascades"].as_array().unwrap();
+    assert_eq!(c.len(), 3);
+    assert_eq!((c[0]["stage"].as_str(), c[0]["available"].as_bool()), (Some("vocal-split"), Some(false)));
+    assert!(c[0]["hint"].as_str().unwrap().contains("--cascade-models vocal-split="));
+    assert_eq!(c[1]["stage"], "drum-split");
+    assert_eq!(c[1]["models"][0]["model"], "separate/drumsep-inagoy@2022");
+    let drum_outs: Vec<&str> = c[1]["outputs"].as_array().unwrap().iter().map(|o| o["stem"].as_str().unwrap()).collect();
+    assert_eq!(drum_outs, vec!["kick", "snare", "toms", "cymbals"], "no hi-hat output: hi-hats land in cymbals");
+    assert!(c[1]["outputs"][0]["path"].as_str().unwrap().ends_with("song.kick.wav"));
+    assert_eq!(c[2]["stage"], "extended");
+    assert_eq!(c[2]["models"][0]["model"], "separate/htdemucs-6s@v4-onnx.2026-05-21");
+    assert_eq!(c[2]["outputs"].as_array().unwrap().len(), 2);
+    assert_eq!(c[2]["unavailable"], json!(["strings"]));
+    assert!(!r.dir.path("song.kick.wav").exists());
+    // --only narrows the planned outputs
+    let (v, _) = run(&r, &[("tier", "fast"), ("only", "vocals")], |c| c.globals.dry_run = true).unwrap();
+    assert_eq!(v["outputs"].as_array().unwrap().len(), 1);
+}
+
+fn spill_dirs() -> Vec<PathBuf> {
+    let prefix = format!("{}{}-", stream::SPILL_PREFIX, std::process::id());
+    std::fs::read_dir(std::env::temp_dir())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
+        .map(|e| e.path())
+        .collect()
+}
+
+/// A tiny `--max-memory` spills every signal to temp files: the stems are identical to the
+/// in-memory run, and the spill directory is gone after success, failure, and cancel.
+#[test]
+fn max_memory_spills_to_temp_files_with_identical_results() {
+    let _g = stream::tests::spill_lock();
+    let m = mix(2.0, 44_100);
+    let r = setup("sep-spill", &m);
+    let dir = TempDir::new("sep-spill-model");
+    let a = toy_model(&dir, "a", &kernels(), &["drums", "bass", "other", "vocals"]);
+    let k2: Vec<Vec<f32>> = kernels().iter().map(|k| k.iter().map(|v| v * 0.8).collect()).collect();
+    let b = toy_model(&dir, "b", &k2, &["drums", "bass", "other", "vocals"]);
+    let ens = format!("{},{}", a.display(), b.display());
+    let pairs = [("ensemble", ens.as_str()), ("shifts", "2"), ("segment", "0.2s")];
+    let (v, _) = run(&r, &pairs, |c| c.globals.overwrite = true).unwrap();
+    assert_eq!(v["memory"]["spilled"], false);
+    let in_memory: Vec<Vec<u8>> = STEMS_4.iter().map(|s| std::fs::read(stem_path(&r, s)).unwrap()).collect();
+    let quality_mem = v["stems"].clone();
+
+    let small = |c: &mut OpCtx| {
+        c.globals.overwrite = true;
+        c.globals.max_memory = 4 << 20;
+    };
+    let (v, ctx) = run(&r, &pairs, small).unwrap();
+    assert_eq!(v["memory"]["spilled"], true, "{}", v["memory"]);
+    assert!(v["memory"]["block_frames"].as_u64().unwrap() < m.frames() as u64, "several blocks");
+    assert!(ctx.warnings.iter().all(|w| w.code != "memory_budget_exceeded"));
+    for (s, want) in STEMS_4.iter().zip(&in_memory) {
+        assert!(std::fs::read(stem_path(&r, s)).unwrap() == *want, "{s} differs when spilled");
+    }
+    for (x, y) in v["stems"].as_array().unwrap().iter().zip(quality_mem.as_array().unwrap()) {
+        let (qx, qy) = (x["quality"]["score"].as_f64().unwrap(), y["quality"]["score"].as_f64().unwrap());
+        assert!((qx - qy).abs() < 1e-9, "{qx} vs {qy}");
+    }
+    assert!(spill_dirs().is_empty(), "spill files removed after success");
+
+    // cancel: the run stops with exit 8 and leaves no spill files
+    let e = run(&r, &pairs, |c| {
+        small(c);
+        c.cancel.cancel();
+    })
+    .err()
+    .unwrap();
+    assert_eq!(e.exit_code, 8, "{e}");
+    assert!(spill_dirs().is_empty(), "spill files removed after cancel");
+
+    // failure in a cascade after the main stems: no spill files either
+    let e = run(&r, &[("model", a.to_str().unwrap()), ("vocal-split", "true")], small).err().unwrap();
+    assert_eq!(e.exit_code, 4);
+    assert!(spill_dirs().is_empty(), "spill files removed after failure");
 }
 
 #[test]
@@ -377,13 +462,13 @@ fn mdx_adapter_round_trip() {
     };
     let (session, _) = ferraus_ml::load(
         &p,
-        &ferraus_ml::SessionOptions { device: "cpu".into(), deterministic: true, threads: 1, provider_hints: vec![] },
+        &ferraus_ml::SessionOptions { device: "cpu".into(), deterministic: true, threads: 1, provider_hints: vec![], lean: false },
     )
     .unwrap();
     let model = adapter::open("mdx", spec, session).unwrap();
     assert_eq!(model.segment(), hop * (dim_t - 1));
     let m = mix(0.3, 44_100);
-    let out = separate_buffer(model.as_ref(), &m, &RunOptions::default(), &mut |_| Ok(())).unwrap();
+    let out = pipeline::separate_buffer(model.as_ref(), &m, &RunOptions::default(), &mut |_| Ok(())).unwrap();
     let mut half = m.clone();
     half.scale(0.5);
     assert!(testing::rms_diff(&out[0].1, &half) < 1e-4, "primary = 0.5 mix");
@@ -460,6 +545,99 @@ fn real_htdemucs_fast_tier() {
     });
     eprintln!("{}", serde_json::to_string_pretty(&report).unwrap());
     assert!(sdr(&bass, "bass") > 3.0, "{report}");
+}
+
+/// Install every verified separation model whose download file (the basename of its first
+/// URL) is in `dir` into the test cache, checking the registry hash. Returns the installed ids.
+fn install_from_dir(dir: &Path) -> Vec<String> {
+    let manifest = ferraus_models::Manifest::embedded();
+    let cache = Cache::default_root();
+    let mut ids = Vec::new();
+    for e in manifest.models.iter().filter(|e| e.task == "separate" && e.sha256.is_some()) {
+        let Some(base) = e.urls.first().and_then(|u| u.rsplit('/').next()) else { continue };
+        let src = dir.join(base);
+        if !src.exists() {
+            continue;
+        }
+        let dest = cache.model_path(e);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        if std::fs::hard_link(&src, &dest).is_err() {
+            std::fs::copy(&src, &dest).unwrap();
+        }
+        let sha = ferraus_models::download::sha256_file(&dest).unwrap();
+        assert_eq!(Some(sha.as_str()), e.sha256.as_deref(), "{}: registry hash matches the file", e.id());
+        cache.record(e, &sha, std::fs::metadata(&dest).unwrap().len(), None).unwrap();
+        ids.push(e.id());
+    }
+    ids
+}
+
+/// The newly verified registry models run through their adapters: set FERRAUS_REAL_MODEL_DIR to
+/// a directory holding the downloaded files under their URL names (htdemucs_fp16weights.onnx,
+/// htdemucs_ft_{drums,bass,other,vocals}_fp16weights.onnx, htdemucs_6s_fp16weights.onnx,
+/// mel-roformer.fp16.onnx) and run `cargo test --release -p ferraus-separate -- --ignored
+/// real_registry_tiers --nocapture`. Each tier separates the same synthetic mix; the report
+/// gives SI-SDR per stem, time, and the memory plan. FERRAUS_REAL_TIERS overrides the tier list
+/// (default `fast,six,balanced,quality`; add `max` for the ensemble).
+#[test]
+#[ignore]
+fn real_registry_tiers() {
+    isolate_cache();
+    let dir = std::env::var("FERRAUS_REAL_MODEL_DIR").expect("set FERRAUS_REAL_MODEL_DIR");
+    let ids = install_from_dir(Path::new(&dir));
+    eprintln!("installed: {ids:?}");
+    let sr = 44_100;
+    let secs = 12.0;
+    let bass = testing::sine(sr, 55.0, secs, 0.35);
+    let n = bass.frames();
+    let mut drums = vec![0f32; n];
+    let mut i = 0;
+    while i < n {
+        for j in 0..2000.min(n - i) {
+            drums[i + j] += (-(j as f32) / 300.0).exp() * 0.6 * if j % 7 < 3 { 1.0 } else { -1.0 };
+        }
+        i += sr as usize / 2;
+    }
+    let drums = AudioBuffer::from_mono(sr, drums);
+    let m = testing::add(&bass, &drums).with_channels(2);
+    let tiers = std::env::var("FERRAUS_REAL_TIERS").unwrap_or_else(|_| "fast,six,balanced,quality".into());
+    let mut reports = Vec::new();
+    for t in tiers.split(',') {
+        let r = setup(&format!("sep-real-{t}"), &m);
+        let mut pairs = vec![("tier", if t == "six" { "fast" } else { t })];
+        if t == "six" {
+            pairs.push(("stems", "6"));
+        }
+        let start = std::time::Instant::now();
+        let (v, ctx) = run(&r, &pairs, |c| {
+            c.globals.deterministic = false;
+            c.globals.threads = 0;
+        })
+        .unwrap_or_else(|e| panic!("tier {t}: {e}"));
+        let names: Vec<String> =
+            v["stems"].as_array().unwrap().iter().map(|s| s["stem"].as_str().unwrap().to_string()).collect();
+        let want = if t == "six" { STEMS_6.len() } else { 4 };
+        assert_eq!(names.len(), want, "{t}: {names:?}");
+        let get = |s: &str| testing::read_wav(&stem_path(&r, s));
+        let sdr = |reference: &AudioBuffer, s: &str| testing::si_sdr(&reference.data[0], &get(s).data[0]);
+        // every tier's stems add back to the input
+        let mut sum = AudioBuffer::new(sr, 2, n);
+        for s in &names {
+            sum = testing::add(&sum, &get(s));
+        }
+        assert!(testing::rms_diff(&sum, &m) < 1e-6, "{t}: stems sum to the mix");
+        let rep = json!({
+            "tier": t,
+            "seconds": start.elapsed().as_secs_f64(),
+            "models": v["models"].as_array().unwrap().iter().map(|m| m["model"].clone()).collect::<Vec<_>>(),
+            "si_sdr_db": {"bass": sdr(&bass, "bass"), "drums": sdr(&drums, "drums")},
+            "memory": v["memory"],
+            "warnings": ctx.warnings.iter().map(|w| w.code.clone()).collect::<Vec<_>>(),
+        });
+        eprintln!("{}", serde_json::to_string_pretty(&rep).unwrap());
+        assert!(rep["si_sdr_db"]["bass"].as_f64().unwrap() > 3.0, "{rep}");
+        reports.push(rep);
+    }
 }
 
 /// Real MDX-Net check: set FERRAUS_KIM_VOCAL_2_ONNX to the verified Kim_Vocal_2.onnx
