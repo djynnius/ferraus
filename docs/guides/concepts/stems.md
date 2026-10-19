@@ -53,7 +53,7 @@ ferraus measured the median SI-SDR per stem, in dB:
 SI-SDR is scale-invariant SDR against the true stems; MUSDB18's published SDR figures use a
 different metric (BSSEval), so compare tiers with each other rather than with papers. The
 `quality` tier beats `balanced` on vocals by 2.9 dB here; `max` adds about 0.2 dB on vocals and up
-to 0.4 dB elsewhere for about 4.5 times the work.
+to 0.4 dB elsewhere for about 5 times the work.
 
 The `fast` tier is good enough for practice tracks, karaoke, and remix sketches; expect some
 bleed (cymbals in the vocal, reverb tails in the wrong stem). `quality` gives clearly cleaner
@@ -66,25 +66,26 @@ instrumental) scores near 0.
 
 ## Speed and memory
 
-Measured on a 10-core Apple-silicon laptop's CPU with a 4-minute song, at the default
-`--max-memory 2GB`:
+Measured on an M1 Pro laptop's CPU (10 cores) with a 4-minute song, at the default
+`--max-memory 2GB` (details and method in `docs/dev/PERFORMANCE.md`):
 
 | Tier | Time | Peak memory |
 | --- | --- | --- |
-| `fast` | 1.9 min (1.7 min with `--max-memory 8GB`) | 2.3 GB |
-| `--stems 6` | 1.9 min | 1.9 GB |
-| `balanced` | 7.2 min | 2.2 GB |
-| `quality` | 15.6 min | 3.4 GB |
-| `max` | about 4.5× `quality` (4 passes of 6 models) | as `quality` |
+| `fast` | 47 s | 1.9 GB |
+| `--stems 6` | 43 s | 1.5 GB |
+| `balanced` | 3.0 min | 1.9 GB |
+| `quality` | 7.0 min | 3.0 GB |
+| `max` | 34 min (4 passes of 6 models) | 2.9 GB |
 
-Separation runs the models one at a time and streams each over the song window by window, so
-memory does not grow with the song: a 60-minute input stays under 4 GB in every tier. Long
-inputs spill their intermediate signals to temporary files (removed afterwards, also on error
-or cancel). When a model's own working memory exceeds `--max-memory`, ferraus loads it in a
-leaner, somewhat slower mode; `result.memory` reports the plan (`spilled`, `lean_sessions`,
-`fits`). Raise the budget (`--max-memory 8GB`) for the fastest run on a machine with RAM to
-spare. A supported GPU (`ferraus accelerate install`, see
-[Troubleshooting](../troubleshooting.md)) helps most for `quality` and `max`.
+Separation runs the models one at a time and streams each over the song window by window;
+the input is decoded straight into that stream and every stem is encoded block by block, so
+memory does not grow with the song: a 60-minute input stays under 4 GB in every tier (measured: `fast` 1.5 GB, `balanced` 1.6 GB, `quality` 2.8 GB). Long inputs spill their intermediate
+signals to temporary files (removed afterwards, also on error or cancel). When a model's own
+working memory exceeds `--max-memory`, ferraus loads it in a leaner mode (on a laptop CPU it
+is as fast as the full one); `result.memory` reports the plan (`spilled`, `lean_sessions`,
+`fits`). The `quality` tier's RoFormer needs about 2.8 GB on its own, so that tier goes over a
+2 GB budget and says so with `"fits": false`. A supported GPU (`ferraus accelerate install`,
+see [Troubleshooting](../troubleshooting.md)) helps most for `quality` and `max`.
 
 ## Options that matter
 
