@@ -19,12 +19,7 @@ impl TimeMap {
     /// Uniform stretch: output length `round(in_len × factor)`.
     pub fn uniform(in_len: usize, factor: f64) -> TimeMap {
         let out_len = (in_len as f64 * factor).round() as usize;
-        TimeMap {
-            pts: vec![(0.0, 0.0), (in_len as f64, out_len as f64)],
-            protected: Vec::new(),
-            in_len,
-            out_len,
-        }
+        TimeMap { pts: vec![(0.0, 0.0), (in_len as f64, out_len as f64)], protected: Vec::new(), in_len, out_len }
     }
 
     /// Uniform stretch with slope-1 windows `[onset − pre, onset + post]` around each
@@ -51,23 +46,14 @@ impl TimeMap {
             }
             let a = (p - pre, o - pre);
             let b = (p + post, o + post);
-            if a.0 > li + margin
-                && a.1 > lo + margin
-                && b.0 < in_len as f64 - margin
-                && b.1 < out_len as f64 - margin
-            {
+            if a.0 > li + margin && a.1 > lo + margin && b.0 < in_len as f64 - margin && b.1 < out_len as f64 - margin {
                 pts.push(a);
                 pts.push(b);
                 protected.push((a.1, b.1));
             }
         }
         pts.push((in_len as f64, out_len as f64));
-        TimeMap {
-            pts,
-            protected,
-            in_len,
-            out_len,
-        }
+        TimeMap { pts, protected, in_len, out_len }
     }
 
     /// Input position for an output position (linear extrapolation outside the map).

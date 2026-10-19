@@ -7,9 +7,7 @@ use std::sync::Arc;
 
 /// Periodic Hann window (sums to a constant at 50 % overlap).
 pub fn hann(n: usize) -> Vec<f32> {
-    (0..n)
-        .map(|i| (0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos()) as f32)
-        .collect()
+    (0..n).map(|i| (0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos()) as f32).collect()
 }
 
 /// Forward and inverse real FFT of one size with scratch buffers.
@@ -30,22 +28,12 @@ impl Fft {
         let inv = p.plan_fft_inverse(n);
         let scratch_f = fwd.make_scratch_vec();
         let scratch_i = inv.make_scratch_vec();
-        Fft {
-            n,
-            time: vec![0.0; n],
-            freq: vec![Complex::new(0.0, 0.0); n / 2 + 1],
-            fwd,
-            inv,
-            scratch_f,
-            scratch_i,
-        }
+        Fft { n, time: vec![0.0; n], freq: vec![Complex::new(0.0, 0.0); n / 2 + 1], fwd, inv, scratch_f, scratch_i }
     }
 
     /// `self.time` → `self.freq` (time buffer is clobbered).
     pub fn forward(&mut self) {
-        let _ = self
-            .fwd
-            .process_with_scratch(&mut self.time, &mut self.freq, &mut self.scratch_f);
+        let _ = self.fwd.process_with_scratch(&mut self.time, &mut self.freq, &mut self.scratch_f);
     }
 
     /// `self.freq` → `self.time`, unnormalized (scaled by `n`). Imaginary parts of the DC
@@ -54,16 +42,12 @@ impl Fft {
         self.freq[0].im = 0.0;
         let last = self.freq.len() - 1;
         self.freq[last].im = 0.0;
-        let _ = self
-            .inv
-            .process_with_scratch(&mut self.freq, &mut self.time, &mut self.scratch_i);
+        let _ = self.inv.process_with_scratch(&mut self.freq, &mut self.time, &mut self.scratch_i);
     }
 
     /// Forward transform of an external buffer into an external spectrum.
     pub fn forward_into(&mut self, input: &mut [f32], out: &mut [Complex<f32>]) {
-        let _ = self
-            .fwd
-            .process_with_scratch(input, out, &mut self.scratch_f);
+        let _ = self.fwd.process_with_scratch(input, out, &mut self.scratch_f);
     }
 }
 
@@ -100,11 +84,7 @@ pub fn median(v: &[f64]) -> Option<f64> {
     let mut s: Vec<f64> = v.to_vec();
     s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = s.len();
-    Some(if n % 2 == 1 {
-        s[n / 2]
-    } else {
-        0.5 * (s[n / 2 - 1] + s[n / 2])
-    })
+    Some(if n % 2 == 1 { s[n / 2] } else { 0.5 * (s[n / 2 - 1] + s[n / 2]) })
 }
 
 /// Wrap a phase to (-π, π].
@@ -131,6 +111,7 @@ pub fn interp(curve: &[f64], pos: f64) -> f64 {
 }
 
 /// Cents between two frequencies (`b` relative to `a`).
+#[cfg(test)]
 pub fn cents(a_hz: f64, b_hz: f64) -> f64 {
     1200.0 * (b_hz / a_hz).log2()
 }

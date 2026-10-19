@@ -5,9 +5,7 @@ use std::f64::consts::PI;
 
 pub fn sine_wave(sr: u32, f: f64, secs: f64, amp: f32) -> Vec<f32> {
     let n = (sr as f64 * secs).round() as usize;
-    (0..n)
-        .map(|i| amp * (2.0 * PI * f * i as f64 / sr as f64).sin() as f32)
-        .collect()
+    (0..n).map(|i| amp * (2.0 * PI * f * i as f64 / sr as f64).sin() as f32).collect()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,10 +42,7 @@ pub fn f0_curve(sr: u32, notes: &[(f64, f64)], vib_hz: f64, vib_cents: f64) -> V
     (0..n)
         .map(|i| {
             let t = i as f64 / srf;
-            let k = bounds
-                .iter()
-                .position(|b| t < b.1)
-                .unwrap_or(bounds.len() - 1);
+            let k = bounds.iter().position(|b| t < b.1).unwrap_or(bounds.len() - 1);
             let mut lf = bounds[k].2.log2();
             // glide into this note from the previous one
             if k > 0 && t - bounds[k].0 < glide / 2.0 {
@@ -59,11 +54,7 @@ pub fn f0_curve(sr: u32, notes: &[(f64, f64)], vib_hz: f64, vib_cents: f64) -> V
                 let a = 0.5 - (bounds[k].1 - t) / glide;
                 lf += (next - lf) * a;
             }
-            let vib = if vib_hz > 0.0 {
-                vib_cents / 1200.0 * (2.0 * PI * vib_hz * t).sin()
-            } else {
-                0.0
-            };
+            let vib = if vib_hz > 0.0 { vib_cents / 1200.0 * (2.0 * PI * vib_hz * t).sin() } else { 0.0 };
             2f64.powf(lf + vib)
         })
         .collect()
@@ -138,8 +129,7 @@ pub fn lpc_formants(x: &[f32], sr: u32, p: usize) -> Vec<f64> {
     while start + n <= x.len() {
         let mut fr: Vec<f64> = (0..n)
             .map(|i| {
-                let v = x[start + i] as f64
-                    - if start + i > 0 { 0.97 * x[start + i - 1] as f64 } else { 0.0 };
+                let v = x[start + i] as f64 - if start + i > 0 { 0.97 * x[start + i - 1] as f64 } else { 0.0 };
                 v * (0.54 - 0.46 * (2.0 * PI * i as f64 / (n - 1) as f64).cos())
             })
             .collect();
@@ -149,9 +139,7 @@ pub fn lpc_formants(x: &[f32], sr: u32, p: usize) -> Vec<f64> {
             continue;
         }
         // autocorrelation
-        let r: Vec<f64> = (0..=p)
-            .map(|l| (0..n - l).map(|i| fr[i] * fr[i + l]).sum())
-            .collect();
+        let r: Vec<f64> = (0..=p).map(|l| (0..n - l).map(|i| fr[i] * fr[i + l]).sum()).collect();
         // Levinson-Durbin
         let mut a = vec![0.0f64; p + 1];
         a[0] = 1.0;

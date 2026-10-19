@@ -22,17 +22,11 @@ pub struct WsolaParams {
 impl WsolaParams {
     /// ~23 ms frames, ±6 ms search (music).
     pub fn music(sr: u32) -> WsolaParams {
-        WsolaParams {
-            n: ((0.023 * sr as f64) as usize / 2 * 2).max(64),
-            tolerance: (0.006 * sr as f64) as usize,
-        }
+        WsolaParams { n: ((0.023 * sr as f64) as usize / 2 * 2).max(64), tolerance: (0.006 * sr as f64) as usize }
     }
     /// ~15 ms frames, ±4 ms search (speech).
     pub fn speech(sr: u32) -> WsolaParams {
-        WsolaParams {
-            n: ((0.015 * sr as f64) as usize / 2 * 2).max(64),
-            tolerance: (0.004 * sr as f64) as usize,
-        }
+        WsolaParams { n: ((0.015 * sr as f64) as usize / 2 * 2).max(64), tolerance: (0.004 * sr as f64) as usize }
     }
     /// Half-width of the slope-1 window needed around a transient.
     pub fn protect_radius(&self) -> usize {

@@ -81,8 +81,7 @@ pub struct PitchFrame {
 impl PitchFrame {
     /// Fractional MIDI note number (`None` when unvoiced).
     pub fn midi(&self) -> Option<f64> {
-        (self.voiced && self.freq_hz > 0.0)
-            .then(|| ferraus_core::units::hz_to_midi(self.freq_hz))
+        (self.voiced && self.freq_hz > 0.0).then(|| ferraus_core::units::hz_to_midi(self.freq_hz))
     }
 }
 
@@ -128,21 +127,9 @@ pub fn track(samples: &[f32], sr: u32, opts: &PyinOptions) -> Vec<PitchFrame> {
                             dx.partial_cmp(&dy).unwrap_or(std::cmp::Ordering::Equal)
                         });
                     let f = best.map(|c| c.freq_hz).unwrap_or(centre);
-                    PitchFrame {
-                        time_s,
-                        freq_hz: f,
-                        confidence: conf,
-                        voiced: true,
-                        rms: *r,
-                    }
+                    PitchFrame { time_s, freq_hz: f, confidence: conf, voiced: true, rms: *r }
                 }
-                None => PitchFrame {
-                    time_s,
-                    freq_hz: 0.0,
-                    confidence: conf,
-                    voiced: false,
-                    rms: *r,
-                },
+                None => PitchFrame { time_s, freq_hz: 0.0, confidence: conf, voiced: false, rms: *r },
             }
         })
         .collect()
@@ -177,11 +164,7 @@ fn threshold_prior(mean: f64) -> Vec<f64> {
 }
 
 /// Stage 1 and 2: YIN candidates per frame, plus frame RMS and the hop in samples.
-pub fn candidates(
-    samples: &[f32],
-    sr: u32,
-    opts: &PyinOptions,
-) -> (Vec<Vec<Candidate>>, Vec<f64>, usize) {
+pub fn candidates(samples: &[f32], sr: u32, opts: &PyinOptions) -> (Vec<Vec<Candidate>>, Vec<f64>, usize) {
     let hop = hop_samples(sr, opts.hop_s);
     if samples.is_empty() || sr == 0 {
         return (Vec::new(), Vec::new(), hop);
@@ -215,7 +198,7 @@ pub fn candidates(
     let mut rms_v = Vec::with_capacity(n_frames);
     for k in 0..n_frames {
         let s = k * hop; // frame start in padded coordinates (centre = s + pad)
-        // RMS over the integration window centred on the frame centre
+                         // RMS over the integration window centred on the frame centre
         let c = s + pad;
         let r0 = c.saturating_sub(w / 2);
         let r1 = (r0 + w).min(xp.len());
@@ -248,11 +231,7 @@ pub fn candidates(
         let mut run = 0.0;
         for tau in 1..=max_lag {
             run += d[tau];
-            cm[tau] = if run > 1e-12 {
-                d[tau] * tau as f64 / run
-            } else {
-                1.0
-            };
+            cm[tau] = if run > 1e-12 { d[tau] * tau as f64 / run } else { 1.0 };
         }
         // troughs in lag order; each takes the prior mass of thresholds above its value
         // that no earlier trough took
@@ -269,11 +248,7 @@ pub fn candidates(
             }
             // thresholds t_i = (i+1)/100 with t_i > v
             let first = ((v * 100.0).floor() as usize).min(100);
-            let mass: f64 = if first < taken_to {
-                prior[first..taken_to].iter().sum()
-            } else {
-                0.0
-            };
+            let mass: f64 = if first < taken_to { prior[first..taken_to].iter().sum() } else { 0.0 };
             running_min = v;
             taken_to = taken_to.min(first);
             if mass <= 0.0 {
@@ -282,17 +257,10 @@ pub fn candidates(
             // parabolic interpolation of the trough
             let (a, b, cc) = (cm[tau - 1], cm[tau], cm[tau + 1]);
             let den = a - 2.0 * b + cc;
-            let off = if den.abs() > 1e-12 {
-                (0.5 * (a - cc) / den).clamp(-0.5, 0.5)
-            } else {
-                0.0
-            };
+            let off = if den.abs() > 1e-12 { (0.5 * (a - cc) / den).clamp(-0.5, 0.5) } else { 0.0 };
             let f = srf / (tau as f64 + off);
             if f >= opts.fmin * 0.97 && f <= opts.fmax * 1.03 {
-                cands.push(Candidate {
-                    freq_hz: f,
-                    prob: mass,
-                });
+                cands.push(Candidate { freq_hz: f, prob: mass });
             }
             if taken_to == 0 {
                 break;
@@ -304,22 +272,14 @@ pub fn candidates(
 }
 
 /// Stage 3: Viterbi decoding. Returns the voiced pitch bin per frame (`None` = unvoiced).
-fn viterbi(
-    cands: &[Vec<Candidate>],
-    sr: u32,
-    hop: usize,
-    opts: &PyinOptions,
-) -> Vec<Option<usize>> {
+fn viterbi(cands: &[Vec<Candidate>], sr: u32, hop: usize, opts: &PyinOptions) -> Vec<Option<usize>> {
     let n = n_bins(opts);
     let t_len = cands.len();
     let hop_s = hop as f64 / sr as f64;
-    let jump =
-        ((opts.max_octaves_per_s * 1200.0 / opts.bin_cents * hop_s).round() as usize).max(1);
+    let jump = ((opts.max_octaves_per_s * 1200.0 / opts.bin_cents * hop_s).round() as usize).max(1);
     // triangular transition weights, normalised over the band
     let norm = ((jump + 1) * (jump + 1)) as f64;
-    let logw: Vec<f64> = (0..=jump)
-        .map(|dlt| (((jump + 1 - dlt) as f64) / norm).ln())
-        .collect();
+    let logw: Vec<f64> = (0..=jump).map(|dlt| (((jump + 1 - dlt) as f64) / norm).ln()).collect();
     let ls = opts.voicing_stay.ln();
     let lsw = (1.0 - opts.voicing_stay).max(1e-12).ln();
     let floor = 1e-9f64;
@@ -403,11 +363,7 @@ fn viterbi(
             row[j + n] = bui;
         }
         // renormalise to keep numbers small
-        let m = nv
-            .iter()
-            .chain(nu.iter())
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max);
+        let m = nv.iter().chain(nu.iter()).cloned().fold(f64::NEG_INFINITY, f64::max);
         for j in 0..n {
             dv[j] = nv[j] - m;
             du[j] = nu[j] - m;
@@ -470,11 +426,8 @@ mod tests {
         let mut worst_oct: f64 = 0.0;
         for &f0 in &[80.0, 110.0, 165.0, 220.0, 330.0, 440.0, 660.0, 1000.0] {
             for kind in 0..2 {
-                let x = if kind == 0 {
-                    sine_wave(sr, f0, 0.5, 0.5)
-                } else {
-                    vocal(sr, &[(f0, 0.5)], Vowel::A, 0.0, 0.0)
-                };
+                let x =
+                    if kind == 0 { sine_wave(sr, f0, 0.5, 0.5) } else { vocal(sr, &[(f0, 0.5)], Vowel::A, 0.0, 0.0) };
                 let fr = track(&x, sr, &PyinOptions::default());
                 let (acc, oct) = accuracy(&fr, |_| f0, 0.06);
                 worst = worst.min(acc);

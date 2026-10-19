@@ -88,11 +88,7 @@ pub fn analyze_onsets(x: &[f32], sr: u32) -> OnsetAnalysis {
         let mut e = 0.0f64;
         for i in 0..n {
             let idx = c - half as isize + i as isize;
-            let v = if idx >= 0 && (idx as usize) < x.len() {
-                x[idx as usize]
-            } else {
-                0.0
-            };
+            let v = if idx >= 0 && (idx as usize) < x.len() { x[idx as usize] } else { 0.0 };
             e += (v as f64) * (v as f64);
             fft.time[i] = v * win[i];
         }
@@ -145,13 +141,7 @@ pub fn analyze_onsets(x: &[f32], sr: u32) -> OnsetAnalysis {
             }
         }
     }
-    OnsetAnalysis {
-        onsets,
-        hop,
-        flatness: flat,
-        rms,
-        flux,
-    }
+    OnsetAnalysis { onsets, hop, flatness: flat, rms, flux }
 }
 
 fn refine_onset(x: &[f32], s0: usize, s1: usize, sr: u32) -> Option<usize> {
@@ -188,60 +178,34 @@ fn refine_onset(x: &[f32], s0: usize, s1: usize, sr: u32) -> Option<usize> {
 }
 
 /// Stretch planar channels by `factor` (> 0). `factor == 1.0` returns the input unchanged.
-pub fn stretch(
-    channels: &[Vec<f32>],
-    sr: u32,
-    factor: f64,
-    mode: Mode,
-    quality: Quality,
-) -> (Vec<Vec<f32>>, Report) {
-    let mut report = Report {
-        factor,
-        transients: 0,
-        anchored: 0,
-        tonal_segments: 0,
-        percussive_segments: 0,
-        engine: "identity",
-    };
+pub fn stretch(channels: &[Vec<f32>], sr: u32, factor: f64, mode: Mode, quality: Quality) -> (Vec<Vec<f32>>, Report) {
+    let mut report =
+        Report { factor, transients: 0, anchored: 0, tonal_segments: 0, percussive_segments: 0, engine: "identity" };
     let len = channels.first().map(|c| c.len()).unwrap_or(0);
     if factor == 1.0 || len == 0 {
         return (channels.to_vec(), report);
     }
     let mono = crate::util::mono(channels);
-    let wp = if mode == Mode::Speech {
-        WsolaParams::speech(sr)
-    } else {
-        WsolaParams::music(sr)
-    };
+    let wp = if mode == Mode::Speech { WsolaParams::speech(sr) } else { WsolaParams::music(sr) };
     let pv = match (mode, quality) {
         (Mode::Speech, _) => PvParams::speech(sr),
         (_, Quality::Fast) => PvParams::fast(sr),
         _ => PvParams::high(sr),
     };
-    let pv = PvParams {
-        formant_preserve: false,
-        ..pv
-    };
+    let pv = PvParams { formant_preserve: false, ..pv };
 
     if mode == Mode::Tonal {
         let map = TimeMap::uniform(len, factor);
         report.engine = "phase_vocoder";
         report.tonal_segments = 1;
-        let out = channels
-            .iter()
-            .map(|c| vocoder::render(c, &map, &|_| 1.0, &|_| false, &pv))
-            .collect();
+        let out = channels.iter().map(|c| vocoder::render(c, &map, &|_| 1.0, &|_| false, &pv)).collect();
         return (out, report);
     }
 
     let oa = analyze_onsets(&mono, sr);
     report.transients = oa.onsets.len();
     let use_pv = quality == Quality::High && matches!(mode, Mode::Auto | Mode::Speech);
-    let radius = if use_pv {
-        wp.protect_radius().max(pv.n_fft / 2 + 16)
-    } else {
-        wp.protect_radius()
-    };
+    let radius = if use_pv { wp.protect_radius().max(pv.n_fft / 2 + 16) } else { wp.protect_radius() };
     let map = TimeMap::anchored(len, factor, &oa.onsets, radius, radius);
     report.anchored = map.protected().len();
 
@@ -302,23 +266,10 @@ pub fn stretch(
     let out = channels
         .iter()
         .map(|c| {
-            let p = if any_pv {
-                Some(vocoder::render(c, &map, &|_| 1.0, &|_| false, &pv))
-            } else {
-                None
-            };
-            let w = if any_ws {
-                Some(wsola::render(c, &map, &wp))
-            } else {
-                None
-            };
+            let p = if any_pv { Some(vocoder::render(c, &map, &|_| 1.0, &|_| false, &pv)) } else { None };
+            let w = if any_ws { Some(wsola::render(c, &map, &wp)) } else { None };
             match (p, w) {
-                (Some(p), Some(w)) => p
-                    .iter()
-                    .zip(&w)
-                    .zip(&mask)
-                    .map(|((a, b), m)| a * m + b * (1.0 - m))
-                    .collect(),
+                (Some(p), Some(w)) => p.iter().zip(&w).zip(&mask).map(|((a, b), m)| a * m + b * (1.0 - m)).collect(),
                 (Some(p), None) => p,
                 (None, Some(w)) => w,
                 (None, None) => vec![0.0; out_len],
@@ -351,11 +302,7 @@ pub fn estimate_tempo(x: &[f32], sr: u32) -> Option<(f64, f64)> {
     let oa = analyze_onsets(x, sr);
     // decimate the flux to ~10 ms
     let step = ((0.01 * sr as f64) / oa.hop as f64).round().max(1.0) as usize;
-    let env: Vec<f64> = oa
-        .flux
-        .chunks(step)
-        .map(|c| c.iter().cloned().fold(0.0, f64::max))
-        .collect();
+    let env: Vec<f64> = oa.flux.chunks(step).map(|c| c.iter().cloned().fold(0.0, f64::max)).collect();
     let hop_s = (oa.hop * step) as f64 / sr as f64;
     if env.len() < (4.0 / hop_s) as usize {
         return None;
@@ -367,7 +314,7 @@ pub fn estimate_tempo(x: &[f32], sr: u32) -> Option<(f64, f64)> {
         return None;
     }
     let lag_min = (60.0 / 200.0 / hop_s).floor() as usize;
-    let lag_max = (60.0 / 60.0 / hop_s).ceil() as usize;
+    let lag_max = (1.0 / hop_s).ceil() as usize; // 60 BPM
     let ac = |l: usize| -> f64 { e.iter().zip(&e[l..]).map(|(a, b)| a * b).sum::<f64>() / r0 };
     let mut best = (f64::NEG_INFINITY, 0usize, 0.0);
     for l in lag_min.max(1)..=lag_max.min(e.len() - 1) {
@@ -384,11 +331,7 @@ pub fn estimate_tempo(x: &[f32], sr: u32) -> Option<(f64, f64)> {
     let l = best.1;
     let (a, b, c) = (ac(l - 1), ac(l), ac(l + 1));
     let den = a - 2.0 * b + c;
-    let off = if den.abs() > 1e-12 {
-        (0.5 * (a - c) / den).clamp(-0.5, 0.5)
-    } else {
-        0.0
-    };
+    let off = if den.abs() > 1e-12 { (0.5 * (a - c) / den).clamp(-0.5, 0.5) } else { 0.0 };
     let bpm = 60.0 / ((l as f64 + off) * hop_s);
     Some((bpm, best.2.clamp(0.0, 1.0)))
 }
@@ -404,9 +347,7 @@ mod tests {
             if y[i].abs() > thr {
                 // local peak within 2 ms
                 let end = (i + 100).min(y.len());
-                let p = (i..end)
-                    .max_by(|a, b| y[*a].abs().partial_cmp(&y[*b].abs()).unwrap())
-                    .unwrap();
+                let p = (i..end).max_by(|a, b| y[*a].abs().partial_cmp(&y[*b].abs()).unwrap()).unwrap();
                 out.push(p);
                 i = end;
             } else {
@@ -430,7 +371,7 @@ mod tests {
         let x = ferraus_core::testing::clicks(sr, 0.25, 2.0, 0.9).data.remove(0);
         let input_clicks = click_positions(&x, 0.3);
         for mode in [Mode::Percussive, Mode::Auto] {
-            let (y, rep) = stretch(&[x.clone()], sr, 2.0, mode, Quality::High);
+            let (y, rep) = stretch(std::slice::from_ref(&x), sr, 2.0, mode, Quality::High);
             assert_eq!(y[0].len(), x.len() * 2);
             let got = click_positions(&y[0], 0.3);
             // first click at sample 0 cannot be anchored (no room) but is still copied
@@ -448,7 +389,7 @@ mod tests {
         let sr = 16000;
         let x = crate::fixtures::vocal(sr, &[(220.0, 0.6)], crate::fixtures::Vowel::A, 0.0, 0.0);
         for mode in [Mode::Auto, Mode::Tonal, Mode::Speech, Mode::Percussive] {
-            let (y, _) = stretch(&[x.clone()], sr, 0.75, mode, Quality::High);
+            let (y, _) = stretch(std::slice::from_ref(&x), sr, 0.75, mode, Quality::High);
             assert_eq!(y[0].len(), (x.len() as f64 * 0.75).round() as usize);
             let fr = crate::pyin::track(&y[0], sr, &crate::pyin::PyinOptions::default());
             let v: Vec<f64> = fr[5..fr.len() - 5].iter().filter(|f| f.voiced).map(|f| f.freq_hz).collect();

@@ -36,31 +36,17 @@ impl PvParams {
     /// High quality: ~90 ms window, 8× overlap.
     pub fn high(sr: u32) -> PvParams {
         let n = ((0.09 * sr as f64) as usize).next_power_of_two().max(256);
-        PvParams {
-            n_fft: n,
-            hop: n / 8,
-            formant_preserve: true,
-            lifter: (sr as usize / 700).max(8),
-            phase_lock: true,
-        }
+        PvParams { n_fft: n, hop: n / 8, formant_preserve: true, lifter: (sr as usize / 700).max(8), phase_lock: true }
     }
     /// Fast: ~45 ms window, 4× overlap.
     pub fn fast(sr: u32) -> PvParams {
         let n = ((0.045 * sr as f64) as usize).next_power_of_two().max(256);
-        PvParams {
-            n_fft: n,
-            hop: n / 4,
-            ..PvParams::high(sr)
-        }
+        PvParams { n_fft: n, hop: n / 4, ..PvParams::high(sr) }
     }
     /// Short windows (~23 ms) for speech.
     pub fn speech(sr: u32) -> PvParams {
         let n = ((0.023 * sr as f64) as usize).next_power_of_two().max(128);
-        PvParams {
-            n_fft: n,
-            hop: n / 4,
-            ..PvParams::high(sr)
-        }
+        PvParams { n_fft: n, hop: n / 4, ..PvParams::high(sr) }
     }
 }
 
@@ -83,11 +69,7 @@ pub fn render(
     let win = hann(n);
     let mut fa = Fft::new(n);
     let mut fb = Fft::new(n);
-    let mut fenv = if p.formant_preserve {
-        Some(Fft::new(n))
-    } else {
-        None
-    };
+    let mut fenv = if p.formant_preserve { Some(Fft::new(n)) } else { None };
     let mut acc = vec![0.0f32; out_len + n];
     let mut wsum = vec![0.0f32; out_len + n];
     let mut mag = vec![0.0f64; nb];
@@ -173,11 +155,7 @@ pub fn render(
                 nb
             };
             let start = if p.phase_lock { lo } else { pk };
-            let s = if shifting {
-                (pk as f64 * (r - 1.0)).round() as isize
-            } else {
-                0
-            };
+            let s = if shifting { (pk as f64 * (r - 1.0)).round() as isize } else { 0 };
             let tgt = pk as isize + s;
             let theta = if do_reset {
                 pha[pk]
@@ -267,13 +245,7 @@ pub fn pitch_shift(x: &[f32], ratio: f64, p: &PvParams) -> Vec<f32> {
 pub fn pitch_shift_curve(x: &[f32], ratio: &[f64], hop: usize, p: &PvParams) -> Vec<f32> {
     let map = TimeMap::uniform(x.len(), 1.0);
     let h = hop.max(1) as f64;
-    render(
-        x,
-        &map,
-        &|pos| crate::util::interp(ratio, pos / h),
-        &|_| false,
-        p,
-    )
+    render(x, &map, &|pos| crate::util::interp(ratio, pos / h), &|_| false, p)
 }
 
 #[cfg(test)]
@@ -284,11 +256,7 @@ mod tests {
 
     fn median_pitch(x: &[f32], sr: u32) -> f64 {
         let fr = track(x, sr, &PyinOptions::default());
-        let v: Vec<f64> = fr[10..fr.len() - 10]
-            .iter()
-            .filter(|f| f.voiced)
-            .map(|f| f.freq_hz)
-            .collect();
+        let v: Vec<f64> = fr[10..fr.len() - 10].iter().filter(|f| f.voiced).map(|f| f.freq_hz).collect();
         crate::util::median(&v).unwrap_or(0.0)
     }
 
@@ -298,14 +266,8 @@ mod tests {
         let x = vocal(sr, &[(150.0, 0.5)], Vowel::A, 0.0, 0.0);
         let y = pitch_shift(&x, 1.0, &PvParams::high(sr));
         assert_eq!(y.len(), x.len());
-        let err: f64 = x
-            .iter()
-            .zip(&y)
-            .skip(2000)
-            .take(4000)
-            .map(|(a, b)| ((a - b) as f64).powi(2))
-            .sum::<f64>()
-            / 4000.0;
+        let err: f64 =
+            x.iter().zip(&y).skip(2000).take(4000).map(|(a, b)| ((a - b) as f64).powi(2)).sum::<f64>() / 4000.0;
         assert!(err.sqrt() < 0.01, "rms err {}", err.sqrt());
     }
 
@@ -317,11 +279,7 @@ mod tests {
             let r = 2f64.powf(st / 12.0);
             let y = pitch_shift(&x, r, &PvParams::high(sr));
             let f = median_pitch(&y, sr);
-            assert!(
-                crate::util::cents(150.0 * r, f).abs() < 5.0,
-                "{st} st: got {f}, want {}",
-                150.0 * r
-            );
+            assert!(crate::util::cents(150.0 * r, f).abs() < 5.0, "{st} st: got {f}, want {}", 150.0 * r);
         }
     }
 

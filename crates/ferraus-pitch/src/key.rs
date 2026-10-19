@@ -22,12 +22,8 @@ use ferraus_core::units::{hz_to_midi, parse_pitch_class};
 use ferraus_core::{Error, Result};
 use serde::Serialize;
 
-const MAJOR: [f64; 12] = [
-    6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
-];
-const MINOR: [f64; 12] = [
-    6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
-];
+const MAJOR: [f64; 12] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const MINOR: [f64; 12] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 
 /// Major or minor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -60,12 +56,8 @@ impl Key {
     }
 
     pub fn tonic_name(&self) -> &'static str {
-        const MAJ: [&str; 12] = [
-            "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
-        ];
-        const MIN: [&str; 12] = [
-            "C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B",
-        ];
+        const MAJ: [&str; 12] = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+        const MIN: [&str; 12] = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
         let pc = self.tonic.rem_euclid(12) as usize;
         match self.mode {
             Mode::Major => MAJ[pc],
@@ -87,11 +79,7 @@ impl Key {
     /// if one was stated.
     pub fn parse(s: &str) -> Result<(i32, Option<Mode>)> {
         let t = s.trim();
-        let bad = || {
-            Error::usage(format!(
-                "'{s}' is not a key; use forms like C, F#, Bbm, 'A minor' or 'Eb major'"
-            ))
-        };
+        let bad = || Error::usage(format!("'{s}' is not a key; use forms like C, F#, Bbm, 'A minor' or 'Eb major'"));
         if t.is_empty() {
             return Err(bad());
         }
@@ -196,23 +184,11 @@ pub fn detect_from_chroma(chroma: &[f64; 12], restrict: Option<Mode>) -> KeyEsti
         norm.iter_mut().for_each(|v| *v /= total);
     }
     let scored = score_keys(&norm);
-    let pool: Vec<&(Key, f64)> = scored
-        .iter()
-        .filter(|(k, _)| restrict.map(|m| k.mode == m).unwrap_or(true))
-        .collect();
+    let pool: Vec<&(Key, f64)> = scored.iter().filter(|(k, _)| restrict.map(|m| k.mode == m).unwrap_or(true)).collect();
     let (best, r1) = *pool[0];
-    let r2 = scored
-        .iter()
-        .filter(|(k, _)| !same_scale(k, &best))
-        .map(|(_, r)| *r)
-        .next()
-        .unwrap_or(0.0);
+    let r2 = scored.iter().filter(|(k, _)| !same_scale(k, &best)).map(|(_, r)| *r).next().unwrap_or(0.0);
     let margin = ((r1 - r2) / (0.5 * (1.0 - r2).max(1e-6))).clamp(0.0, 1.0);
-    let confidence = if total > 0.0 {
-        (r1.clamp(0.0, 1.0) * margin).sqrt()
-    } else {
-        0.0
-    };
+    let confidence = if total > 0.0 { (r1.clamp(0.0, 1.0) * margin).sqrt() } else { 0.0 };
     let alternatives = scored
         .iter()
         .filter(|(k, _)| *k != best)
@@ -279,17 +255,9 @@ pub fn chroma_stft(samples: &[f32], sr: u32) -> ([f64; 12], f64) {
             for k in kmin..=kmax {
                 let m = mag[k];
                 if m > floor && m > mag[k - 1] && m >= mag[k + 1] {
-                    let (a, b, c) = (
-                        mag[k - 1].max(1e-12).ln(),
-                        m.ln(),
-                        mag[k + 1].max(1e-12).ln(),
-                    );
+                    let (a, b, c) = (mag[k - 1].max(1e-12).ln(), m.ln(), mag[k + 1].max(1e-12).ln());
                     let den = a - 2.0 * b + c;
-                    let off = if den.abs() > 1e-12 {
-                        (0.5 * (a - c) / den).clamp(-0.5, 0.5)
-                    } else {
-                        0.0
-                    };
+                    let off = if den.abs() > 1e-12 { (0.5 * (a - c) / den).clamp(-0.5, 0.5) } else { 0.0 };
                     let f = (k as f64 + off) * srf / n as f64;
                     peaks.push((f, m / mx));
                 }
@@ -309,11 +277,7 @@ pub fn chroma_stft(samples: &[f32], sr: u32) -> ([f64; 12], f64) {
         sx += w * a.cos();
         sy += w * a.sin();
     }
-    let tuning = if sx == 0.0 && sy == 0.0 {
-        0.0
-    } else {
-        sy.atan2(sx) / (2.0 * std::f64::consts::PI)
-    };
+    let tuning = if sx == 0.0 && sy == 0.0 { 0.0 } else { sy.atan2(sx) / (2.0 * std::f64::consts::PI) };
     let mut chroma = [0.0; 12];
     for (f, w) in &peaks {
         let m = hz_to_midi(*f) - tuning;
@@ -335,23 +299,7 @@ pub fn detect(samples: &[f32], sr: u32) -> KeyEstimate {
 /// `major`, `minor`, `chromatic`, a mode name (`dorian`, `harmonic-minor`, `blues`, ...), or
 /// a custom note list such as `C,D,Eb,G,A`.
 pub fn scale_pitch_classes(scale: &str, tonic: i32) -> Result<Vec<i32>> {
-    let s = scale.trim().to_lowercase();
-    let steps: Option<&[i32]> = match s.as_str() {
-        "major" | "ionian" => Some(&[0, 2, 4, 5, 7, 9, 11]),
-        "minor" | "aeolian" | "natural-minor" => Some(&[0, 2, 3, 5, 7, 8, 10]),
-        "harmonic-minor" => Some(&[0, 2, 3, 5, 7, 8, 11]),
-        "melodic-minor" => Some(&[0, 2, 3, 5, 7, 9, 11]),
-        "dorian" => Some(&[0, 2, 3, 5, 7, 9, 10]),
-        "phrygian" => Some(&[0, 1, 3, 5, 7, 8, 10]),
-        "lydian" => Some(&[0, 2, 4, 6, 7, 9, 11]),
-        "mixolydian" => Some(&[0, 2, 4, 5, 7, 9, 10]),
-        "locrian" => Some(&[0, 1, 3, 5, 6, 8, 10]),
-        "major-pentatonic" | "pentatonic" => Some(&[0, 2, 4, 7, 9]),
-        "minor-pentatonic" => Some(&[0, 3, 5, 7, 10]),
-        "blues" => Some(&[0, 3, 5, 6, 7, 10]),
-        "chromatic" => Some(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
-        _ => None,
-    };
+    let steps = named_steps(scale);
     if let Some(st) = steps {
         return Ok(st.iter().map(|x| (tonic + x).rem_euclid(12)).collect());
     }
@@ -371,6 +319,36 @@ pub fn scale_pitch_classes(scale: &str, tonic: i32) -> Result<Vec<i32>> {
     }
     pcs.sort();
     Ok(pcs)
+}
+
+fn named_steps(scale: &str) -> Option<&'static [i32]> {
+    match scale.trim().to_lowercase().as_str() {
+        "major" | "ionian" => Some(&[0, 2, 4, 5, 7, 9, 11]),
+        "minor" | "aeolian" | "natural-minor" => Some(&[0, 2, 3, 5, 7, 8, 10]),
+        "harmonic-minor" => Some(&[0, 2, 3, 5, 7, 8, 11]),
+        "melodic-minor" => Some(&[0, 2, 3, 5, 7, 9, 11]),
+        "dorian" => Some(&[0, 2, 3, 5, 7, 9, 10]),
+        "phrygian" => Some(&[0, 1, 3, 5, 7, 8, 10]),
+        "lydian" => Some(&[0, 2, 4, 6, 7, 9, 11]),
+        "mixolydian" => Some(&[0, 2, 4, 5, 7, 9, 10]),
+        "locrian" => Some(&[0, 1, 3, 5, 6, 8, 10]),
+        "major-pentatonic" | "pentatonic" => Some(&[0, 2, 4, 7, 9]),
+        "minor-pentatonic" => Some(&[0, 3, 5, 7, 10]),
+        "blues" => Some(&[0, 3, 5, 6, 7, 10]),
+        "chromatic" => Some(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+        _ => None,
+    }
+}
+
+/// Is this a scale or mode name (as opposed to a custom note list)?
+pub fn is_scale_name(scale: &str) -> bool {
+    named_steps(scale).is_some()
+}
+
+/// `C,D,Eb,G,A`-style names for pitch classes (flats for black keys).
+pub fn pitch_class_names(pcs: &[i32]) -> String {
+    const N: [&str; 12] = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+    pcs.iter().map(|p| N[p.rem_euclid(12) as usize]).collect::<Vec<_>>().join(",")
 }
 
 /// Nearest MIDI note (integer) to `midi` whose pitch class is in `pcs`.

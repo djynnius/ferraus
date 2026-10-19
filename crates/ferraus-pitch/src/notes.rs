@@ -32,13 +32,7 @@ pub struct NoteOptions {
 
 impl Default for NoteOptions {
     fn default() -> Self {
-        NoteOptions {
-            min_note_s: 0.040,
-            jump_cents: 80.0,
-            stay_s: 0.030,
-            sensitivity: 0.5,
-            gap_fill_s: 0.020,
-        }
+        NoteOptions { min_note_s: 0.040, jump_cents: 80.0, stay_s: 0.030, sensitivity: 0.5, gap_fill_s: 0.020 }
     }
 }
 
@@ -145,9 +139,7 @@ pub fn segment(frames: &[PitchFrame], opts: &NoteOptions) -> Vec<Note> {
                     while u < e && seen < stay {
                         if voiced(u) {
                             let cu = frame_cents(&frames[u]);
-                            if (cu - r).abs() <= opts.jump_cents
-                                || (cu - c).abs() > opts.jump_cents
-                            {
+                            if (cu - r).abs() <= opts.jump_cents || (cu - c).abs() > opts.jump_cents {
                                 ok = false;
                                 break;
                             }
@@ -178,22 +170,14 @@ pub fn segment(frames: &[PitchFrame], opts: &NoteOptions) -> Vec<Note> {
             split.push((s, e));
             continue;
         }
-        let db: Vec<f64> = (s..e)
-            .map(|k| 20.0 * frames[k].rms.max(1e-9).log10())
-            .collect();
+        let db: Vec<f64> = (s..e).map(|k| 20.0 * frames[k].rms.max(1e-9).log10()).collect();
         let mut best: Option<(usize, f64)> = None;
         for k in min_len..(e - s - min_len) {
             if !(db[k] <= db[k - 1] && db[k] <= db[k + 1]) {
                 continue;
             }
-            let before = db[k.saturating_sub(look)..k]
-                .iter()
-                .cloned()
-                .fold(f64::NEG_INFINITY, f64::max);
-            let after = db[k + 1..(k + 1 + look).min(db.len())]
-                .iter()
-                .cloned()
-                .fold(f64::NEG_INFINITY, f64::max);
+            let before = db[k.saturating_sub(look)..k].iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let after = db[k + 1..(k + 1 + look).min(db.len())].iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             let depth = before.min(after) - db[k];
             if depth >= dip_db && best.map(|b| depth > b.1).unwrap_or(true) {
                 best = Some((k, depth));
@@ -212,17 +196,11 @@ pub fn segment(frames: &[PitchFrame], opts: &NoteOptions) -> Vec<Note> {
 
     // 4. merge or drop short segments
     let centre = |s: usize, e: usize| -> Option<f64> {
-        let v: Vec<f64> = (s..e)
-            .filter(|&k| voiced(k))
-            .map(|k| hz_to_midi(frames[k].freq_hz))
-            .collect();
+        let v: Vec<f64> = (s..e).filter(|&k| voiced(k)).map(|k| hz_to_midi(frames[k].freq_hz)).collect();
         median(&v)
     };
     let mut segs = split;
-    loop {
-        let Some(idx) = segs.iter().position(|(s, e)| e - s < min_len) else {
-            break;
-        };
+    while let Some(idx) = segs.iter().position(|(s, e)| e - s < min_len) {
         let (s, e) = segs[idx];
         let me = centre(s, e);
         let left = (idx > 0 && segs[idx - 1].1 == s).then(|| idx - 1);
@@ -331,23 +309,12 @@ mod tests {
 
     #[test]
     fn energy_dip_splits_repeated_note() {
-        let fr = synth_frames(&[
-            (Some(67.0), 30, 0.3),
-            (Some(67.0), 3, 0.02),
-            (Some(67.0), 30, 0.3),
-        ]);
+        let fr = synth_frames(&[(Some(67.0), 30, 0.3), (Some(67.0), 3, 0.02), (Some(67.0), 30, 0.3)]);
         let notes = segment(&fr, &NoteOptions::default());
         assert_eq!(notes.len(), 2, "{notes:?}");
         // insensitive setting keeps one note when the dip is shallow
-        let fr = synth_frames(&[
-            (Some(67.0), 30, 0.3),
-            (Some(67.0), 3, 0.12),
-            (Some(67.0), 30, 0.3),
-        ]);
-        let o = NoteOptions {
-            sensitivity: 0.0,
-            ..Default::default()
-        };
+        let fr = synth_frames(&[(Some(67.0), 30, 0.3), (Some(67.0), 3, 0.12), (Some(67.0), 30, 0.3)]);
+        let o = NoteOptions { sensitivity: 0.0, ..Default::default() };
         assert_eq!(segment(&fr, &o).len(), 1);
     }
 

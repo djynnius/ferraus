@@ -40,11 +40,7 @@ pub fn pitch_marks(x: &[f32], sr: u32, frames: &[PitchFrame]) -> Vec<Mark> {
         let j = (i + 1).min(fe - 1);
         let f = k - i as f64;
         let a = frames[i].freq_hz;
-        let b = if frames[j].voiced && frames[j].freq_hz > 0.0 {
-            frames[j].freq_hz
-        } else {
-            a
-        };
+        let b = if frames[j].voiced && frames[j].freq_hz > 0.0 { frames[j].freq_hz } else { a };
         a * (1.0 - f) + b * f
     };
     let mut voiced_marks: Vec<Vec<usize>> = Vec::new();
@@ -192,25 +188,47 @@ pub fn render(channels: &[Vec<f32>], marks: &[Mark], ratio_at: &dyn Fn(f64) -> f
         }
         let (l, r) = (left(k).max(1), right(k).max(1));
         let a = marks[k].pos as isize;
-        let s = t.round() as isize;
-        for i in -(l as isize) + 1..r as isize {
+        // fractional placement: the grain centre lands at t, the source is read at the
+        // matching fractional position (cubic interpolation; exact when t is an integer)
+        let s = t.floor() as isize;
+        let frac = t - s as f64;
+        for i in -(l as isize) + 1..=r as isize {
             let o = s + i;
             if o < 0 || o as usize >= len {
                 continue;
             }
-            let src = a + i;
-            if src < 0 || src as usize >= len {
+            let rel = i as f64 - frac;
+            let u = if rel < 0.0 { -rel / l as f64 } else { rel / r as f64 };
+            let w = taper(u) as f32;
+            if w == 0.0 {
                 continue;
             }
-            let u = if i < 0 { -i as f64 / l as f64 } else { i as f64 / r as f64 };
-            let w = taper(u) as f32;
+            let q = a as f64 + rel;
+            let q0 = q.floor() as isize;
+            let f = (q - q0 as f64) as f32;
+            if q0 < 0 || q0 as usize >= len {
+                continue;
+            }
             wsum[o as usize] += w;
             for (oc, ic) in out.iter_mut().zip(channels) {
-                oc[o as usize] += w * ic[src as usize];
+                let v = if f == 0.0 { ic[q0 as usize] } else { cubic(ic, q0, f) };
+                oc[o as usize] += w * v;
             }
         }
-        let step = if marks[k].voiced {
-            r as f64 / ratio_at(t).clamp(0.25, 4.0)
+        let ratio = ratio_at(t).clamp(0.25, 4.0);
+        let step = if marks[k].voiced && ratio != 1.0 {
+            // local period as the mean spacing of up to ±2 neighbouring voiced marks
+            // (fractional, so integer mark positions do not bias the new pitch)
+            let mut lo = k;
+            let mut hi = k;
+            while lo > 0 && k - lo < 2 && marks[lo - 1].voiced {
+                lo -= 1;
+            }
+            while hi + 1 < mlen && hi - k < 2 && marks[hi + 1].voiced {
+                hi += 1;
+            }
+            let period = if hi > lo { (marks[hi].pos - marks[lo].pos) as f64 / (hi - lo) as f64 } else { r as f64 };
+            period / ratio
         } else {
             r as f64
         };
@@ -219,11 +237,8 @@ pub fn render(channels: &[Vec<f32>], marks: &[Mark], ratio_at: &dyn Fn(f64) -> f
     // Normalise by the window sum averaged over one typical period: this removes the
     // level change of denser/sparser grains without imposing a pitch-synchronous gain
     // modulation (a constant sum of 1, as in unshifted regions, stays exactly 1).
-    let mut sp: Vec<usize> = marks
-        .windows(2)
-        .filter(|w| w[0].voiced && w[1].voiced)
-        .map(|w| w[1].pos - w[0].pos)
-        .collect();
+    let mut sp: Vec<usize> =
+        marks.windows(2).filter(|w| w[0].voiced && w[1].voiced).map(|w| w[1].pos - w[0].pos).collect();
     sp.sort_unstable();
     let box_len = sp.get(sp.len() / 2).copied().unwrap_or(1).max(1);
     let smooth = box_mean(&wsum, box_len);
@@ -245,6 +260,27 @@ fn taper(u: f64) -> f64 {
 
 /// Centred moving average with window `n` (shrinking at the edges).
 fn box_mean(x: &[f32], n: usize) -> Vec<f32> {
+    box_mean_impl(x, n)
+}
+
+/// Catmull-Rom interpolation of `x` at `i + f` (0 ≤ f < 1), zero outside the signal.
+#[inline]
+fn cubic(x: &[f32], i: isize, f: f32) -> f32 {
+    let g = |j: isize| -> f32 {
+        if j >= 0 && (j as usize) < x.len() {
+            x[j as usize]
+        } else {
+            0.0
+        }
+    };
+    let (p0, p1, p2, p3) = (g(i - 1), g(i), g(i + 1), g(i + 2));
+    let a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+    let b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+    let c = -0.5 * p0 + 0.5 * p2;
+    ((a * f + b) * f + c) * f + p1
+}
+
+fn box_mean_impl(x: &[f32], n: usize) -> Vec<f32> {
     let len = x.len();
     let mut pre = vec![0.0f64; len + 1];
     for (i, v) in x.iter().enumerate() {
@@ -285,7 +321,7 @@ mod tests {
         let sr = 16000;
         let x = vocal(sr, &[(140.0, 0.3), (180.0, 0.3)], Vowel::A, 0.0, 0.0);
         let fr = track(&x, sr, &PyinOptions::default());
-        let y = shift_with_track(&[x.clone()], &x, sr, &fr, &vec![1.0; fr.len()]);
+        let y = shift_with_track(std::slice::from_ref(&x), &x, sr, &fr, &vec![1.0; fr.len()]);
         for (a, b) in x.iter().zip(&y[0]) {
             assert!((a - b).abs() < 1e-5);
         }
@@ -310,7 +346,7 @@ mod tests {
         let fr = track(&x, sr, &PyinOptions::default());
         for st in [4.0f64, -2.0, 0.4] {
             let r = 2f64.powf(st / 12.0);
-            let y = shift_with_track(&[x.clone()], &x, sr, &fr, &vec![r; fr.len()]);
+            let y = shift_with_track(std::slice::from_ref(&x), &x, sr, &fr, &vec![r; fr.len()]);
             let fy = track(&y[0], sr, &PyinOptions::default());
             let v: Vec<f64> = fy[10..fy.len() - 10].iter().filter(|f| f.voiced).map(|f| f.freq_hz).collect();
             let m = crate::util::median(&v).unwrap();
