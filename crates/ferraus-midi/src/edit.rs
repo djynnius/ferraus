@@ -57,22 +57,12 @@ pub struct QuantizeOptions {
 impl Default for QuantizeOptions {
     fn default() -> Self {
         QuantizeOptions {
-            grid: Some(Grid {
-                num: 1,
-                den: 16,
-                triplet: false,
-                dotted: false,
-            }),
+            grid: Some(Grid { num: 1, den: 16, triplet: false, dotted: false }),
             strength: 1.0,
             swing: 0.0,
             what: QuantizeWhat::Start,
             humanize_s: 0.0,
-            min_length: Some(Grid {
-                num: 1,
-                den: 64,
-                triplet: false,
-                dotted: false,
-            }),
+            min_length: Some(Grid { num: 1, den: 64, triplet: false, dotted: false }),
             no_overlap: true,
             groove: None,
             seed: 0,
@@ -129,20 +119,12 @@ impl Groove {
     fn offset(&self, k: i64) -> f64 {
         let n = self.steps.max(1) as i64;
         let p = k.rem_euclid(n) as usize;
-        self.positions
-            .iter()
-            .find(|s| s.step == p)
-            .map(|s| s.offset)
-            .unwrap_or(0.0)
+        self.positions.iter().find(|s| s.step == p).map(|s| s.offset).unwrap_or(0.0)
     }
     fn velocity_delta(&self, k: i64) -> f64 {
         let n = self.steps.max(1) as i64;
         let p = k.rem_euclid(n) as usize;
-        self.positions
-            .iter()
-            .find(|s| s.step == p)
-            .map(|s| s.velocity_delta)
-            .unwrap_or(0.0)
+        self.positions.iter().find(|s| s.step == p).map(|s| s.velocity_delta).unwrap_or(0.0)
     }
 }
 
@@ -156,12 +138,7 @@ const AUTO_GRIDS: &[(u32, bool)] = &[(4, false), (8, false), (8, true), (16, fal
 /// Detect the dominant subdivision of a set of onsets: the coarsest grid on which at
 /// least 85% of onsets lie within a 1/48-note (or an eighth of the grid step).
 pub fn detect_grid(onsets: &[u64], ppq: u16) -> Grid {
-    let mk = |den: u32, triplet: bool| Grid {
-        num: 1,
-        den,
-        triplet,
-        dotted: false,
-    };
+    let mk = |den: u32, triplet: bool| Grid { num: 1, den, triplet, dotted: false };
     if onsets.is_empty() {
         return mk(16, false);
     }
@@ -333,7 +310,9 @@ pub fn remove_overlaps(notes: &mut Vec<Note>) -> usize {
     }
     let mut drop = vec![false; notes.len()];
     for idx in by.values_mut() {
-        idx.sort_by_key(|&i| (notes[i].tick, std::cmp::Reverse(notes[i].velocity), std::cmp::Reverse(notes[i].duration)));
+        idx.sort_by_key(|&i| {
+            (notes[i].tick, std::cmp::Reverse(notes[i].velocity), std::cmp::Reverse(notes[i].duration))
+        });
         let mut prev: Option<usize> = None;
         for &i in idx.iter() {
             if let Some(p) = prev {
@@ -360,9 +339,7 @@ pub fn remove_overlaps(notes: &mut Vec<Note>) -> usize {
 
 /// Capture a groove from a reference file on `grid` (cycle = one bar of the first time signature).
 pub fn extract_groove(f: &MidiFile, grid: Grid) -> Result<Groove> {
-    let ppq = f
-        .ppq()
-        .ok_or_else(|| Error::unsupported("groove extraction needs a PPQ-timed file"))?;
+    let ppq = f.ppq().ok_or_else(|| Error::unsupported("groove extraction needs a PPQ-timed file"))?;
     let step = grid.ticks(ppq as u32);
     if step < 1.0 {
         return Err(Error::usage("grid is finer than one tick"));
@@ -454,10 +431,7 @@ pub struct VelocityOptions {
 pub fn velocity(f: &mut MidiFile, o: &VelocityOptions, tracks: &Option<Vec<usize>>) -> EditReport {
     let mut r = EditReport::default();
     let sel: Vec<usize> = (0..f.tracks.len()).filter(|i| selected(tracks, *i)).collect();
-    let mut vals: Vec<f64> = sel
-        .iter()
-        .flat_map(|&i| f.tracks[i].notes.iter().map(|n| n.velocity as f64))
-        .collect();
+    let mut vals: Vec<f64> = sel.iter().flat_map(|&i| f.tracks[i].notes.iter().map(|n| n.velocity as f64)).collect();
     if vals.is_empty() {
         return r;
     }
@@ -530,13 +504,7 @@ pub fn legato(f: &mut MidiFile, gap_ticks: &dyn Fn(u64) -> u64, tracks: &Option<
 
 /// Replace the tempo map with one tempo (notes keep their beat positions).
 pub fn tempo_set(f: &mut MidiFile, bpm: f64) {
-    f.tempos = vec![Timed::new(
-        0,
-        Tempo {
-            us_per_quarter: bpm_to_us(bpm),
-            track: 0,
-        },
-    )];
+    f.tempos = vec![Timed::new(0, Tempo { us_per_quarter: bpm_to_us(bpm), track: 0 })];
 }
 
 /// Multiply every tempo by `factor` (2.0 = twice as fast).
@@ -564,21 +532,36 @@ pub fn split(f: &MidiFile, by: SplitBy) -> Vec<(String, MidiFile)> {
         let mut g = MidiFile {
             format: 1,
             timing: f.timing,
-            tempos: f.tempos.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect(),
-            time_signatures: f.time_signatures.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect(),
-            key_signatures: f.key_signatures.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect(),
+            tempos: f
+                .tempos
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect(),
+            time_signatures: f
+                .time_signatures
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect(),
+            key_signatures: f
+                .key_signatures
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect(),
             tracks: vec![track],
             extra_chunks: vec![],
         };
@@ -643,21 +626,36 @@ pub fn merge(files: &[MidiFile], single_track: bool) -> Result<(MidiFile, Vec<St
         }
         g.set_ppq(ppq);
         if out.tempos.is_empty() && !g.tempos.is_empty() {
-            out.tempos = g.tempos.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect();
-            out.time_signatures = g.time_signatures.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect();
-            out.key_signatures = g.key_signatures.iter().cloned().map(|mut e| {
-                e.data.track = 0;
-                e.seq = None;
-                e
-            }).collect();
+            out.tempos = g
+                .tempos
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect();
+            out.time_signatures = g
+                .time_signatures
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect();
+            out.key_signatures = g
+                .key_signatures
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    e.data.track = 0;
+                    e.seq = None;
+                    e
+                })
+                .collect();
         } else if fi > 0 && g.tempo_map().segments() != out.tempo_map().segments() && !g.tempos.is_empty() {
             warnings.push(format!("input {} has a different tempo map; the first file's tempo map is used", fi + 1));
         }
@@ -854,11 +852,7 @@ mod tests {
     #[test]
     fn strength_half_moves_halfway() {
         let mut f = MidiFile::from_beat_notes(&[(60, 0.1, 0.2, 100, 1)], 120.0, 480);
-        let o = QuantizeOptions {
-            grid: Some(g16()),
-            strength: 0.5,
-            ..Default::default()
-        };
+        let o = QuantizeOptions { grid: Some(g16()), strength: 0.5, ..Default::default() };
         quantize(&mut f, &o).unwrap();
         // 48 ticks -> grid 0 at 50%: 24
         assert_eq!(f.tracks[0].notes[0].tick, 24);

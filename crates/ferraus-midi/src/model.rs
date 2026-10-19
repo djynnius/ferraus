@@ -34,11 +34,7 @@ pub struct Timed<T> {
 
 impl<T> Timed<T> {
     pub fn new(tick: u64, data: T) -> Self {
-        Timed {
-            tick,
-            seq: None,
-            data,
-        }
+        Timed { tick, seq: None, data }
     }
 }
 
@@ -173,18 +169,12 @@ pub struct Track {
 
 impl Track {
     pub fn new() -> Track {
-        Track {
-            has_end: true,
-            ..Default::default()
-        }
+        Track { has_end: true, ..Default::default() }
     }
 
     /// Track name from the first track-name meta event.
     pub fn name(&self) -> Option<String> {
-        self.meta
-            .iter()
-            .find(|m| m.data.kind == 0x03)
-            .map(|m| String::from_utf8_lossy(&m.data.data).to_string())
+        self.meta.iter().find(|m| m.data.kind == 0x03).map(|m| String::from_utf8_lossy(&m.data.data).to_string())
     }
 
     pub fn set_name(&mut self, name: &str) {
@@ -193,13 +183,7 @@ impl Track {
                 m.data.data = name.as_bytes().to_vec();
             }
         } else {
-            self.meta.push(Timed::new(
-                0,
-                Meta {
-                    kind: 0x03,
-                    data: name.as_bytes().to_vec(),
-                },
-            ));
+            self.meta.push(Timed::new(0, Meta { kind: 0x03, data: name.as_bytes().to_vec() }));
         }
     }
 
@@ -333,13 +317,7 @@ impl MidiFile {
         MidiFile {
             format: 1,
             timing: Timing::Ppq(ppq),
-            tempos: vec![Timed::new(
-                0,
-                Tempo {
-                    us_per_quarter: bpm_to_us(bpm),
-                    track: 0,
-                },
-            )],
+            tempos: vec![Timed::new(0, Tempo { us_per_quarter: bpm_to_us(bpm), track: 0 })],
             time_signatures: vec![],
             key_signatures: vec![],
             tracks: vec![Track::new()],
@@ -356,9 +334,7 @@ impl MidiFile {
         f.tracks = (0..ntracks).map(|_| Track::new()).collect();
         for n in notes {
             let s = map.seconds_to_tick(n.start_s.max(0.0)).round() as u64;
-            let e = map
-                .seconds_to_tick((n.start_s + n.duration_s).max(0.0))
-                .round() as u64;
+            let e = map.seconds_to_tick((n.start_s + n.duration_s).max(0.0)).round() as u64;
             let ch = n.channel.clamp(1, 16) - 1;
             f.tracks[n.track].notes.push(Note::new(
                 s,
@@ -372,13 +348,7 @@ impl MidiFile {
             t.notes.sort_by_key(|n| (n.tick, n.pitch));
             if let Some(p) = program {
                 for ch in t.channels() {
-                    t.programs.push(Timed::new(
-                        0,
-                        Program {
-                            channel: ch,
-                            program: p.min(127),
-                        },
-                    ));
+                    t.programs.push(Timed::new(0, Program { channel: ch, program: p.min(127) }));
                 }
             }
             t.end_tick = t.last_event_tick();
@@ -422,11 +392,7 @@ impl MidiFile {
     }
 
     pub fn tempo_map(&self) -> TempoMap {
-        let ch: Vec<(u64, u32)> = self
-            .tempos
-            .iter()
-            .map(|t| (t.tick, t.data.us_per_quarter))
-            .collect();
+        let ch: Vec<(u64, u32)> = self.tempos.iter().map(|t| (t.tick, t.data.us_per_quarter)).collect();
         TempoMap::new(self.timing, &ch)
     }
 
@@ -469,12 +435,7 @@ impl MidiFile {
                 })
             })
             .collect();
-        v.sort_by(|a, b| {
-            a.start_s
-                .partial_cmp(&b.start_s)
-                .unwrap()
-                .then(a.pitch.cmp(&b.pitch))
-        });
+        v.sort_by(|a, b| a.start_s.partial_cmp(&b.start_s).unwrap().then(a.pitch.cmp(&b.pitch)));
         v
     }
 
@@ -576,23 +537,9 @@ impl MidiFile {
                     EventKind::Meta { kind: 0x51, data } if data.len() == 3 => {
                         let us = u32::from_be_bytes([0, data[0], data[1], data[2]]);
                         if us == 0 {
-                            t.meta.push(Timed {
-                                tick,
-                                seq,
-                                data: Meta {
-                                    kind: 0x51,
-                                    data: data.clone(),
-                                },
-                            });
+                            t.meta.push(Timed { tick, seq, data: Meta { kind: 0x51, data: data.clone() } });
                         } else {
-                            f.tempos.push(Timed {
-                                tick,
-                                seq,
-                                data: Tempo {
-                                    us_per_quarter: us,
-                                    track: ti,
-                                },
-                            });
+                            f.tempos.push(Timed { tick, seq, data: Tempo { us_per_quarter: us, track: ti } });
                         }
                     }
                     EventKind::Meta { kind: 0x58, data } if data.len() == 4 && data[1] < 32 => {
@@ -608,41 +555,20 @@ impl MidiFile {
                             },
                         });
                     }
-                    EventKind::Meta { kind: 0x59, data }
-                        if data.len() == 2 && (data[1] == 0 || data[1] == 1) =>
-                    {
+                    EventKind::Meta { kind: 0x59, data } if data.len() == 2 && (data[1] == 0 || data[1] == 1) => {
                         f.key_signatures.push(Timed {
                             tick,
                             seq,
-                            data: KeySig {
-                                sharps: data[0] as i8,
-                                minor: data[1] == 1,
-                                track: ti,
-                            },
+                            data: KeySig { sharps: data[0] as i8, minor: data[1] == 1, track: ti },
                         });
                     }
-                    EventKind::Meta { kind, data } => t.meta.push(Timed {
-                        tick,
-                        seq,
-                        data: Meta {
-                            kind: *kind,
-                            data: data.clone(),
-                        },
-                    }),
-                    EventKind::Sysex { escape, data } => t.sysex.push(Timed {
-                        tick,
-                        seq,
-                        data: Sysex {
-                            escape: *escape,
-                            data: data.clone(),
-                        },
-                    }),
-                    EventKind::Channel {
-                        status,
-                        channel,
-                        data1,
-                        data2,
-                    } => {
+                    EventKind::Meta { kind, data } => {
+                        t.meta.push(Timed { tick, seq, data: Meta { kind: *kind, data: data.clone() } })
+                    }
+                    EventKind::Sysex { escape, data } => {
+                        t.sysex.push(Timed { tick, seq, data: Sysex { escape: *escape, data: data.clone() } })
+                    }
+                    EventKind::Channel { status, channel, data1, data2 } => {
                         let (ch, d1, d2) = (*channel, *data1, *data2);
                         match status {
                             0x9 if d2 > 0 => {
@@ -674,56 +600,30 @@ impl MidiFile {
                                     None => t.raw.push(Timed {
                                         tick,
                                         seq,
-                                        data: RawChannel {
-                                            status: *status,
-                                            channel: ch,
-                                            data1: d1,
-                                            data2: d2,
-                                        },
+                                        data: RawChannel { status: *status, channel: ch, data1: d1, data2: d2 },
                                     }),
                                 }
                             }
                             0xA => t.poly_pressure.push(Timed {
                                 tick,
                                 seq,
-                                data: PolyPressure {
-                                    channel: ch,
-                                    pitch: d1,
-                                    value: d2,
-                                },
+                                data: PolyPressure { channel: ch, pitch: d1, value: d2 },
                             }),
                             0xB => t.controllers.push(Timed {
                                 tick,
                                 seq,
-                                data: Controller {
-                                    channel: ch,
-                                    controller: d1,
-                                    value: d2,
-                                },
+                                data: Controller { channel: ch, controller: d1, value: d2 },
                             }),
-                            0xC => t.programs.push(Timed {
-                                tick,
-                                seq,
-                                data: Program {
-                                    channel: ch,
-                                    program: d1,
-                                },
-                            }),
+                            0xC => t.programs.push(Timed { tick, seq, data: Program { channel: ch, program: d1 } }),
                             0xD => t.channel_pressure.push(Timed {
                                 tick,
                                 seq,
-                                data: ChannelPressure {
-                                    channel: ch,
-                                    value: d1,
-                                },
+                                data: ChannelPressure { channel: ch, value: d1 },
                             }),
                             _ => t.pitch_bends.push(Timed {
                                 tick,
                                 seq,
-                                data: PitchBend {
-                                    channel: ch,
-                                    value: ((d2 as i16) << 7 | d1 as i16) - 8192,
-                                },
+                                data: PitchBend { channel: ch, value: ((d2 as i16) << 7 | d1 as i16) - 8192 },
                             }),
                         }
                     }
@@ -736,12 +636,7 @@ impl MidiFile {
                     t.raw.push(Timed {
                         tick: n.tick,
                         seq: n.seq,
-                        data: RawChannel {
-                            status: 0x9,
-                            channel: n.channel,
-                            data1: n.pitch,
-                            data2: n.velocity,
-                        },
+                        data: RawChannel { status: 0x9, channel: n.channel, data1: n.pitch, data2: n.velocity },
                     });
                 } else {
                     keep.push(n);
@@ -759,8 +654,7 @@ impl MidiFile {
     pub fn to_smf(&self) -> Smf {
         let ntracks = self.tracks.len().max(1);
         // (tick, seq, rank, insertion, kind)
-        let mut per: Vec<Vec<(u64, Option<u32>, u8, usize, EventKind)>> =
-            (0..ntracks).map(|_| Vec::new()).collect();
+        let mut per: Vec<Vec<(u64, Option<u32>, u8, usize, EventKind)>> = (0..ntracks).map(|_| Vec::new()).collect();
         let tr = |t: usize| t.min(ntracks - 1);
         for e in &self.tempos {
             let us = e.data.us_per_quarter.min(0xFF_FFFF);
@@ -769,10 +663,7 @@ impl MidiFile {
                 e.seq,
                 1,
                 0,
-                EventKind::Meta {
-                    kind: 0x51,
-                    data: us.to_be_bytes()[1..].to_vec(),
-                },
+                EventKind::Meta { kind: 0x51, data: us.to_be_bytes()[1..].to_vec() },
             ));
         }
         for e in &self.time_signatures {
@@ -784,12 +675,7 @@ impl MidiFile {
                 0,
                 EventKind::Meta {
                     kind: 0x58,
-                    data: vec![
-                        e.data.numerator,
-                        d,
-                        e.data.clocks_per_click,
-                        e.data.notated_32nds,
-                    ],
+                    data: vec![e.data.numerator, d, e.data.clocks_per_click, e.data.notated_32nds],
                 },
             ));
         }
@@ -799,10 +685,7 @@ impl MidiFile {
                 e.seq,
                 1,
                 0,
-                EventKind::Meta {
-                    kind: 0x59,
-                    data: vec![e.data.sharps as u8, e.data.minor as u8],
-                },
+                EventKind::Meta { kind: 0x59, data: vec![e.data.sharps as u8, e.data.minor as u8] },
             ));
         }
         for (ti, t) in self.tracks.iter().enumerate() {
@@ -814,13 +697,7 @@ impl MidiFile {
                 data2: data2 & 0x7F,
             };
             for n in &t.notes {
-                v.push((
-                    n.tick,
-                    n.seq,
-                    3,
-                    0,
-                    ch(0x9, n.channel, n.pitch, n.velocity.max(1)),
-                ));
+                v.push((n.tick, n.seq, 3, 0, ch(0x9, n.channel, n.pitch, n.velocity.max(1))));
                 let off = if n.off_as_note_on {
                     ch(0x9, n.channel, n.pitch, 0)
                 } else {
@@ -829,62 +706,26 @@ impl MidiFile {
                 v.push((n.end(), n.off_seq, if n.duration == 0 { 4 } else { 0 }, 0, off));
             }
             for e in &t.controllers {
-                v.push((
-                    e.tick,
-                    e.seq,
-                    2,
-                    0,
-                    ch(0xB, e.data.channel, e.data.controller, e.data.value),
-                ));
+                v.push((e.tick, e.seq, 2, 0, ch(0xB, e.data.channel, e.data.controller, e.data.value)));
             }
             for e in &t.programs {
                 v.push((e.tick, e.seq, 2, 0, ch(0xC, e.data.channel, e.data.program, 0)));
             }
             for e in &t.pitch_bends {
                 let raw = (e.data.value.clamp(-8192, 8191) + 8192) as u16;
-                v.push((
-                    e.tick,
-                    e.seq,
-                    2,
-                    0,
-                    ch(0xE, e.data.channel, (raw & 0x7F) as u8, (raw >> 7) as u8),
-                ));
+                v.push((e.tick, e.seq, 2, 0, ch(0xE, e.data.channel, (raw & 0x7F) as u8, (raw >> 7) as u8)));
             }
             for e in &t.channel_pressure {
                 v.push((e.tick, e.seq, 2, 0, ch(0xD, e.data.channel, e.data.value, 0)));
             }
             for e in &t.poly_pressure {
-                v.push((
-                    e.tick,
-                    e.seq,
-                    2,
-                    0,
-                    ch(0xA, e.data.channel, e.data.pitch, e.data.value),
-                ));
+                v.push((e.tick, e.seq, 2, 0, ch(0xA, e.data.channel, e.data.pitch, e.data.value)));
             }
             for e in &t.meta {
-                v.push((
-                    e.tick,
-                    e.seq,
-                    1,
-                    0,
-                    EventKind::Meta {
-                        kind: e.data.kind,
-                        data: e.data.data.clone(),
-                    },
-                ));
+                v.push((e.tick, e.seq, 1, 0, EventKind::Meta { kind: e.data.kind, data: e.data.data.clone() }));
             }
             for e in &t.sysex {
-                v.push((
-                    e.tick,
-                    e.seq,
-                    1,
-                    0,
-                    EventKind::Sysex {
-                        escape: e.data.escape,
-                        data: e.data.data.clone(),
-                    },
-                ));
+                v.push((e.tick, e.seq, 1, 0, EventKind::Sysex { escape: e.data.escape, data: e.data.data.clone() }));
             }
             for e in &t.raw {
                 let d = &e.data;
@@ -924,10 +765,7 @@ impl MidiFile {
                     group.sort_by_key(|e| (e.2, e.1.unwrap_or(u32::MAX), e.3));
                 }
                 for e in group.iter() {
-                    out.push(Event {
-                        tick: e.0,
-                        kind: e.4.clone(),
-                    });
+                    out.push(Event { tick: e.0, kind: e.4.clone() });
                 }
                 i = j;
             }
@@ -937,27 +775,12 @@ impl MidiFile {
             };
             if has_end {
                 let last = out.last().map(|e| e.tick).unwrap_or(0);
-                out.push(Event {
-                    tick: end_tick.max(last),
-                    kind: EventKind::Meta {
-                        kind: 0x2F,
-                        data: vec![],
-                    },
-                });
+                out.push(Event { tick: end_tick.max(last), kind: EventKind::Meta { kind: 0x2F, data: vec![] } });
             }
             tracks.push(RawTrack { events: out });
         }
-        let format = if tracks.len() > 1 && self.format == 0 {
-            1
-        } else {
-            self.format
-        };
-        Smf {
-            format,
-            timing: self.timing,
-            tracks,
-            extra_chunks: self.extra_chunks.clone(),
-        }
+        let format = if tracks.len() > 1 && self.format == 0 { 1 } else { self.format };
+        Smf { format, timing: self.timing, tracks, extra_chunks: self.extra_chunks.clone() }
     }
 
     /// Parse SMF bytes.
@@ -973,8 +796,7 @@ impl MidiFile {
     pub fn from_bytes(bytes: &[u8]) -> Result<MidiFile> {
         let first = bytes.iter().find(|b| !b.is_ascii_whitespace()).copied();
         if first == Some(b'{') {
-            let text = std::str::from_utf8(bytes)
-                .map_err(|_| Error::input("MIDI JSON is not valid UTF-8"))?;
+            let text = std::str::from_utf8(bytes).map_err(|_| Error::input("MIDI JSON is not valid UTF-8"))?;
             MidiFile::from_json_str(text)
         } else {
             MidiFile::from_smf_bytes(bytes)
@@ -1075,10 +897,7 @@ impl MidiFile {
                     .iter()
                     .map(|e| TimedJson {
                         at: at(e.tick, e.seq),
-                        data: PitchBendJson {
-                            channel: e.data.channel + 1,
-                            value: e.data.value,
-                        },
+                        data: PitchBendJson { channel: e.data.channel + 1, value: e.data.value },
                     })
                     .collect(),
                 channel_pressure: t
@@ -1086,10 +905,7 @@ impl MidiFile {
                     .iter()
                     .map(|e| TimedJson {
                         at: at(e.tick, e.seq),
-                        data: ChannelPressureJson {
-                            channel: e.data.channel + 1,
-                            value: e.data.value,
-                        },
+                        data: ChannelPressureJson { channel: e.data.channel + 1, value: e.data.value },
                     })
                     .collect(),
                 poly_pressure: t
@@ -1107,20 +923,14 @@ impl MidiFile {
                 meta: t
                     .meta
                     .iter()
-                    .map(|e| TimedJson {
-                        at: at(e.tick, e.seq),
-                        data: MetaJson::from_meta(&e.data),
-                    })
+                    .map(|e| TimedJson { at: at(e.tick, e.seq), data: MetaJson::from_meta(&e.data) })
                     .collect(),
                 sysex: t
                     .sysex
                     .iter()
                     .map(|e| TimedJson {
                         at: at(e.tick, e.seq),
-                        data: SysexJson {
-                            escape: e.data.escape,
-                            data: to_hex(&e.data.data),
-                        },
+                        data: SysexJson { escape: e.data.escape, data: to_hex(&e.data.data) },
                     })
                     .collect(),
                 raw: t
@@ -1143,13 +953,7 @@ impl MidiFile {
             format: self.format,
             ppq: self.ppq(),
             smpte: match self.timing {
-                Timing::Smpte {
-                    fps,
-                    ticks_per_frame,
-                } => Some(SmpteJson {
-                    fps,
-                    ticks_per_frame,
-                }),
+                Timing::Smpte { fps, ticks_per_frame } => Some(SmpteJson { fps, ticks_per_frame }),
                 _ => None,
             },
             duration: Some(DurationJson {
@@ -1162,10 +966,7 @@ impl MidiFile {
                 .iter()
                 .map(|e| TimedJson {
                     at: at(e.tick, e.seq),
-                    data: TempoJson {
-                        bpm: us_to_bpm(e.data.us_per_quarter),
-                        track: e.data.track,
-                    },
+                    data: TempoJson { bpm: us_to_bpm(e.data.us_per_quarter), track: e.data.track },
                 })
                 .collect(),
             time_signatures: self
@@ -1199,10 +1000,7 @@ impl MidiFile {
             extra_chunks: self
                 .extra_chunks
                 .iter()
-                .map(|(id, d)| ChunkJson {
-                    id: String::from_utf8_lossy(id).to_string(),
-                    data: to_hex(d),
-                })
+                .map(|(id, d)| ChunkJson { id: String::from_utf8_lossy(id).to_string(), data: to_hex(d) })
                 .collect(),
         }
     }
@@ -1216,8 +1014,8 @@ impl MidiFile {
     }
 
     pub fn from_json_str(s: &str) -> Result<MidiFile> {
-        let m: MidiJson = serde_json::from_str(s)
-            .map_err(|e| Error::input(format!("MIDI JSON does not match the model: {e}")))?;
+        let m: MidiJson =
+            serde_json::from_str(s).map_err(|e| Error::input(format!("MIDI JSON does not match the model: {e}")))?;
         MidiFile::from_json_model(&m)
     }
 
@@ -1229,10 +1027,7 @@ impl MidiFile {
 
     pub fn from_json_model(m: &MidiJson) -> Result<MidiFile> {
         let timing = match (&m.smpte, m.ppq) {
-            (Some(s), _) => Timing::Smpte {
-                fps: s.fps,
-                ticks_per_frame: s.ticks_per_frame,
-            },
+            (Some(s), _) => Timing::Smpte { fps: s.fps, ticks_per_frame: s.ticks_per_frame },
             (None, Some(p)) if p > 0 && p < 0x8000 => Timing::Ppq(p),
             (None, Some(p)) => return Err(Error::input(format!("ppq {p} is out of range 1..32767"))),
             (None, None) => Timing::Ppq(960),
@@ -1240,13 +1035,8 @@ impl MidiFile {
         // tempo map first, resolved in order so seconds positions can be used
         let mut tempos: Vec<Timed<Tempo>> = Vec::new();
         for (i, e) in m.tempo_map.iter().enumerate() {
-            let partial = TempoMap::new(
-                timing,
-                &tempos
-                    .iter()
-                    .map(|t| (t.tick, t.data.us_per_quarter))
-                    .collect::<Vec<_>>(),
-            );
+            let partial =
+                TempoMap::new(timing, &tempos.iter().map(|t| (t.tick, t.data.us_per_quarter)).collect::<Vec<_>>());
             let tick = resolve_at(&e.at, &partial).map_err(|m| ctxerr(&format!("tempo_map[{i}]"), m))?;
             if !(e.data.bpm.is_finite() && e.data.bpm > 0.0) {
                 return Err(Error::input(format!("tempo_map[{i}]: bpm must be positive")));
@@ -1254,10 +1044,7 @@ impl MidiFile {
             tempos.push(Timed {
                 tick,
                 seq: e.at.seq,
-                data: Tempo {
-                    us_per_quarter: bpm_to_us(e.data.bpm),
-                    track: e.data.track,
-                },
+                data: Tempo { us_per_quarter: bpm_to_us(e.data.bpm), track: e.data.track },
             });
         }
         let mut f = MidiFile {
@@ -1296,18 +1083,15 @@ impl MidiFile {
             let w = format!("key_signatures[{i}]");
             let (sharps, minor) = match (e.data.sharps, &e.data.key) {
                 (Some(s), _) => (s, e.data.minor),
-                (None, Some(k)) => gm::parse_key_name(k)
-                    .ok_or_else(|| Error::input(format!("{w}: unknown key '{k}'")))?,
+                (None, Some(k)) => {
+                    gm::parse_key_name(k).ok_or_else(|| Error::input(format!("{w}: unknown key '{k}'")))?
+                }
                 (None, None) => return Err(Error::input(format!("{w}: needs sharps or key"))),
             };
             f.key_signatures.push(Timed {
                 tick: pos(&e.at, &w)?,
                 seq: e.at.seq,
-                data: KeySig {
-                    sharps,
-                    minor,
-                    track: e.data.track,
-                },
+                data: KeySig { sharps, minor, track: e.data.track },
             });
         }
         for (ti, tj) in m.tracks.iter().enumerate() {
@@ -1329,9 +1113,7 @@ impl MidiFile {
                     }
                     map.seconds_to_ticks_at(tick as f64, s).round().max(0.0) as u64
                 } else {
-                    return Err(Error::input(format!(
-                        "{w}: needs duration_beats, duration_ticks, or duration_s"
-                    )));
+                    return Err(Error::input(format!("{w}: needs duration_beats, duration_ticks, or duration_s")));
                 };
                 let pitch = match (n.pitch, &n.name) {
                     (Some(p), _) => p,
@@ -1379,10 +1161,7 @@ impl MidiFile {
                 t.programs.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: Program {
-                        channel: e.data.channel - 1,
-                        program: e.data.program,
-                    },
+                    data: Program { channel: e.data.channel - 1, program: e.data.program },
                 });
             }
             for (i, e) in tj.pitch_bends.iter().enumerate() {
@@ -1392,10 +1171,7 @@ impl MidiFile {
                 t.pitch_bends.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: PitchBend {
-                        channel: e.data.channel - 1,
-                        value: e.data.value,
-                    },
+                    data: PitchBend { channel: e.data.channel - 1, value: e.data.value },
                 });
             }
             for (i, e) in tj.channel_pressure.iter().enumerate() {
@@ -1405,10 +1181,7 @@ impl MidiFile {
                 t.channel_pressure.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: ChannelPressure {
-                        channel: e.data.channel - 1,
-                        value: e.data.value,
-                    },
+                    data: ChannelPressure { channel: e.data.channel - 1, value: e.data.value },
                 });
             }
             for (i, e) in tj.poly_pressure.iter().enumerate() {
@@ -1418,11 +1191,7 @@ impl MidiFile {
                 t.poly_pressure.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: PolyPressure {
-                        channel: e.data.channel - 1,
-                        pitch: e.data.pitch,
-                        value: e.data.value,
-                    },
+                    data: PolyPressure { channel: e.data.channel - 1, pitch: e.data.pitch, value: e.data.value },
                 });
             }
             for (i, e) in tj.meta.iter().enumerate() {
@@ -1438,10 +1207,7 @@ impl MidiFile {
                 t.sysex.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: Sysex {
-                        escape: e.data.escape,
-                        data: from_hex(&e.data.data).map_err(|m| ctxerr(&w, m))?,
-                    },
+                    data: Sysex { escape: e.data.escape, data: from_hex(&e.data.data).map_err(|m| ctxerr(&w, m))? },
                 });
             }
             for (i, e) in tj.raw.iter().enumerate() {
@@ -1455,12 +1221,7 @@ impl MidiFile {
                 t.raw.push(Timed {
                     tick: pos(&e.at, &w)?,
                     seq: e.at.seq,
-                    data: RawChannel {
-                        status,
-                        channel: e.data.channel - 1,
-                        data1: e.data.data1,
-                        data2: e.data.data2,
-                    },
+                    data: RawChannel { status, channel: e.data.channel - 1, data1: e.data.data1, data2: e.data.data2 },
                 });
             }
             if let Some(name) = &tj.name {
@@ -1481,8 +1242,7 @@ impl MidiFile {
             if id.len() != 4 {
                 return Err(Error::input("extra_chunks: id must be 4 characters"));
             }
-            f.extra_chunks
-                .push((id.try_into().unwrap(), from_hex(&c.data).map_err(Error::input)?));
+            f.extra_chunks.push((id.try_into().unwrap(), from_hex(&c.data).map_err(Error::input)?));
         }
         Ok(f)
     }
@@ -1537,7 +1297,7 @@ pub fn to_hex(b: &[u8]) -> String {
 
 pub fn from_hex(s: &str) -> std::result::Result<Vec<u8>, String> {
     let clean: String = s.chars().filter(|c| !c.is_whitespace()).collect();
-    if clean.len() % 2 != 0 {
+    if !clean.len().is_multiple_of(2) {
         return Err("hex data must have an even number of digits".into());
     }
     (0..clean.len())
@@ -1813,23 +1573,13 @@ const META_NAMES: &[(u8, &str)] = &[
 
 impl MetaJson {
     fn from_meta(m: &Meta) -> MetaJson {
-        let kind = META_NAMES
-            .iter()
-            .find(|(k, _)| *k == m.kind)
-            .map(|(_, n)| n.to_string());
-        let text = if (0x01..=0x0F).contains(&m.kind) {
-            std::str::from_utf8(&m.data).ok().map(String::from)
-        } else {
-            None
-        };
+        let kind = META_NAMES.iter().find(|(k, _)| *k == m.kind).map(|(_, n)| n.to_string());
+        let text =
+            if (0x01..=0x0F).contains(&m.kind) { std::str::from_utf8(&m.data).ok().map(String::from) } else { None };
         MetaJson {
             meta_type: Some(m.kind),
             kind,
-            data: if text.is_none() {
-                Some(to_hex(&m.data))
-            } else {
-                None
-            },
+            data: if text.is_none() { Some(to_hex(&m.data)) } else { None },
             text,
         }
     }
@@ -1863,22 +1613,8 @@ mod tests {
     #[test]
     fn build_and_read_notes_seconds() {
         let notes = vec![
-            SecondsNote {
-                pitch: 60,
-                start_s: 0.0,
-                duration_s: 0.5,
-                velocity: 100,
-                channel: 1,
-                track: 0,
-            },
-            SecondsNote {
-                pitch: 64,
-                start_s: 0.5,
-                duration_s: 0.25,
-                velocity: 90,
-                channel: 1,
-                track: 0,
-            },
+            SecondsNote { pitch: 60, start_s: 0.0, duration_s: 0.5, velocity: 100, channel: 1, track: 0 },
+            SecondsNote { pitch: 64, start_s: 0.5, duration_s: 0.25, velocity: 90, channel: 1, track: 0 },
         ];
         let f = MidiFile::from_notes(&notes, 120.0, 480, Some(0));
         assert_eq!(f.tracks[0].notes[1].tick, 480);
@@ -1905,7 +1641,10 @@ mod tests {
         assert_eq!(f.tracks[0].notes[1].channel, 1);
         assert_eq!(f.tracks[0].name().as_deref(), Some("Lead"));
         assert!(MidiFile::from_json_str(r#"{"tracks":[{"notes":[{"beat":0,"velocity":100}]}]}"#).is_err());
-        assert!(MidiFile::from_json_str(r#"{"tracks":[{"notes":[{"beat":0,"duration_beats":1,"pitch":60,"velocity":0}]}]}"#).is_err());
+        assert!(MidiFile::from_json_str(
+            r#"{"tracks":[{"notes":[{"beat":0,"duration_beats":1,"pitch":60,"velocity":0}]}]}"#
+        )
+        .is_err());
     }
 
     #[test]

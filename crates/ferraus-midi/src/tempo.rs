@@ -34,11 +34,7 @@ impl TempoMap {
             let first_us = DEFAULT_US_PER_QUARTER;
             segments.insert(0, (0, first_us));
         }
-        let mut m = TempoMap {
-            timing,
-            segments,
-            starts_s: Vec::new(),
-        };
+        let mut m = TempoMap { timing, segments, starts_s: Vec::new() };
         m.recompute();
         m
     }
@@ -85,10 +81,7 @@ impl TempoMap {
             return tick / self.timing.smpte_ticks_per_second().unwrap().max(1e-9);
         }
         let tick = tick.max(0.0);
-        let i = match self
-            .segments
-            .binary_search_by(|s| (s.0 as f64).partial_cmp(&tick).unwrap())
-        {
+        let i = match self.segments.binary_search_by(|s| (s.0 as f64).partial_cmp(&tick).unwrap()) {
             Ok(i) => i,
             Err(i) => i.saturating_sub(1),
         };
@@ -102,10 +95,7 @@ impl TempoMap {
             return s * self.timing.smpte_ticks_per_second().unwrap();
         }
         let s = s.max(0.0);
-        let i = match self
-            .starts_s
-            .binary_search_by(|x| x.partial_cmp(&s).unwrap())
-        {
+        let i = match self.starts_s.binary_search_by(|x| x.partial_cmp(&s).unwrap()) {
             Ok(i) => i,
             Err(i) => i.saturating_sub(1),
         };
@@ -174,13 +164,7 @@ mod tests {
         assert_eq!(m.bpm_at(0), 120.0);
         assert_eq!(bpm_to_us(120.0), 500_000);
         assert_eq!(us_to_bpm(bpm_to_us(93.0)).round(), 93.0);
-        let s = TempoMap::new(
-            Timing::Smpte {
-                fps: 25,
-                ticks_per_frame: 40,
-            },
-            &[],
-        );
+        let s = TempoMap::new(Timing::Smpte { fps: 25, ticks_per_frame: 40 }, &[]);
         assert_eq!(s.tick_to_seconds(1000.0), 1.0);
         assert_eq!(s.tick_to_beats(10.0), None);
     }

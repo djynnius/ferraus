@@ -375,12 +375,8 @@ pub fn lookup_program(name: &str) -> std::result::Result<u8, Vec<u8>> {
 
 /// Key-signature name for `sharps` (-7..7) and mode.
 pub fn key_name(sharps: i8, minor: bool) -> String {
-    const MAJ: [&str; 15] = [
-        "Cb", "Gb", "Db", "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#",
-    ];
-    const MIN: [&str; 15] = [
-        "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#",
-    ];
+    const MAJ: [&str; 15] = ["Cb", "Gb", "Db", "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#"];
+    const MIN: [&str; 15] = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#"];
     let i = (sharps.clamp(-7, 7) + 7) as usize;
     if minor {
         format!("{} minor", MIN[i])

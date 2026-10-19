@@ -16,7 +16,10 @@ use ferraus_core::{Error, Result};
 pub enum Timing {
     Ppq(u16),
     /// `fps` is 24, 25, 29 (29.97 drop-frame), or 30.
-    Smpte { fps: u8, ticks_per_frame: u8 },
+    Smpte {
+        fps: u8,
+        ticks_per_frame: u8,
+    },
 }
 
 impl Timing {
@@ -24,10 +27,7 @@ impl Timing {
     pub fn smpte_ticks_per_second(&self) -> Option<f64> {
         match *self {
             Timing::Ppq(_) => None,
-            Timing::Smpte {
-                fps,
-                ticks_per_frame,
-            } => {
+            Timing::Smpte { fps, ticks_per_frame } => {
                 let f = if fps == 29 { 29.97 } else { fps as f64 };
                 Some(f * ticks_per_frame as f64)
             }
@@ -40,12 +40,7 @@ impl Timing {
 pub enum EventKind {
     /// Channel voice message. `status` is the high nibble (0x8..=0xE), `channel` 0..=15.
     /// `data2` is 0 for one-data-byte messages (program change, channel pressure).
-    Channel {
-        status: u8,
-        channel: u8,
-        data1: u8,
-        data2: u8,
-    },
+    Channel { status: u8, channel: u8, data1: u8, data2: u8 },
     /// `F0` (normal) or `F7` (escape) SysEx packet; `data` excludes the length.
     Sysex { escape: bool, data: Vec<u8> },
     /// Meta event `FF type len data`.
@@ -91,11 +86,7 @@ pub fn data_len(status: u8) -> usize {
 }
 
 fn bad(msg: impl Into<String>) -> Error {
-    Error::new(
-        ferraus_core::ErrorKind::InputMissing,
-        "invalid_midi",
-        format!("not a valid MIDI file: {}", msg.into()),
-    )
+    Error::new(ferraus_core::ErrorKind::InputMissing, "invalid_midi", format!("not a valid MIDI file: {}", msg.into()))
 }
 
 struct Reader<'a> {
@@ -163,10 +154,7 @@ impl Smf {
         let div = be16(&bytes[12..14]);
         let timing = if div & 0x8000 != 0 {
             let fps = (-((div >> 8) as u8 as i8) as i16) as u8;
-            Timing::Smpte {
-                fps,
-                ticks_per_frame: (div & 0xFF) as u8,
-            }
+            Timing::Smpte { fps, ticks_per_frame: (div & 0xFF) as u8 }
         } else {
             if div == 0 {
                 return Err(bad("division is zero"));
@@ -202,12 +190,7 @@ impl Smf {
         if tracks.is_empty() && ntracks > 0 {
             return Err(bad("no MTrk chunks"));
         }
-        Ok(Smf {
-            format,
-            timing,
-            tracks,
-            extra_chunks: extra,
-        })
+        Ok(Smf { format, timing, tracks, extra_chunks: extra })
     }
 
     /// Serialize to SMF bytes (no running status).
@@ -219,10 +202,7 @@ impl Smf {
         out.extend_from_slice(&(self.tracks.len().min(u16::MAX as usize) as u16).to_be_bytes());
         let div: u16 = match self.timing {
             Timing::Ppq(p) => p & 0x7FFF,
-            Timing::Smpte {
-                fps,
-                ticks_per_frame,
-            } => (((-(fps as i8)) as u8 as u16) << 8) | ticks_per_frame as u16,
+            Timing::Smpte { fps, ticks_per_frame } => (((-(fps as i8)) as u8 as u16) << 8) | ticks_per_frame as u16,
         };
         out.extend_from_slice(&div.to_be_bytes());
         for t in &self.tracks {
@@ -274,10 +254,7 @@ fn parse_track(b: &[u8]) -> Result<RawTrack> {
             r.u8()?;
             let len = r.vlq()? as usize;
             let data = r.bytes(len)?.to_vec();
-            EventKind::Sysex {
-                escape: first == 0xF7,
-                data,
-            }
+            EventKind::Sysex { escape: first == 0xF7, data }
         } else if first >= 0xF0 {
             return Err(bad(format!("system message 0x{first:02X} inside a track")));
         } else {
@@ -294,12 +271,7 @@ fn parse_track(b: &[u8]) -> Result<RawTrack> {
             if d1 & 0x80 != 0 || d2 & 0x80 != 0 {
                 return Err(bad("data byte with the high bit set"));
             }
-            EventKind::Channel {
-                status: status >> 4,
-                channel: status & 0x0F,
-                data1: d1,
-                data2: d2,
-            }
+            EventKind::Channel { status: status >> 4, channel: status & 0x0F, data1: d1, data2: d2 }
         };
         let eot = kind.is_end_of_track();
         events.push(Event { tick, kind });
@@ -332,12 +304,7 @@ fn write_track(t: &RawTrack) -> Vec<u8> {
         last = tick;
         write_vlq(&mut out, delta);
         match &e.kind {
-            EventKind::Channel {
-                status,
-                channel,
-                data1,
-                data2,
-            } => {
+            EventKind::Channel { status, channel, data1, data2 } => {
                 out.push((status << 4) | (channel & 0x0F));
                 out.push(data1 & 0x7F);
                 if data_len(*status) == 2 {
@@ -397,18 +364,9 @@ mod tests {
     fn smpte_division() {
         let s = Smf {
             format: 0,
-            timing: Timing::Smpte {
-                fps: 25,
-                ticks_per_frame: 40,
-            },
+            timing: Timing::Smpte { fps: 25, ticks_per_frame: 40 },
             tracks: vec![RawTrack {
-                events: vec![Event {
-                    tick: 0,
-                    kind: EventKind::Meta {
-                        kind: 0x2F,
-                        data: vec![],
-                    },
-                }],
+                events: vec![Event { tick: 0, kind: EventKind::Meta { kind: 0x2F, data: vec![] } }],
             }],
             extra_chunks: vec![],
         };

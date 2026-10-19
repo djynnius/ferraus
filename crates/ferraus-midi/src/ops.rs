@@ -10,11 +10,7 @@ use ferraus_core::prelude::*;
 use ferraus_core::units::{Grid, Time};
 use std::path::{Path, PathBuf};
 
-const MANY_MIDI: Inputs = Inputs {
-    min: 2,
-    max: None,
-    kind: InputKind::Midi,
-};
+const MANY_MIDI: Inputs = Inputs { min: 2, max: None, kind: InputKind::Midi };
 
 pub fn ops() -> Vec<OpSpec> {
     let tracks = || {
@@ -127,10 +123,7 @@ pub fn load_input(ctx: &mut OpCtx, i: usize) -> Result<MidiFile> {
 
 pub fn load_path(ctx: &mut OpCtx, path: &Path) -> Result<MidiFile> {
     if path.as_os_str() == "-" {
-        let bytes = ctx
-            .stdin
-            .clone()
-            .ok_or_else(|| Error::input("stdin is empty"))?;
+        let bytes = ctx.stdin.clone().ok_or_else(|| Error::input("stdin is empty"))?;
         ctx.note_input(path);
         return MidiFile::from_bytes(&bytes);
     }
@@ -142,25 +135,14 @@ pub fn load_path(ctx: &mut OpCtx, path: &Path) -> Result<MidiFile> {
 
 fn wants_json(ctx: &OpCtx, path: &Path) -> bool {
     ctx.globals.format.as_deref() == Some("json")
-        || path
-            .extension()
-            .map(|e| e.eq_ignore_ascii_case("json"))
-            .unwrap_or(false)
+        || path.extension().map(|e| e.eq_ignore_ascii_case("json")).unwrap_or(false)
 }
 
 /// Write a MIDI file (or the JSON model when the path ends in `.json`). Returns the path.
 pub fn write_midi(ctx: &mut OpCtx, f: &MidiFile, role: Option<&str>) -> Result<PathBuf> {
-    let ext = if ctx.globals.format.as_deref() == Some("json") {
-        "json"
-    } else {
-        "mid"
-    };
+    let ext = if ctx.globals.format.as_deref() == Some("json") { "json" } else { "mid" };
     let path = ctx.output_path(role, ext)?;
-    let bytes = if wants_json(ctx, &path) {
-        f.to_json_string().into_bytes()
-    } else {
-        f.to_smf_bytes()
-    };
+    let bytes = if wants_json(ctx, &path) { f.to_json_string().into_bytes() } else { f.to_smf_bytes() };
     ctx.write_file(&path, &bytes, role)?;
     Ok(path)
 }
@@ -172,10 +154,7 @@ fn track_filter(a: &Args, f: &MidiFile) -> Result<Option<Vec<usize>>> {
     }
     let mut v = Vec::new();
     for s in l {
-        let n: usize = s
-            .trim()
-            .parse()
-            .map_err(|_| Error::usage(format!("--tracks: '{s}' is not a track number")))?;
+        let n: usize = s.trim().parse().map_err(|_| Error::usage(format!("--tracks: '{s}' is not a track number")))?;
         if n == 0 || n > f.tracks.len() {
             return Err(Error::usage(format!(
                 "--tracks: track {n} does not exist (the file has {} tracks)",
@@ -328,11 +307,7 @@ fn midi_info(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 fn midi_to_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let f = load_input(ctx, 0)?;
     let path = ctx.output_path(None, "json")?;
-    let text = if a.flag("compact") {
-        serde_json::to_string(&f.to_json_model())? + "\n"
-    } else {
-        f.to_json_string()
-    };
+    let text = if a.flag("compact") { serde_json::to_string(&f.to_json_model())? + "\n" } else { f.to_json_string() };
     ctx.write_file(&path, text.as_bytes(), None)?;
     Ok(out_result(&path, &f, json!({})))
 }
@@ -347,11 +322,7 @@ fn midi_from_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         f.set_ppq(p as u16);
     }
     let path = ctx.output_path(None, "mid")?;
-    let bytes = if wants_json(ctx, &path) {
-        f.to_json_string().into_bytes()
-    } else {
-        f.to_smf_bytes()
-    };
+    let bytes = if wants_json(ctx, &path) { f.to_json_string().into_bytes() } else { f.to_smf_bytes() };
     ctx.write_file(&path, &bytes, None)?;
     Ok(out_result(&path, &f, json!({})))
 }
@@ -359,16 +330,12 @@ fn midi_from_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 fn read_groove(ctx: &mut OpCtx, p: &Path) -> Result<Groove> {
     ctx.check_allowed(p)?;
     let text = std::fs::read_to_string(p).map_err(|e| {
-        Error::new(
-            ErrorKind::InputMissing,
-            "input_not_found",
-            format!("cannot read groove {}: {e}", p.display()),
-        )
-        .with_hint(format!("ferraus midi groove extract ref.mid -o {}", p.display()))
+        Error::new(ErrorKind::InputMissing, "input_not_found", format!("cannot read groove {}: {e}", p.display()))
+            .with_hint(format!("ferraus midi groove extract ref.mid -o {}", p.display()))
     })?;
     ctx.note_input(p);
-    let g: Groove = serde_json::from_str(&text)
-        .map_err(|e| Error::input(format!("{} is not a groove file: {e}", p.display())))?;
+    let g: Groove =
+        serde_json::from_str(&text).map_err(|e| Error::input(format!("{} is not a groove file: {e}", p.display())))?;
     g.grid()?;
     Ok(g)
 }
@@ -406,12 +373,7 @@ fn midi_quantize(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
 fn midi_groove_extract(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let f = load_input(ctx, 0)?;
-    let grid = a.grid("grid")?.unwrap_or(Grid {
-        num: 1,
-        den: 16,
-        triplet: false,
-        dotted: false,
-    });
+    let grid = a.grid("grid")?.unwrap_or(Grid { num: 1, den: 16, triplet: false, dotted: false });
     let mut g = edit::extract_groove(&f, grid)?;
     g.source = ctx.inputs.first().map(|p| p.display().to_string());
     let path = ctx.output_path(None, "json")?;
@@ -432,19 +394,14 @@ fn midi_transpose(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let tr = track_filter(a, &f)?;
     let r = edit::transpose(&mut f, n, a.flag("include-drums"), &tr);
     if r.notes_dropped > 0 {
-        ctx.warn(
-            "notes_out_of_range",
-            format!("{} notes moved outside 0-127 and were dropped", r.notes_dropped),
-        );
+        ctx.warn("notes_out_of_range", format!("{} notes moved outside 0-127 and were dropped", r.notes_dropped));
     }
     let path = write_midi(ctx, &f, None)?;
     Ok(out_result(&path, &f, serde_json::to_value(&r)?))
 }
 
 fn parse_vel_range(s: &str) -> Result<(u8, u8)> {
-    let (lo, hi) = s
-        .split_once("..")
-        .ok_or_else(|| Error::usage(format!("--range: '{s}' is not lo..hi (40..110)")))?;
+    let (lo, hi) = s.split_once("..").ok_or_else(|| Error::usage(format!("--range: '{s}' is not lo..hi (40..110)")))?;
     let p = |x: &str| -> Result<u8> {
         x.trim()
             .parse::<u8>()
@@ -495,11 +452,7 @@ fn midi_legato(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let tr = track_filter(a, &f)?;
     let snapshot = f.clone();
     time_to_ticks(&snapshot, &gap, 0)?;
-    let r = edit::legato(
-        &mut f,
-        &|at| time_to_ticks(&snapshot, &gap, at).unwrap_or(0),
-        &tr,
-    );
+    let r = edit::legato(&mut f, &|at| time_to_ticks(&snapshot, &gap, at).unwrap_or(0), &tr);
     let path = write_midi(ctx, &f, None)?;
     Ok(out_result(&path, &f, serde_json::to_value(&r)?))
 }
@@ -538,11 +491,7 @@ fn midi_tempo(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
 fn midi_split(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let f = load_input(ctx, 0)?;
-    let by = if a.choice("by") == "channel" {
-        SplitBy::Channel
-    } else {
-        SplitBy::Track
-    };
+    let by = if a.choice("by") == "channel" { SplitBy::Channel } else { SplitBy::Track };
     let parts = edit::split(&f, by);
     if parts.is_empty() {
         return Err(Error::input("the file has no notes to split"));
@@ -570,9 +519,7 @@ fn midi_merge(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
 fn midi_trim(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let f = load_input(ctx, 0)?;
-    let r = a
-        .range("range")?
-        .ok_or_else(|| Error::usage("midi trim needs --range start..end"))?;
+    let r = a.range("range")?.ok_or_else(|| Error::usage("midi trim needs --range start..end"))?;
     let s = point_to_tick(&f, &r.start)?;
     let e = point_to_tick(&f, &r.end)?;
     if s >= e {
