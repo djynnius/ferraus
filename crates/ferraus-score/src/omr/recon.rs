@@ -235,7 +235,7 @@ pub fn find_staves(m: &Mask) -> Vec<StaffLines> {
     let mut lines = line_segments(m, min_len, (m.w as i64 / 80).max(4));
     // a staff line is thin: drop thick blobs (beams, text)
     lines.retain(|l| l.y1 - l.y0 <= 12);
-    lines.sort_by(|a, b| (a.y0 + a.y1).cmp(&(b.y0 + b.y1)));
+    lines.sort_by_key(|l| l.y0 + l.y1);
     let cy = |l: &LineSeg| (l.y0 + l.y1 - 1) as f64 / 2.0;
     let mut staves = Vec::new();
     let mut i = 0;
@@ -287,7 +287,10 @@ pub fn find_staves(m: &Mask) -> Vec<StaffLines> {
     let mut merged: Vec<StaffLines> = Vec::new();
     staves.sort_by(|a, b| a.ys[0].partial_cmp(&b.ys[0]).unwrap());
     for s in staves {
-        match merged.iter_mut().find(|m| (m.ys[0] - s.ys[0]).abs() < 0.5 * m.sp && (m.ys[4] - s.ys[4]).abs() < 0.5 * m.sp) {
+        match merged
+            .iter_mut()
+            .find(|m| (m.ys[0] - s.ys[0]).abs() < 0.5 * m.sp && (m.ys[4] - s.ys[4]).abs() < 0.5 * m.sp)
+        {
             Some(m) => {
                 m.x0 = m.x0.min(s.x0);
                 m.x1 = m.x1.max(s.x1);
@@ -304,9 +307,8 @@ fn remove_staff_lines(ink: &Mask, staves: &mut [StaffLines]) -> Mask {
     for st in staves.iter_mut() {
         // the network labels lines under clefs and barlines as symbols: extend the staff
         // along the ink while at least four of its lines continue
-        let on_lines = |x: i64| {
-            st.ys.iter().filter(|&&y| (-1..=1).any(|d| ink.get_i(x, y.round() as i64 + d))).count() >= 4
-        };
+        let on_lines =
+            |x: i64| st.ys.iter().filter(|&&y| (-1..=1).any(|d| ink.get_i(x, y.round() as i64 + d))).count() >= 4;
         while st.x0 > 0 && on_lines(st.x0 - 1) {
             st.x0 -= 1;
         }
@@ -465,11 +467,16 @@ fn split_heads(c: &Component, sp: f64) -> Vec<BBox> {
     out
 }
 
+/// The network's confidence in a region: the mean probability of its more certain half
+/// (pixels on a region's rim are always uncertain, whatever the symbol).
 fn mean_prob(map: &ClassMap, c: &Component) -> f32 {
     if c.pixels.is_empty() {
         return 0.0;
     }
-    c.pixels.iter().map(|&(x, y)| map.prob[y as usize * map.w + x as usize]).sum::<f32>() / c.pixels.len() as f32
+    let mut p: Vec<f32> = c.pixels.iter().map(|&(x, y)| map.prob[y as usize * map.w + x as usize]).collect();
+    p.sort_by(|a, b| b.partial_cmp(a).unwrap());
+    let half = &p[..p.len().div_ceil(2)];
+    half.iter().sum::<f32>() / half.len() as f32
 }
 
 /// The longest vertical ink run leaving `y` along columns `xs` in direction `dir`.
@@ -578,7 +585,7 @@ fn band_runs(m: &Mask, a: f64, b: f64) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
     let mut start = None;
     for x in 0..=m.w {
-        let on = x < m.w && cols[x];
+        let on = cols.get(x).copied().unwrap_or(false);
         match (on, start) {
             (true, None) => start = Some(x),
             (false, Some(s)) => {
@@ -666,15 +673,15 @@ pub fn classify_clef(st: &StaffLines, b: &BBox) -> Option<(Clef, f32)> {
 /// Diatonic index (octave × 7 + step) of the bottom line for a clef.
 fn bottom_line_diatonic(clef: &Clef) -> i32 {
     let base = match (clef.sign.as_str(), clef.line) {
-        ("G", 2) => 4 * 7 + 2,     // E4
-        ("G", 1) => 4 * 7 + 4,     // G4 (French violin)
-        ("F", 4) => 2 * 7 + 4,     // G2
-        ("F", 3) => 2 * 7 + 6,     // B2
-        ("C", 3) => 3 * 7 + 3,     // F3
-        ("C", 4) => 3 * 7 + 1,     // D3
-        ("C", 1) => 4 * 7,         // C4 on the bottom line
-        ("C", 2) => 3 * 7 + 5,     // A3
-        ("C", 5) => 2 * 7 + 6,     // B2
+        ("G", 2) => 4 * 7 + 2, // E4
+        ("G", 1) => 4 * 7 + 4, // G4 (French violin)
+        ("F", 4) => 2 * 7 + 4, // G2
+        ("F", 3) => 2 * 7 + 6, // B2
+        ("C", 3) => 3 * 7 + 3, // F3
+        ("C", 4) => 3 * 7 + 1, // D3
+        ("C", 1) => 4 * 7,     // C4 on the bottom line
+        ("C", 2) => 3 * 7 + 5, // A3
+        ("C", 5) => 2 * 7 + 6, // B2
         _ => 4 * 7 + 2,
     };
     base + clef.octave_change as i32 * 7
@@ -848,7 +855,6 @@ pub fn read_page(input: &PageInput, debug: &mut Debug) -> PageResult {
             let below = staves.get(si + 1);
             let ctx = StaffCtx {
                 st,
-                ink: &ink,
                 soft: &soft,
                 clean: &clean,
                 heads: &notehead_mask,
@@ -882,7 +888,6 @@ fn joined_at_left(ink: &Mask, a: &StaffLines, b: &StaffLines) -> bool {
 
 struct StaffCtx<'a> {
     st: &'a StaffLines,
-    ink: &'a Mask,
     soft: &'a Mask,
     clean: &'a Mask,
     heads: &'a Mask,
@@ -933,7 +938,11 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         let conf = mean_prob(c.symbols, &comp);
         for hb in split_heads(&comp, sp) {
             let pos = st.position(hb.cy());
-            let hollow = hollow_score(c.clean, &hb, st) < 0.45;
+            let score = hollow_score(c.clean, &hb, st);
+            let hollow = score < 0.45;
+            if trace() {
+                eprintln!("  head {:?} pos {pos} centre ink {score:.2}", hb);
+            }
             heads.push(Head { bbox: hb, pos, hollow, conf, stem: None, dots: 0, acc: None });
         }
     }
@@ -945,7 +954,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             eprintln!("  time signature region {:?}", t);
         }
     }
-    heads.sort_by(|a, b| a.bbox.x0.cmp(&b.bbox.x0));
+    heads.sort_by_key(|h| h.bbox.x0);
     let head_boxes: Vec<BBox> = heads.iter().map(|h| h.bbox).collect();
     for h in heads.iter_mut() {
         h.stem = find_stem(c.soft, &h.bbox, sp);
@@ -981,12 +990,8 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
     let bars = find_barlines(c, &heads);
 
     // ---- other glyphs on the cleaned ink
-    let band = BBox::new(
-        st.x0,
-        (st.top() - 3.5 * sp).round() as i64,
-        st.x1 + 2,
-        (st.bottom() + 3.5 * sp).round() as i64,
-    );
+    let band =
+        BBox::new(st.x0, (st.top() - 3.5 * sp).round() as i64, st.x1 + 2, (st.bottom() + 3.5 * sp).round() as i64);
     let band = BBox::new(band.x0, band.y0.max(zone.y0), band.x1, band.y1.min(zone.y1));
     let mut glyphs: Vec<Component> = c.clean.components_in(&band);
     // ignore stems, beams, heads, barlines: keep glyphs that do not overlap heads
@@ -1001,12 +1006,15 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
     // dots
     let is_dot = |g: &Component| {
         let (w, h) = (g.bbox.w() as f64 / sp, g.bbox.h() as f64 / sp);
-        (0.2..=0.75).contains(&w) && (0.2..=0.75).contains(&h) && (w - h).abs() < 0.3 && g.area as f64 >= 0.5 * (g.bbox.w() * g.bbox.h()) as f64
+        (0.2..=0.75).contains(&w)
+            && (0.2..=0.75).contains(&h)
+            && (w - h).abs() < 0.3
+            && g.area as f64 >= 0.5 * (g.bbox.w() * g.bbox.h()) as f64
     };
 
     // local accidentals: glyph right edge just left of a head, at its height
-    for hi in 0..heads.len() {
-        let hb = heads[hi].bbox;
+    for head in heads.iter_mut() {
+        let hb = head.bbox;
         let mut best: Option<(usize, Acc)> = None;
         for (gi, g) in glyphs.iter().enumerate() {
             if used[gi] {
@@ -1018,7 +1026,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
                 continue;
             }
             let Some((acc, _)) = classify_accidental(&g.local_mask(), sp) else { continue };
-            if acc_position(st, g, acc) != heads[hi].pos {
+            if acc_position(st, g, acc) != head.pos {
                 continue;
             }
             best = Some((gi, acc));
@@ -1026,7 +1034,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         }
         if let Some((gi, acc)) = best {
             used[gi] = true;
-            heads[hi].acc = Some(acc);
+            head.acc = Some(acc);
             debug.boxes.push((glyphs[gi].bbox, [255, 0, 255]));
         }
     }
@@ -1054,17 +1062,13 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             header.push((g.bbox, vec![gi]));
         }
     }
-    header.sort_by(|a, b| a.0.x0.cmp(&b.0.x0));
+    header.sort_by_key(|h| h.0.x0);
     // drop the system's left barline and brace (thin full-height lines at the very start)
-    header.retain(|(b, _)| !((b.w() as f64) < 0.5 * sp && (b.h() as f64) > 3.5 * sp && (b.x0 - st.x0) as f64 <= 1.0 * sp));
+    header.retain(|(b, _)| {
+        !((b.w() as f64) < 0.5 * sp && (b.h() as f64) > 3.5 * sp && (b.x0 - st.x0) as f64 <= 1.0 * sp)
+    });
     if trace() {
-        eprintln!(
-            "staff top {:.1} sp {:.2} x {}..{} first_event_x {first_event_x}",
-            st.top(),
-            sp,
-            st.x0,
-            st.x1
-        );
+        eprintln!("staff top {:.1} sp {:.2} x {}..{} first_event_x {first_event_x}", st.top(), sp, st.x0, st.x1);
         for (b, idx) in &header {
             eprintln!("  header {:?} h {:.2}sp w {:.2}sp parts {}", b, b.h() as f64 / sp, b.w() as f64 / sp, idx.len());
         }
@@ -1223,10 +1227,9 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         }
     }
     for b in &bars {
-        debug.boxes.push((
-            BBox::new(b.x as i64 - 1, st.top() as i64, b.x as i64 + 2, st.bottom() as i64),
-            [200, 0, 200],
-        ));
+        debug
+            .boxes
+            .push((BBox::new(b.x as i64 - 1, st.top() as i64, b.x as i64 + 2, st.bottom() as i64), [200, 0, 200]));
     }
 
     // ---- events
@@ -1346,9 +1349,14 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         }
         for e in &m.events {
             m.confidence = m.confidence.min(e.confidence.max(0.05));
-            if let Some(r) = &e.reason {
-                if !m.reasons.contains(r) {
-                    m.reasons.push(r.clone());
+            let reason = e.reason.clone().or_else(|| {
+                (e.confidence < 0.6).then(|| {
+                    format!("uncertain {} (confidence {:.2})", if e.rest { "rest" } else { "notehead" }, e.confidence)
+                })
+            });
+            if let Some(r) = reason {
+                if !m.reasons.contains(&r) {
+                    m.reasons.push(r);
                 }
             }
         }
@@ -1393,7 +1401,12 @@ fn read_time(c: &StaffCtx, b: &BBox, idx: &[usize], glyphs: &[Component]) -> Opt
             for g in &comps {
                 let d = classify_digit(&g.local_mask())?;
                 if trace() {
-                    eprintln!("  time digit {:?} -> {d} (holes {:?})\n{}", g.bbox, holes(&g.local_mask()), ascii(&g.local_mask()));
+                    eprintln!(
+                        "  time digit {:?} -> {d} (holes {:?})\n{}",
+                        g.bbox,
+                        holes(&g.local_mask()),
+                        ascii(&g.local_mask())
+                    );
                 }
                 n = n * 10 + d;
             }
@@ -1615,21 +1628,6 @@ fn merge_split_flats(glyphs: &mut Vec<Component>, sp: f64) {
         a.pixels.extend(b.pixels);
     }
 }
-
-/// Number of separate blobs touching the left third of a glyph (flags of 8th/16th rests).
-fn left_flag_count(m: &Mask) -> usize {
-    let lim = m.w / 2;
-    let mut sub = Mask::new(lim.max(1), m.h);
-    for y in 0..m.h {
-        for x in 0..lim {
-            if m.get(x, y) {
-                sub.set(x, y, true);
-            }
-        }
-    }
-    sub.components().into_iter().filter(|c| c.area >= 4 && (c.bbox.h() as usize) * 5 >= m.h).count()
-}
-
 fn find_barlines(c: &StaffCtx, heads: &[Head]) -> Vec<Bar> {
     let st = c.st;
     let sp = st.sp;
@@ -1824,5 +1822,125 @@ mod tests {
         let mut one = Mask::new(4, 20);
         draw_rect(&mut one, 0, 0, 4, 20);
         assert_eq!(classify_digit(&one), Some(1));
+    }
+
+    /// A synthetic page: one staff, and the segmentation maps a network would produce for
+    /// it (staff lines; noteheads), so the whole reader runs without a model.
+    struct Synth {
+        gray: Gray,
+        staff: ClassMap,
+        symbols: ClassMap,
+        sp: f64,
+        top: f64,
+    }
+
+    impl Synth {
+        fn new(w: usize, h: usize, top: f64, sp: f64) -> Synth {
+            let map = |classes| ClassMap { w, h, classes, class: vec![0; w * h], prob: vec![1.0; w * h] };
+            let mut s = Synth { gray: Gray::new(w, h, 255), staff: map(3), symbols: map(4), sp, top };
+            for k in 0..5 {
+                let y = (top + k as f64 * sp).round() as usize;
+                for x in 20..w - 20 {
+                    for yy in y..y + 2 {
+                        s.gray.px[yy * w + x] = 0;
+                        s.staff.class[yy * w + x] = 1;
+                    }
+                }
+            }
+            s
+        }
+        fn ink(&mut self, x: usize, y: usize) {
+            self.gray.px[y * self.gray.w + x] = 0;
+        }
+        /// y of a staff position (0 = bottom line).
+        fn y(&self, pos: i32) -> f64 {
+            self.top + 4.0 * self.sp - pos as f64 * self.sp / 2.0
+        }
+        /// A notehead (filled or hollow) at `x` and staff position `pos`, with an up stem.
+        fn note(&mut self, x: f64, pos: i32, hollow: bool, stem: bool, beams: usize) {
+            let (cy, rx, ry) = (self.y(pos), 0.62 * self.sp, 0.5 * self.sp);
+            for y in (cy - ry) as usize..=(cy + ry) as usize + 1 {
+                for xx in (x - rx) as usize..=(x + rx) as usize + 1 {
+                    let d = ((xx as f64 - x) / rx).powi(2) + ((y as f64 - cy) / ry).powi(2);
+                    if d <= 1.0 {
+                        self.symbols.class[y * self.gray.w + xx] = 2;
+                        if !hollow || d >= 0.45 {
+                            self.ink(xx, y);
+                        }
+                    }
+                }
+            }
+            if stem {
+                let sx = (x + rx) as usize;
+                let end = (cy - 3.5 * self.sp) as usize;
+                for y in end..cy as usize {
+                    self.ink(sx, y);
+                    self.ink(sx - 1, y);
+                }
+                for b in 0..beams {
+                    // a flag-like stub right of the stem end
+                    let y0 = end + (b as f64 * 0.75 * self.sp) as usize;
+                    for y in y0..y0 + (0.45 * self.sp) as usize {
+                        for xx in sx..sx + (0.9 * self.sp) as usize {
+                            self.ink(xx, y);
+                        }
+                    }
+                }
+            }
+        }
+        fn barline(&mut self, x: usize) {
+            for y in self.top as usize..=(self.top + 4.0 * self.sp) as usize + 1 {
+                self.ink(x, y);
+                self.ink(x + 1, y);
+            }
+        }
+    }
+
+    #[test]
+    fn reads_a_synthetic_page() {
+        let mut s = Synth::new(700, 220, 70.0, 14.0);
+        // measure 1: quarters E4 G4, a half B4; measure 2: eighths C5 D5, a quarter F5, a half A4
+        s.note(120.0, 0, false, true, 0);
+        s.note(170.0, 2, false, true, 0);
+        s.note(230.0, 4, true, true, 0);
+        s.barline(300);
+        s.note(350.0, 5, false, true, 1);
+        s.note(400.0, 6, false, true, 1);
+        s.note(450.0, 8, false, true, 0);
+        s.note(520.0, 3, true, true, 0);
+        s.barline(600);
+        let mut dbg = Debug::default();
+        let page = read_page(&PageInput { gray: &s.gray, staff: &s.staff, symbols: &s.symbols }, &mut dbg);
+        assert_eq!(page.systems.len(), 1);
+        let staff = &page.systems[0].staves[0];
+        assert!((page.staff_space - 14.0).abs() < 1.0, "{}", page.staff_space);
+        assert_eq!(staff.measures.len(), 2, "{:?}", staff.measures);
+        let got: Vec<Vec<(String, u32)>> = staff
+            .measures
+            .iter()
+            .map(|m| {
+                m.events.iter().map(|e| (e.pitches.iter().map(|p| p.name()).collect::<String>(), e.duration)).collect()
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                vec![("E4".into(), DIV), ("G4".into(), DIV), ("B4".into(), 2 * DIV)],
+                vec![("C5".into(), DIV / 2), ("D5".into(), DIV / 2), ("F5".into(), DIV), ("A4".into(), 2 * DIV)],
+            ]
+        );
+        // no clef glyph on the synthetic page: treble is assumed and said so
+        assert!(staff.clef.is_none());
+        assert!(staff.measures[0].reasons.iter().any(|r| r.contains("clef")));
+    }
+
+    #[test]
+    fn an_empty_page_reports_no_staves() {
+        let g = Gray::new(300, 200, 255);
+        let map = |classes| ClassMap { w: 300, h: 200, classes, class: vec![0; 300 * 200], prob: vec![1.0; 300 * 200] };
+        let (st, sy) = (map(3), map(4));
+        let page = read_page(&PageInput { gray: &g, staff: &st, symbols: &sy }, &mut Debug::default());
+        assert!(page.systems.is_empty());
+        assert_eq!(page.issues.len(), 1);
     }
 }

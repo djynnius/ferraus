@@ -61,6 +61,61 @@ pub fn model_size(w: usize, h: usize) -> (usize, usize) {
     ((ratio * w as f64).round() as usize, (ratio * h as f64).round() as usize)
 }
 
+/// Staff space (line distance) the networks read best, in pixels: what a full printed page
+/// has at oemer's 3–4.35 megapixel working size.
+pub const TARGET_STAFF_SPACE: f64 = 14.0;
+
+/// Estimate the staff space of a page from vertical run lengths: the most common ink run
+/// (line thickness) plus the most common paper run between ink (the space between lines).
+pub fn estimate_staff_space(page: &Gray) -> Option<f64> {
+    let t = page.otsu();
+    let mut black = vec![0usize; 64];
+    let mut white = vec![0usize; 256];
+    for x in (0..page.w).step_by(3) {
+        let mut run = 0usize;
+        let mut ink = page.at(x, 0) < t;
+        for y in 0..page.h {
+            let v = page.at(x, y) < t;
+            if v == ink {
+                run += 1;
+                continue;
+            }
+            if ink {
+                black[run.min(63)] += 1;
+            } else if y > run {
+                // paper between two ink runs (not the margin above the first)
+                white[run.min(255)] += 1;
+            }
+            ink = v;
+            run = 1;
+        }
+    }
+    let mode = |h: &[usize], from: usize| (from..h.len() - 1).max_by_key(|&i| h[i]).filter(|&i| h[i] > 0);
+    let line = mode(&black, 1)?;
+    let space = mode(&white, line.max(2))?;
+    // a staff needs enough evidence: several hundred line crossings
+    if white[space] < 50 {
+        return None;
+    }
+    Some((line + space) as f64)
+}
+
+/// Working size of a page for the networks: oemer's pixel-count rule, unless that would
+/// leave the staff space outside 10–20 px (a cropped excerpt, a page with a lot of margin,
+/// unusually small or large engraving); then the page is scaled so the staff space is about
+/// [`TARGET_STAFF_SPACE`] (kept between 0.5 and 9 megapixels).
+pub fn working_size(page: &Gray) -> (usize, usize) {
+    let (mw, mh) = model_size(page.w, page.h);
+    let Some(sp) = estimate_staff_space(page) else { return (mw, mh) };
+    if (10.0..=20.0).contains(&(sp * mw as f64 / page.w as f64)) {
+        return (mw, mh);
+    }
+    let pixels = (page.w * page.h) as f64;
+    let mut ratio = TARGET_STAFF_SPACE / sp;
+    ratio = ratio.clamp((0.5e6 / pixels).sqrt(), (9.0e6 / pixels).sqrt());
+    ((ratio * page.w as f64).round() as usize, (ratio * page.h as f64).round() as usize)
+}
+
 /// Per-pixel class map (`w × h`, values are class indices).
 pub struct ClassMap {
     pub w: usize,
@@ -192,6 +247,9 @@ mod tests {
         let px = (w * h) as f64;
         assert!((3.0e6..=4.35e6).contains(&px), "{w}x{h}");
         assert_eq!(model_size(1700, 2200), (1700, 2200));
+        // a blank page has no staff to measure
+        assert_eq!(estimate_staff_space(&Gray::new(200, 200, 255)), None);
+        assert_eq!(working_size(&Gray::new(2100, 2970, 255)), model_size(2100, 2970));
         assert_eq!(tile_starts(600, 256, 128), vec![0, 128, 256, 344]);
         assert_eq!(tile_starts(100, 256, 128), vec![0]);
     }

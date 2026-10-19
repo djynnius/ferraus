@@ -107,13 +107,14 @@ fn recognize_builtin(ctx: &mut OpCtx, input: &Path, ranges: &[(u32, u32)], dpi: 
     let mut results: Vec<PageResult> = Vec::new();
     let n_pages = pages.len();
     for (pi, page) in pages.iter().enumerate() {
-        let (w, h) = segment::model_size(page.image.w, page.image.h);
+        let (w, h) = segment::working_size(&page.image);
         let g = page.image.resize(w, h);
         let base = pi as f64 / n_pages as f64;
         let span = 1.0 / n_pages as f64;
-        let staff = segment::segment(ctx, &backend, segment::STAFF_MODEL, &g, segment::STAFF_WINDOW, 3, &mut |c, f| {
-            c.set_progress(base + span * 0.35 * f)
-        })?;
+        let staff =
+            segment::segment(ctx, &backend, segment::STAFF_MODEL, &g, segment::STAFF_WINDOW, 3, &mut |c, f| {
+                c.set_progress(base + span * 0.35 * f)
+            })?;
         let symbols =
             segment::segment(ctx, &backend, segment::SYMBOL_MODEL, &g, segment::SYMBOL_WINDOW, 4, &mut |c, f| {
                 c.set_progress(base + span * (0.35 + 0.6 * f))
@@ -546,11 +547,8 @@ mod tests {
     #[test]
     fn a_missed_dot_is_repaired() {
         // dotted half read as a half in 4/4 next to a quarter
-        let mut m = MeasureResult {
-            events: vec![ev(2 * DIV, 0, 0.5), ev(DIV, 0, 0.9)],
-            confidence: 1.0,
-            ..Default::default()
-        };
+        let mut m =
+            MeasureResult { events: vec![ev(2 * DIV, 0, 0.5), ev(DIV, 0, 0.9)], confidence: 1.0, ..Default::default() };
         assert!(repair_measure(&mut m, 4 * DIV));
         assert_eq!(m.events[0].duration, 3 * DIV);
         assert_eq!(m.events[0].dots, 1);

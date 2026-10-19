@@ -142,9 +142,19 @@ fn rasterize_with_tools(path: &Path, ranges: &[(u32, u32)], dpi: u32, tmp: &Path
             let d = capped_dpi(dpi, sizes.get(n as usize - 1).copied());
             let prefix = tmp.join(format!("p{n}"));
             let mut cmd = Command::new(&exe);
-            cmd.args(["-r", &d.to_string(), "-f", &n.to_string(), "-l", &n.to_string(), "-gray", "-png", "-singlefile"])
-                .arg(path)
-                .arg(&prefix);
+            cmd.args([
+                "-r",
+                &d.to_string(),
+                "-f",
+                &n.to_string(),
+                "-l",
+                &n.to_string(),
+                "-gray",
+                "-png",
+                "-singlefile",
+            ])
+            .arg(path)
+            .arg(&prefix);
             match run(&mut cmd, "pdftoppm") {
                 Ok(()) => pages.push(Page { number: n, image: read_png(&prefix.with_extension("png"))? }),
                 // without pdfinfo the page count is unknown: stop at the first missing page

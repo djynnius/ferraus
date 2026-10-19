@@ -167,17 +167,15 @@ fn read_fix_and_review_on_musicxml() {
 }
 
 #[test]
-fn read_pdf_without_models_is_model_not_cached() {
-    if ferraus_score::omr::builtin_model_dir().exists() {
-        return;
-    }
+fn read_without_a_network_backend_is_unsupported() {
+    // the ONNX runner is registered by the CLI; ferraus-score alone cannot recognize
     let t = tmp("read-pdf");
     let pdf = t.path("score.pdf");
     std::fs::write(&pdf, b"%PDF-1.4\n%fake\n").unwrap();
     let e = run_op("score read", vec![pdf], &[], Some(t.path("o.musicxml"))).unwrap_err();
-    assert_eq!(e.kind, ErrorKind::ModelNotCached);
-    assert_eq!(e.exit_code, 5);
-    assert_eq!(e.hint.as_deref(), Some("ferraus models pull omr/oemer"));
+    assert_eq!(e.kind, ErrorKind::Unsupported);
+    assert_eq!(e.code, "omr_runtime_missing");
+    assert_eq!(e.hint.as_deref(), Some("use --engine audiveris"));
 }
 
 #[test]

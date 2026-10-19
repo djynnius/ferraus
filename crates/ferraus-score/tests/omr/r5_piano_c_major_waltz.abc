@@ -1,0 +1,13 @@
+X:25
+T:Piano waltz in C
+M:3/4
+L:1/8
+K:C
+V:RH clef=treble
+V:LH clef=bass
+V:RH
+e4 d2 | c4 G2 | A2 B2 c2 | d6 | f4 e2 | d4 B2 | c2 e2 g2 | c'6 |
+a4 g2 | f2 e2 d2 | g4 f2 | e6 | d2 e2 f2 | e2 d2 c2 | B2 d2 G2 | c6 |]
+V:LH
+C,2 [E,G,]2 [E,G,]2 | C,2 [E,G,]2 [E,G,]2 | F,,2 [A,,C,]2 [A,,C,]2 | G,,2 [B,,D,]2 [B,,D,]2 | D,,2 [F,,A,,]2 [F,,A,,]2 | G,,2 [B,,D,]2 [B,,D,]2 | C,2 [E,G,]2 [E,G,]2 | C,6 |
+F,,2 [A,,C,]2 [A,,C,]2 | D,,2 [F,,A,,]2 [F,,A,,]2 | G,,2 [B,,D,]2 [B,,D,]2 | C,2 [E,G,]2 [E,G,]2 | D,6 | C,6 | G,,6 | C,6 |]

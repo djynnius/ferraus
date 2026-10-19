@@ -9,23 +9,8 @@ ferraus 0.1.0 printed.
 LilyPond (`.ly`), MIDI, or ferraus score JSON. Most notation apps export MusicXML, and
 thousands of folk tunes are published as ABC.
 
-**Printed sheet music (PDF or photos)** needs optical music recognition (`ferraus score read`),
-which uses the oemer and homr models. Their downloads are not verified in this release, so
-recognition stops with exit code 5 or 6:
-
-```json
-{"ok": false, "error": {"code": "model_not_cached",
-  "message": "the builtin OMR models (oemer segmentation + homr) are not in the model cache",
-  "hint": "ferraus models pull omr/oemer", "exit_code": 5}}
-{"ok": false, "error": {"code": "model_unverified",
-  "message": "omr/oemer@checkpoints-2021-11-25 has no verified download (status: unverified, no SHA-256 recorded); refusing to fetch an unchecked file",
-  "exit_code": 6}}
-```
-
-Until those models are published, export MusicXML from the app that produced the PDF, or scan
-the page with a dedicated OMR app (Audiveris, MuseScore's import, PlayScore) and feed the
-MusicXML to ferraus. `--engine audiveris` uses an installed Audiveris
-(`ferraus doctor --install-audiveris`).
+**Printed sheet music** (a PDF or a page image) works too: `score perform` reads it with
+optical music recognition first. Section 5 shows that path and what to check.
 
 ## 1. Write or get a score
 
@@ -112,6 +97,56 @@ The JSON model is what an agent edits: change a note's pitch or duration, then
 `ferraus score from-json tune.score.json -o fixed.musicxml` and perform it again. Small
 corrections can also be applied as an edit list with
 `ferraus score read tune.musicxml --fix edits.json -o fixed.musicxml`.
+
+## 5. From printed sheet music
+
+`score read` and `score perform` accept a PDF or a page image (PNG, JPEG, TIFF, ...) and read
+it with the built-in recognizer: oemer's two segmentation networks (MIT license, about
+110 MB, downloaded once) find staff lines, noteheads, stems, rests, clefs, and accidentals,
+and ferraus rebuilds the measures from them. Allow the download with `-y` the first time (or
+run `ferraus models pull omr/oemer omr/oemer-seg`):
+
+```bash
+ferraus score perform minuet.pdf --instrument piano -o minuet.wav -y --json
+```
+
+```json
+{"ok": true, "command": "score perform",
+ "outputs": [{"path": "minuet.musicxml", "role": "musicxml"}, {"path": "minuet.mid", "role": "midi"},
+             {"path": "minuet.wav", "role": "audio", "duration_s": 25.0}],
+ "models": [{"name": "omr/oemer", ...}, {"name": "omr/oemer-seg", ...}],
+ "result": {"engine": "builtin",
+            "performance": {"duration_s": 24.0, "notes": 135, "measures_played": 16, ...}}}
+```
+
+Reading takes 15–60 seconds per page on a laptop CPU. PDFs are turned into images with
+`pdftoppm` (poppler) or `mutool` when one is installed; on macOS without them, `sips` reads
+the first page only. `--pages 2-3` picks pages and `--dpi` the resolution.
+
+**Check before you listen.** Recognition is not perfect, so read first and look at the
+review:
+
+```bash
+ferraus score read minuet.pdf -o minuet.musicxml --review
+```
+
+The result says whether the score passes `score check` (`check_ok`), lists measures whose
+durations do not add up (`failing_measures`), and gives every measure a confidence with the
+reason when it is low (for example `dot added to fill the measure` or `uncertain notehead`).
+Fix what is wrong with an edit list (`--fix edits.json`, see the
+[cookbook](../cookbook/sheet-music-to-performance.md)) or in a notation app, then perform the
+corrected MusicXML.
+
+**What it reads:** clean printed (engraved) music: treble, bass, and C clefs; key and time
+signatures; notes from whole to 32nd with beams, flags, and dots; chords; rests;
+sharps, flats, and naturals; one or more staves per system, including piano grand staves.
+On our printed test set it gets about 99% of pitches and durations right.
+
+**What it does not read:** lyrics and other text, tuplets, grace notes, ties, slurs,
+dynamics, articulations, repeats and endings, and two voices on one staff (they come out as
+chords). Handwritten music and phone photos of pages are best-effort. For those, the
+optional Audiveris bridge (`ferraus doctor --install-audiveris`, then `--engine audiveris`)
+is often better.
 
 ## Reference
 
