@@ -54,7 +54,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: cargo test --workspace --locked
       - name: Contract snapshots and doc examples
-        run: cargo test -p ferraus-cli --test contract --locked
+        run: cargo test -p ferraus --test contract --locked
 
   docs:
     runs-on: ubuntu-22.04
@@ -63,10 +63,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: Swatinem/rust-cache@v2
       - name: Docs depth bar
-        run: cargo run -q -p ferraus-cli -- docs build-site --check --out target/docs-site
+        run: cargo run -q -p ferraus -- docs build-site --check --out target/docs-site
       - name: Agent catalog stays in sync and under budget
         run: |
-          cargo run -q -p ferraus-cli -- describe --agent --format markdown > /tmp/AGENTS.generated.md
+          cargo run -q -p ferraus -- describe --agent --format markdown > /tmp/AGENTS.generated.md
           diff -u docs/agents/catalog.md /tmp/AGENTS.generated.md
       - uses: peaceiris/actions-mdbook@v2
         with:

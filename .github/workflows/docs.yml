@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: Swatinem/rust-cache@v2
-      - run: cargo run -q --release -p ferraus-cli -- docs build-site --check --out target/docs-site
+      - run: cargo run -q --release -p ferraus -- docs build-site --check --out target/docs-site
       - uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: "0.4.40"

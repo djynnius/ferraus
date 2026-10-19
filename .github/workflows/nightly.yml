@@ -22,7 +22,7 @@ jobs:
           path: ~/.cache/ferraus/models
           key: models-${{ hashFiles('crates/ferraus-models/registry/registry.json') }}
       - name: Pull models for tests
-        run: cargo run -q --release -p ferraus-cli -- models pull --all-for separate -y || true
+        run: cargo run -q --release -p ferraus -- models pull --all-for separate -y || true
       - name: Full suite with network disabled
         run: |
           sudo unshare -n -- sudo -u "$USER" env PATH="$PATH" HOME="$HOME" FERRAUS_OFFLINE=1 \

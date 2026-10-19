@@ -124,11 +124,13 @@ fn cuda_runtime_found() -> Value {
 }
 
 fn provider_available(p: Provider) -> bool {
+    // unused on platforms where only the CPU provider is compiled in
+    #[allow(unused_imports)]
     use ort::ep::ExecutionProvider;
     if !p.compiled() {
         return false;
     }
-    let r = match p {
+    let r: std::result::Result<bool, ort::Error> = match p {
         Provider::Cpu => Ok(true),
         #[cfg(feature = "cuda")]
         Provider::Cuda => ort::ep::CUDA::is_available(),
