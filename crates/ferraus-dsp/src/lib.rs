@@ -27,6 +27,8 @@
 //! **Commands**: [`ops()`] returns every effect as an `OpSpec::transform`, usable as a CLI
 //! verb, an `fx` stage, and a pipeline stage.
 
+#![allow(clippy::needless_range_loop)] // DSP loops index several buffers in lockstep
+
 pub mod biquad;
 pub mod delayline;
 pub mod dynamics;

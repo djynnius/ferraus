@@ -46,7 +46,14 @@ impl PanLaw {
 pub fn pan_gains(pos: f64, law: PanLaw) -> (f64, f64) {
     let p = pos.clamp(-1.0, 1.0);
     let theta = (p + 1.0) * FRAC_PI_4; // 0 .. π/2
-    let (pl, pr) = (theta.cos(), theta.sin());
+    // exact zeros at the extremes (cos(π/2) is not exactly 0 in floating point)
+    let (pl, pr) = if p >= 1.0 {
+        (0.0, 1.0)
+    } else if p <= -1.0 {
+        (1.0, 0.0)
+    } else {
+        (theta.cos(), theta.sin())
+    };
     let (vl, vr) = ((1.0 - p) / 2.0, (1.0 + p) / 2.0);
     match law {
         PanLaw::Minus3 => (pl, pr),
@@ -299,7 +306,7 @@ mod tests {
         assert!((20.0 * l.log10() + 6.02).abs() < 0.01);
         let (l, _) = pan_gains(0.0, PanLaw::Minus4_5);
         assert!((20.0 * l.log10() + 4.52).abs() < 0.02);
-        assert_eq!(pan_gains(-1.0, PanLaw::Minus3).1.abs() < 1e-12, true);
+        assert!(pan_gains(-1.0, PanLaw::Minus3).1.abs() < 1e-12);
     }
 
     #[test]

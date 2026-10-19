@@ -64,7 +64,7 @@ impl Lfo {
     }
 
     #[inline]
-    pub fn next(&mut self) -> f64 {
+    pub fn tick(&mut self) -> f64 {
         let v = Self::shape_at(self.shape, self.phase);
         self.phase += self.inc;
         if self.phase >= 1.0 {
@@ -120,7 +120,7 @@ impl Chorus {
         self.line.push(x + self.feedback * self.fb_state);
         let mut acc = 0.0f32;
         for l in &mut self.lfos {
-            let d = self.base + 0.5 * self.depth * l.next();
+            let d = self.base + 0.5 * self.depth * l.tick();
             acc += self.line.read_cubic(d.max(2.0) as f32);
         }
         let wet = acc / self.lfos.len() as f32;
@@ -169,13 +169,13 @@ impl Phaser {
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
         if self.counter == 0 {
-            let f = (self.center * 2f64.powf(self.octaves * self.lfo.next()))
+            let f = (self.center * 2f64.powf(self.octaves * self.lfo.tick()))
                 .clamp(20.0, self.sample_rate * 0.45);
             let t = (PI * f / self.sample_rate).tan();
             self.coeff = ((t - 1.0) / (t + 1.0)) as f32;
             // advance the LFO by the skipped samples
             for _ in 0..15 {
-                self.lfo.next();
+                self.lfo.tick();
             }
         }
         self.counter = (self.counter + 1) % 16;
@@ -225,7 +225,7 @@ impl Vibrato {
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
         self.line.push(x);
-        let d = self.center + self.amp * self.lfo.next();
+        let d = self.center + self.amp * self.lfo.tick();
         self.line.read_cubic(d as f32)
     }
 }
@@ -245,7 +245,7 @@ mod tests {
         for s in [Shape::Sine, Shape::Triangle, Shape::Square, Shape::Saw] {
             let mut l = Lfo::new(3.0, 1000.0, s, 0.0);
             for _ in 0..1000 {
-                let v = l.next();
+                let v = l.tick();
                 assert!((-1.0001..=1.0001).contains(&v));
             }
         }

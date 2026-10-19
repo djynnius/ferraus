@@ -86,7 +86,7 @@ impl Noise {
 
     /// Next uniform value in [-1, 1).
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn tick(&mut self) -> f32 {
         let mut x = self.state;
         x ^= x << 13;
         x ^= x >> 7;
@@ -194,9 +194,9 @@ mod tests {
         let mut a = Noise::new(3);
         let mut b = Noise::new(3);
         for _ in 0..1000 {
-            let x = a.next();
+            let x = a.tick();
             assert!((-1.0..1.0).contains(&x));
-            assert_eq!(x, b.next());
+            assert_eq!(x, b.tick());
         }
     }
 

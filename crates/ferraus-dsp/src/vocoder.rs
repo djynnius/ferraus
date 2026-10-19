@@ -65,7 +65,7 @@ impl Oscillator {
     #[inline]
     pub fn next(&mut self, freq: f64, sample_rate: f64) -> f32 {
         if self.wave == Waveform::Noise {
-            return self.noise.next() * 0.577;
+            return self.noise.tick() * 0.577;
         }
         let dt = (freq / sample_rate).clamp(0.0, 0.49);
         let t = self.phase;
@@ -349,15 +349,34 @@ fn sibilance(hf_env: f32, all_env: f32) -> f32 {
     ((r - 0.3) / 0.3).clamp(0.0, 1.0)
 }
 
-/// Scale `y` so its RMS matches `reference` RMS.
-fn match_rms(y: &mut [f32], reference: &[f32]) {
-    let ry = rms(y);
-    let rr = rms(reference);
-    if ry > 1e-9 {
-        let g = rr / ry;
-        for v in y.iter_mut() {
-            *v *= g;
+/// Scale `y` so its short-term level inside `lo..hi` follows `reference`'s level in the same
+/// band (30 ms zero-phase power envelopes, gain capped at +24 dB). Energy that `y` adds
+/// above the band, such as the sibilance "air" band, does not affect the gain.
+fn match_rms(y: &mut [f32], reference: &[f32], lo: f64, hi: f64, sample_rate: f64) {
+    let c = crate::util::time_coeff(0.030, sample_rate);
+    let env = |x: &[f32]| -> Vec<f32> {
+        let mut b = x.to_vec();
+        Cascade::butterworth_highpass(2, lo, sample_rate).process_block(&mut b);
+        Cascade::butterworth_lowpass(4, hi, sample_rate).process_block(&mut b);
+        let mut e = vec![0.0f32; b.len()];
+        let mut s = 0.0f32;
+        for (o, v) in e.iter_mut().zip(&b) {
+            s = crate::util::flush(v * v + c * (s - v * v));
+            *o = s;
         }
+        let mut s = 0.0f32;
+        for o in e.iter_mut().rev() {
+            s = crate::util::flush(*o + c * (s - *o));
+            *o = s;
+        }
+        e
+    };
+    let ey = env(y);
+    let er = env(reference);
+    let floor = ey.iter().cloned().fold(0.0f32, f32::max) * 1e-8 + 1e-14;
+    for ((v, a), b) in y.iter_mut().zip(&ey).zip(&er) {
+        let g = if *a > floor { (b / a).sqrt().min(16.0) } else { 0.0 };
+        *v *= g;
     }
 }
 
@@ -393,7 +412,7 @@ pub fn vocode_classic(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: &
     for i in 0..n {
         let m = modulator[i];
         let c = carrier.get(i).copied().unwrap_or(0.0);
-        let nz = if p.unvoiced { noise.next() } else { 0.0 };
+        let nz = if p.unvoiced { noise.tick() } else { 0.0 };
         let s = if p.unvoiced {
             let h = hf_env.process(hf_det.process(m).abs());
             let a = all_env.process(m.abs());
@@ -421,7 +440,7 @@ pub fn vocode_classic(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: &
         }
         out.push(y);
     }
-    match_rms(&mut out, modulator);
+    match_rms(&mut out, modulator, centres[0], centres[nb - 1], sample_rate);
     out
 }
 
@@ -515,7 +534,7 @@ pub fn vocode_spectral(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: 
                 // air band: noise shaped by the modulator's own magnitude, only for sibilants
                 if p.unvoiced && sib > 0.0 {
                     let mag = mfr[k].norm() * sib;
-                    let ph = noise.next() * std::f32::consts::PI;
+                    let ph = noise.tick() * std::f32::consts::PI;
                     *c = Complex::from_polar(mag, ph);
                 } else {
                     *c = Complex::new(0.0, 0.0);
@@ -526,14 +545,14 @@ pub fn vocode_spectral(modulator: &[f32], carrier: &[f32], sample_rate: f64, p: 
             let cen = interp(&ec, f).max(glob);
             let mut v = *c / cen;
             if sib > 0.0 {
-                let ph = noise.next() * std::f32::consts::PI;
+                let ph = noise.tick() * std::f32::consts::PI;
                 v = v * (1.0 - sib) + Complex::from_polar(sib, ph);
             }
             *c = v * target;
         }
     }
     let mut out = stft.synthesize(&mut cf, n);
-    match_rms(&mut out, modulator);
+    match_rms(&mut out, modulator, centres[0], centres[nb - 1], sample_rate);
     out
 }
 

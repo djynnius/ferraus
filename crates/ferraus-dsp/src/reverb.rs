@@ -113,20 +113,26 @@ impl Plate {
         let fc = log_lerp(16000.0, 1200.0, p.damping);
         let damp = (-2.0 * std::f64::consts::PI * fc / sample_rate).exp() as f32;
         let t = |n: f64| ((n * scale * size).round() as usize).max(1);
+        // an all-pass rings on its own (gain g per D samples) whatever the loop decay; cap
+        // each gain so that ringing dies within 30% of the requested decay
+        let ring = |d: usize, g: f32| -> f32 {
+            let cap = 10f64.powf(-3.0 * d as f64 / sample_rate / (0.3 * p.decay_s.max(0.05)));
+            g.min(cap as f32)
+        };
         Plate {
             diffusers: [
-                Allpass::new(si(142.0), 0.75),
-                Allpass::new(si(107.0), 0.75),
-                Allpass::new(si(379.0), 0.625),
-                Allpass::new(si(277.0), 0.625),
+                Allpass::new(si(142.0), ring(si(142.0), 0.75)),
+                Allpass::new(si(107.0), ring(si(107.0), 0.75)),
+                Allpass::new(si(379.0), ring(si(379.0), 0.625)),
+                Allpass::new(si(277.0), ring(si(277.0), 0.625)),
             ],
-            ap_l1: Allpass::new(ap[0] + 40, -0.7),
+            ap_l1: Allpass::new(ap[0] + 40, -ring(ap[0], 0.7)),
             d_l1: DelayLine::new(len[0]),
-            ap_l2: Allpass::new(ap[1], 0.5),
+            ap_l2: Allpass::new(ap[1], ring(ap[1], 0.5)),
             d_l2: DelayLine::new(len[1]),
-            ap_r1: Allpass::new(ap[2] + 40, -0.7),
+            ap_r1: Allpass::new(ap[2] + 40, -ring(ap[2], 0.7)),
             d_r1: DelayLine::new(len[2]),
-            ap_r2: Allpass::new(ap[3], 0.5),
+            ap_r2: Allpass::new(ap[3], ring(ap[3], 0.5)),
             d_r2: DelayLine::new(len[3]),
             len,
             damp_l: 0.0,
@@ -166,8 +172,8 @@ impl Tank for Plate {
             v = d.process(v);
         }
         // the modulated allpasses were built 40 samples long for headroom; centre on nominal
-        let ml = self.excursion * self.lfo_l.next() as f32 - 40.0;
-        let mr = self.excursion * self.lfo_r.next() as f32 - 40.0;
+        let ml = self.excursion * self.lfo_l.tick() as f32 - 40.0;
+        let mr = self.excursion * self.lfo_r.tick() as f32 - 40.0;
         // left half
         let a = self.ap_l1.process_mod(v + self.fb_r, ml);
         self.d_l1.push(a);
@@ -222,7 +228,7 @@ fn is_prime(n: usize) -> bool {
     }
     let mut i = 2;
     while i * i <= n {
-        if n % i == 0 {
+        if n.is_multiple_of(i) {
             return false;
         }
         i += 1;
@@ -379,19 +385,55 @@ fn make_tank(sample_rate: f64, p: &ReverbParams) -> Box<dyn Tank> {
 
 /// Wet stereo signal of length `out_len` for a mono input, normalised to unit
 /// impulse-response energy, with pre-delay, wet filters, and width applied.
+/// Impulse response of a tank (mono sum of L and R, plus the stereo energy).
+fn probe_tank(sample_rate: f64, p: &ReverbParams, len: usize) -> (Vec<f32>, f64) {
+    let mut tank = make_tank(sample_rate, p);
+    let mut energy = 0.0f64;
+    let mut ir = Vec::with_capacity(len);
+    for i in 0..len {
+        let (l, r) = tank.process(if i == 0 { 1.0 } else { 0.0 });
+        energy += 0.5 * ((l as f64).powi(2) + (r as f64).powi(2));
+        ir.push(l + r);
+    }
+    (ir, energy)
+}
+
+/// RT60 of an impulse response in the 1 kHz octave band (EDC to -60 dB).
+pub fn rt60_mid(ir: &[f32], sample_rate: f64) -> Option<f64> {
+    let mut band = ir.to_vec();
+    Cascade::butterworth_highpass(4, 707.0, sample_rate).process_block(&mut band);
+    Cascade::butterworth_lowpass(4, 1414.0, sample_rate).process_block(&mut band);
+    edc_decay_time(&band, sample_rate, 60.0)
+}
+
+/// Tune the internal decay so the tank's mid-frequency (1 kHz octave) RT60 matches the
+/// requested decay: measure the impulse response, rescale, repeat (at most three probes).
+/// Returns the calibrated parameters and the tank's impulse-response energy.
+pub fn calibrate(sample_rate: f64, p: &ReverbParams) -> (ReverbParams, f64) {
+    let target = p.decay_s.max(0.05);
+    let len = ((target * 2.5 + 0.2) * sample_rate) as usize;
+    let mut q = p.clone();
+    let mut energy = 0.0;
+    for iter in 0..3 {
+        let (ir, e) = probe_tank(sample_rate, &q, len);
+        energy = e;
+        let measured = rt60_mid(&ir, sample_rate).unwrap_or(len as f64 / sample_rate);
+        let ratio = target / measured.max(1e-3);
+        if (ratio - 1.0).abs() < 0.02 || iter == 2 {
+            break;
+        }
+        q.decay_s = (q.decay_s * ratio).clamp(0.02, 120.0);
+    }
+    (q, energy)
+}
+
 pub fn reverb_wet(input: &[f32], out_len: usize, sample_rate: f64, p: &ReverbParams) -> [Vec<f32>; 2] {
     let predelay = (p.predelay_s.max(0.0) * sample_rate).round() as usize;
-    // normalisation probe: impulse-response energy of the tank alone
-    let probe_len = ((p.decay_s.max(0.05) * 1.5 + 0.1) * sample_rate) as usize;
-    let mut probe = make_tank(sample_rate, p);
-    let mut energy = 0.0f64;
-    for i in 0..probe_len {
-        let (l, r) = probe.process(if i == 0 { 1.0 } else { 0.0 });
-        energy += 0.5 * ((l as f64).powi(2) + (r as f64).powi(2));
-    }
+    // calibrate the decay, and normalise to unit impulse-response energy
+    let (q, energy) = calibrate(sample_rate, p);
     let norm = if energy > 1e-12 { (1.0 / energy.sqrt()) as f32 } else { 1.0 };
 
-    let mut tank = make_tank(sample_rate, p);
+    let mut tank = make_tank(sample_rate, &q);
     let mut wl = Vec::with_capacity(out_len);
     let mut wr = Vec::with_capacity(out_len);
     for i in 0..out_len {

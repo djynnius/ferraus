@@ -574,6 +574,90 @@ pub fn clip(x: &mut [f32], ceiling_db: f32, mode: ClipMode, knee_db: f32) {
     }
 }
 
+/// De-esser settings.
+#[derive(Clone, Debug)]
+pub struct DeessParams {
+    /// Centre of the sibilance detector band.
+    pub center: f64,
+    /// Detector bandwidth in octaves.
+    pub bandwidth_oct: f64,
+    pub threshold_db: f32,
+    /// Most reduction applied, dB (positive).
+    pub range_db: f32,
+    /// `true`: only the band above the detector's lower edge is turned down (dynamic shelf);
+    /// `false`: the whole signal is turned down.
+    pub split: bool,
+}
+
+impl Default for DeessParams {
+    fn default() -> Self {
+        DeessParams {
+            center: 6500.0,
+            bandwidth_oct: 1.0,
+            threshold_db: -20.0,
+            range_db: 6.0,
+            split: true,
+        }
+    }
+}
+
+/// De-esser: a band-limited detector drives a dynamic high shelf (split, via an LR4
+/// crossover at the band's lower edge, so the untouched path stays flat) or the whole
+/// signal (wideband).
+pub fn deess(channels: &mut [Vec<f32>], sample_rate: f64, p: &DeessParams) -> DynamicsStats {
+    use crate::biquad::{octaves_to_q, Coeffs, Crossover, FilterType};
+    let n = channels.first().map(|c| c.len()).unwrap_or(0);
+    let nch = channels.len().max(1);
+    let center = p.center.clamp(1000.0, sample_rate * 0.45);
+    let q = octaves_to_q(p.bandwidth_oct);
+    let bp = Coeffs::design(FilterType::Bandpass, center, q, 0.0, sample_rate);
+    let mut det = Cascade::new([bp, bp]);
+    let mut env = EnvelopeFollower::new(0.0005, 0.040, sample_rate);
+    let mut sm = DbSmoother::new(0.040, 0.0005, sample_rate, 0.0);
+    let mut gains = Vec::with_capacity(n);
+    for i in 0..n {
+        let m: f32 = channels.iter().map(|c| c[i]).sum::<f32>() / nch as f32;
+        let lvl = lin_to_db(env.process(det.process(m).abs()));
+        let target = compressor_curve(lvl, p.threshold_db, 4.0, 4.0).max(-p.range_db.abs());
+        gains.push(sm.process(target));
+    }
+    if p.split {
+        let edge = (center / 2f64.powf(p.bandwidth_oct / 2.0)).max(500.0);
+        for ch in channels.iter_mut() {
+            let mut xo = Crossover::new(edge, sample_rate);
+            for (x, g) in ch.iter_mut().zip(&gains) {
+                let (lo, hi) = xo.split(*x);
+                *x = lo + hi * db_to_lin(*g);
+            }
+        }
+    } else {
+        apply_gain_db(channels, &gains, 0.0);
+    }
+    stats_from(&gains)
+}
+
+/// Transient shaper: boosts or cuts the attack and the sustain of each note, detected by
+/// comparing fast and slow envelopes (linked across channels). Gains in dB.
+pub fn transient_shape(channels: &mut [Vec<f32>], sample_rate: f64, attack_db: f32, sustain_db: f32) {
+    let n = channels.first().map(|c| c.len()).unwrap_or(0);
+    let mut fast_a = EnvelopeFollower::new(0.0005, 0.050, sample_rate);
+    let mut slow_a = EnvelopeFollower::new(0.020, 0.050, sample_rate);
+    let mut fast_r = EnvelopeFollower::new(0.0005, 0.030, sample_rate);
+    let mut slow_r = EnvelopeFollower::new(0.0005, 0.300, sample_rate);
+    let mut sm = DbSmoother::new(0.002, 0.002, sample_rate, 0.0);
+    let mut gains = Vec::with_capacity(n);
+    for i in 0..n {
+        let pk = channels.iter().fold(0.0f32, |m, c| m.max(c[i].abs()));
+        let da = lin_to_db(fast_a.process(pk)) - lin_to_db(slow_a.process(pk));
+        let ds = lin_to_db(slow_r.process(pk)) - lin_to_db(fast_r.process(pk));
+        let gate = if pk > 1e-5 || slow_r.value() > 1e-5 { 1.0 } else { 0.0 };
+        let g = gate * (attack_db * (da / 6.0).clamp(0.0, 1.0) + sustain_db * (ds / 6.0).clamp(0.0, 1.0));
+        gains.push(sm.process(g));
+    }
+    apply_gain_db(channels, &gains, 0.0);
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
