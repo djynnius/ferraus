@@ -331,7 +331,7 @@ pub fn repair_channel(x: &mut [f32], missing: &[bool], order: usize, block: usiz
                     }
                 }
             }
-            p = if p > 3 { p * 2 / 3 } else { p - 1 };
+            p = if p > 3 { p / 2 } else { p - 1 };
         }
         if let Some((_, trial)) = best {
             seg = trial;

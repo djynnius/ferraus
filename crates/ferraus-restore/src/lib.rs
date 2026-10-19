@@ -194,6 +194,31 @@ mod tests {
         }
     }
 
+    /// Real-time factor of every transform on 10 s of stereo audio. Run with
+    /// `cargo test -p ferraus-restore --release -- --ignored --nocapture perf`.
+    #[test]
+    #[ignore]
+    fn perf_real_time_factors() {
+        let sr = 48000;
+        let secs = 10.0;
+        let base = testing::add(&crate::testutil::music(sr, secs, 0.4), &testing::noise(sr, secs, 0.01, 1));
+        let (dirty, _) = crate::testutil::add_clicks(&base, 200, 3);
+        let x = testing::stereo(dirty);
+        let reg = testing::leak_registry(ops());
+        for op in ops() {
+            let f = match op.runner {
+                Runner::Transform(f) => f,
+                _ => continue,
+            };
+            let a = testing::args(&op, &needed(op.name));
+            let mut c = testing::ctx_with(reg);
+            let t = std::time::Instant::now();
+            let _ = f(&a, x.clone(), &mut c);
+            let el = t.elapsed().as_secs_f64();
+            eprintln!("{:>14}: {:7.1}x real time", op.name, secs / el.max(1e-9));
+        }
+    }
+
     #[test]
     fn length_changing_ops_opt_out_of_mix() {
         let pb = ops().into_iter().find(|o| o.name == "pitch-bend").unwrap();
