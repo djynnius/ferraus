@@ -253,7 +253,9 @@ fn compare_op(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
         ctx.warn("conformed", n.clone());
     }
     if r.length_difference_s.abs() > 0.01 {
-        ctx.warn("length_differs", format!("b is {:+.3} s longer than a", r.length_difference_s));
+        let d = r.length_difference_s;
+        let rel = if d > 0.0 { "longer" } else { "shorter" };
+        ctx.warn("length_differs", format!("b is {:.3} s {rel} than a", d.abs()));
     }
     ctx.metric("si_sdr_db", util::tidy(r.si_sdr_db));
     ctx.metric("rms_diff_db", util::tidy(r.rms_diff_db));
