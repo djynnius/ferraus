@@ -18,11 +18,14 @@ pub struct SessionOptions {
     pub deterministic: bool,
     /// Intra-op threads (0 = ONNX Runtime default).
     pub threads: usize,
+    /// Providers the model is known to work with (`ModelSpec::provider_hints`); automatic
+    /// selection skips the others. Empty = no restriction.
+    pub provider_hints: Vec<String>,
 }
 
 impl Default for SessionOptions {
     fn default() -> Self {
-        SessionOptions { device: "auto".into(), deterministic: false, threads: 0 }
+        SessionOptions { device: "auto".into(), deterministic: false, threads: 0, provider_hints: Vec::new() }
     }
 }
 
@@ -36,6 +39,7 @@ impl SessionOptions {
             device: ctx.globals.device.clone(),
             deterministic: ctx.globals.deterministic,
             threads: ctx.globals.threads,
+            provider_hints: Vec::new(),
         }
     }
 
@@ -170,7 +174,10 @@ pub fn load(path: &Path, opts: &SessionOptions) -> Result<(Arc<ModelSession>, Ve
     if !path.exists() {
         return Err(Error::input(format!("model file not found: {}", path.display())));
     }
-    let order = candidates(&opts.device, opts.deterministic, &|p| p.compiled())?;
+    let mut order = candidates(&opts.device, opts.deterministic, &|p| p.compiled())?;
+    if Provider::parse(&opts.device)?.is_none() {
+        order = crate::provider::apply_hints(&order, &opts.provider_hints);
+    }
     let sel = select(&order, |p| build_on(path, p, opts))?;
     let session = sel.value;
     let input_names = session.inputs().iter().map(|i| i.name().to_string()).collect();
@@ -195,7 +202,15 @@ pub fn load(path: &Path, opts: &SessionOptions) -> Result<(Arc<ModelSession>, Ve
 /// Load with the context's `--device`/`--deterministic`/`--threads`, surfacing fallback
 /// warnings through `ctx.warn`.
 pub fn load_for(ctx: &mut OpCtx, path: &Path) -> Result<Arc<ModelSession>> {
-    let (s, warnings) = load(path, &SessionOptions::from_ctx(ctx))?;
+    load_for_hinted(ctx, path, &[])
+}
+
+/// Like [`load_for`], restricting automatic provider selection to `hints` (a model's
+/// `provider_hints`, e.g. when its graph is known not to compile for CoreML).
+pub fn load_for_hinted(ctx: &mut OpCtx, path: &Path, hints: &[String]) -> Result<Arc<ModelSession>> {
+    let mut opts = SessionOptions::from_ctx(ctx);
+    opts.provider_hints = hints.to_vec();
+    let (s, warnings) = load(path, &opts)?;
     for w in warnings {
         ctx.warn("provider_fallback", w);
     }

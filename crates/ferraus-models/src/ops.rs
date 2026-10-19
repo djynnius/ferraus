@@ -39,7 +39,7 @@ pub fn ops() -> Vec<OpSpec> {
         )
         .positional("name")
         .about("Downloads each named model (name or name@version) into the cache, resuming partial downloads and verifying the SHA-256 recorded in the signed registry. The size and license are printed before fetching. --all-for pulls every model a command's tiers need.")
-        .param(param("name", ParamKind::List).help("Model name[@version]; several allowed"))
+        .param(param("name", ParamKind::Str).repeatable().help("Model name[@version]; several allowed"))
         .param(param("all-for", ParamKind::Str).help("Pull every model the tiers of this command need (e.g. separate)"))
         .param(param("tier", ParamKind::Str).help("With --all-for: only this tier"))
         .param(param("accept-license", ParamKind::Flag).help("Accept a research-only / non-commercial license for the named models"))

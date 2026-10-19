@@ -370,9 +370,11 @@ fn mdx_adapter_round_trip() {
         license: Default::default(),
         params: json!({"n_fft": n_fft, "hop": hop, "dim_f": dim_f, "dim_t": dim_t, "compensate": 1.0}),
     };
-    let (session, _) =
-        ferraus_ml::load(&p, &ferraus_ml::SessionOptions { device: "cpu".into(), deterministic: true, threads: 1 })
-            .unwrap();
+    let (session, _) = ferraus_ml::load(
+        &p,
+        &ferraus_ml::SessionOptions { device: "cpu".into(), deterministic: true, threads: 1, provider_hints: vec![] },
+    )
+    .unwrap();
     let model = adapter::open("mdx", spec, session).unwrap();
     assert_eq!(model.segment(), hop * (dim_t - 1));
     let m = mix(0.3, 44_100);
@@ -453,4 +455,58 @@ fn real_htdemucs_fast_tier() {
     });
     eprintln!("{}", serde_json::to_string_pretty(&report).unwrap());
     assert!(sdr(&bass, "bass") > 3.0, "{report}");
+}
+
+/// Real MDX-Net check: set FERRAUS_KIM_VOCAL_2_ONNX to the verified Kim_Vocal_2.onnx
+/// (sha256 ce74ef3b…) and run with `--ignored real_mdx`. The model has no clear license, so it
+/// is only reachable through `--model` and must warn.
+#[test]
+#[ignore]
+fn real_mdx_kim_vocal_2() {
+    isolate_cache();
+    let src = std::env::var("FERRAUS_KIM_VOCAL_2_ONNX").expect("set FERRAUS_KIM_VOCAL_2_ONNX");
+    let manifest = ferraus_models::Manifest::embedded();
+    let entry = manifest.resolve("separate/mdx-kim-vocal-2").unwrap().clone();
+    let cache = Cache::default_root();
+    let dest = cache.model_path(&entry);
+    std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+    std::fs::copy(&src, &dest).unwrap();
+    let sha = ferraus_models::download::sha256_file(&dest).unwrap();
+    assert_eq!(Some(sha.as_str()), entry.sha256.as_deref());
+    cache.record(&entry, &sha, std::fs::metadata(&dest).unwrap().len(), None).unwrap();
+    let sr = 44_100;
+    let secs = 10.0;
+    let n = (sr as f64 * secs) as usize;
+    let vocal = AudioBuffer::from_mono(
+        sr,
+        (0..n)
+            .map(|k| {
+                let t = k as f64 / sr as f64;
+                let ph = 2.0 * std::f64::consts::PI * (330.0 * t + 2.0 * (2.0 * std::f64::consts::PI * 5.0 * t).sin());
+                let env = 0.5 + 0.5 * (2.0 * std::f64::consts::PI * 0.5 * t).sin();
+                (0.3 * env * (ph.sin() + 0.4 * (2.0 * ph).sin() + 0.2 * (3.0 * ph).sin())) as f32
+            })
+            .collect(),
+    );
+    let bed = testing::add(&testing::sine(sr, 82.4, secs, 0.3), &testing::noise(sr, secs, 0.05, 5));
+    let m = testing::add(&vocal, &bed).with_channels(2);
+    let r = setup("sep-real-mdx", &m);
+    let start = std::time::Instant::now();
+    let (v, ctx) = run(&r, &[("model", "separate/mdx-kim-vocal-2")], |c| {
+        c.globals.deterministic = false;
+        c.globals.threads = 0;
+    })
+    .unwrap();
+    let voc = testing::read_wav(&stem_path(&r, "vocals"));
+    let inst = testing::read_wav(&stem_path(&r, "instrumental"));
+    let report = json!({
+        "seconds": start.elapsed().as_secs_f64(),
+        "si_sdr_vocals_db": testing::si_sdr(&vocal.data[0], &voc.data[0]),
+        "si_sdr_instrumental_db": testing::si_sdr(&bed.data[0], &inst.data[0]),
+        "stems": v["stems"],
+        "warnings": ctx.warnings.iter().map(|w| w.code.clone()).collect::<Vec<_>>(),
+    });
+    eprintln!("{}", serde_json::to_string_pretty(&report).unwrap());
+    assert!(ctx.warnings.iter().any(|w| w.code == "model_license_unclear"));
+    assert!(report["si_sdr_vocals_db"].as_f64().unwrap() > 0.0, "{report}");
 }

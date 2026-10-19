@@ -243,7 +243,7 @@ fn load_members(ctx: &mut OpCtx, members: &[Member], accept: bool) -> Result<Vec
     }
     let mut out = Vec::new();
     for (member, path, spec, label) in resolved {
-        let session = ferraus_ml::load_for(ctx, &path)?;
+        let session = ferraus_ml::session::load_for_hinted(ctx, &path, &spec.provider_hints)?;
         let model = adapter::open(&label, spec, session)?;
         out.push(Loaded { member, model });
     }

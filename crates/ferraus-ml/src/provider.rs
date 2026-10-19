@@ -68,6 +68,16 @@ pub fn candidates(device: &str, deterministic: bool, compiled: &dyn Fn(Provider)
     })
 }
 
+/// Restrict an automatic order to the providers a model lists in its hints (CPU is always
+/// kept as the last resort). Unknown hint names are ignored; empty hints change nothing.
+pub fn apply_hints(order: &[Provider], hints: &[String]) -> Vec<Provider> {
+    let wanted: Vec<Provider> = hints.iter().filter_map(|h| Provider::parse(h).ok().flatten()).collect();
+    if wanted.is_empty() {
+        return order.to_vec();
+    }
+    order.iter().copied().filter(|p| *p == Provider::Cpu || wanted.contains(p)).collect()
+}
+
 /// Result of a selection: the initialized value, which provider produced it, and the
 /// warnings to surface (one per provider that failed).
 #[derive(Debug)]
@@ -149,6 +159,14 @@ mod tests {
             select(&order, |p| if p == Provider::Cuda { Err("not compiled".to_string()) } else { Ok(p) }).unwrap();
         assert_eq!(sel.provider, Provider::Cpu);
         assert_eq!(sel.warnings.len(), 1);
+    }
+
+    #[test]
+    fn hints_restrict_automatic_order() {
+        let hints = vec!["cuda".to_string(), "cpu".to_string()];
+        assert_eq!(apply_hints(&AUTO_ORDER, &hints), vec![Provider::Cuda, Provider::Cpu]);
+        assert_eq!(apply_hints(&AUTO_ORDER, &[]), AUTO_ORDER.to_vec());
+        assert_eq!(apply_hints(&AUTO_ORDER, &["bogus".to_string()]), AUTO_ORDER.to_vec());
     }
 
     #[test]

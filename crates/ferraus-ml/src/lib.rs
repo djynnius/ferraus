@@ -87,7 +87,7 @@ mod tests {
     use ferraus_core::testing::TempDir;
 
     fn cpu() -> SessionOptions {
-        SessionOptions { device: "cpu".into(), deterministic: true, threads: 1 }
+        SessionOptions { device: "cpu".into(), deterministic: true, threads: 1, provider_hints: vec![] }
     }
 
     #[test]
@@ -210,7 +210,7 @@ mod tests {
         if Provider::Cuda.compiled() {
             return;
         }
-        let opts = SessionOptions { device: "cuda".into(), deterministic: false, threads: 1 };
+        let opts = SessionOptions { device: "cuda".into(), deterministic: false, threads: 1, provider_hints: vec![] };
         let (s, warnings) = load(&p, &opts).unwrap();
         assert_eq!(s.provider, Provider::Cpu);
         assert_eq!(warnings.len(), 1);
