@@ -1,4 +1,7 @@
-//! ferraus-restore
+//! ferraus-restore: restoration, Audition-parity filters, automation, generators, and
+//! one-knob enhancement chains.
+
+pub mod dsp;
 
 use ferraus_core::OpSpec;
 
