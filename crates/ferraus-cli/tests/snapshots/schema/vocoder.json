@@ -25,7 +25,7 @@
       },
       "carrier": {
         "type": "string",
-        "description": "Audio file, or saw, square, pulse, noise (plugin:<name> needs ferraus-plugins) Type: text.",
+        "description": "Audio file, or saw, square, pulse, noise or plugin:<name> (an installed instrument plugin playing --midi, --follow, or --note) Type: text.",
         "default": "saw",
         "x-ferraus-kind": "str"
       },

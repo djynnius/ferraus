@@ -181,6 +181,23 @@ pub fn pitch_track_to_samples(frames: &[Option<f64>], hop: usize, len: usize, de
         .collect()
 }
 
+/// Renders a plugin instrument as a vocoder carrier: (plugin name or path, notes,
+/// length in frames, sample rate) → mono samples. Registered by the application (the plugin
+/// host lives in another crate).
+pub type PluginCarrier = fn(&str, &[MidiNote], usize, u32) -> ferraus_core::Result<Vec<f32>>;
+
+static PLUGIN_CARRIER: std::sync::OnceLock<PluginCarrier> = std::sync::OnceLock::new();
+
+/// Register the plugin-carrier renderer (once per process).
+pub fn set_plugin_carrier(f: PluginCarrier) -> bool {
+    PLUGIN_CARRIER.set(f).is_ok()
+}
+
+/// The registered plugin-carrier renderer, if any.
+pub fn plugin_carrier() -> Option<PluginCarrier> {
+    PLUGIN_CARRIER.get().copied()
+}
+
 /// A note parsed from a MIDI file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MidiNote {

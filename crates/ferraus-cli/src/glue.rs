@@ -61,7 +61,38 @@ fn resolve_external(name: &str) -> Result<Option<String>> {
     Ok(ferraus_plugins::resolve::resolve_instrument(name, &paths)?.map(|r| r.sound.source()))
 }
 
+/// A plugin instrument as the vocoder's carrier.
+fn vocoder_plugin_carrier(
+    name: &str,
+    notes: &[ferraus_dsp::vocoder::MidiNote],
+    frames: usize,
+    sample_rate: u32,
+) -> Result<Vec<f32>> {
+    let paths = SOUND_PATHS.get().cloned().unwrap_or_default();
+    let plugin = ferraus_plugins::api::PluginRef::resolve(name, &paths)?;
+    let sr = sample_rate as f64;
+    let mut events = Vec::new();
+    for n in notes {
+        let on = (n.start_s * sr).round() as u64;
+        let off = ((n.end_s * sr).round() as u64).max(on + 1);
+        events.push(ferraus_plugins::api::MidiEvent::note_on(on, 0, n.key, n.velocity as f32 / 127.0));
+        events.push(ferraus_plugins::api::MidiEvent::note_off(off, 0, n.key));
+    }
+    events.sort_by_key(|e| e.frame);
+    let run = ferraus_plugins::api::render_instrument_with(
+        &plugin,
+        &events,
+        sample_rate,
+        frames as f64 / sr,
+        &Default::default(),
+    )?;
+    let mut mono = run.audio.mono_mix();
+    mono.resize(frames, 0.0);
+    Ok(mono)
+}
+
 pub fn install() {
+    ferraus_dsp::vocoder::set_plugin_carrier(vocoder_plugin_carrier);
     ferraus_synth::set_plugin_offline_renderer(render_plugin);
     ferraus_synth::set_external_resolver(resolve_external);
     install_transcription();

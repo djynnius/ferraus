@@ -3,7 +3,7 @@
 use super::{secs, sr};
 use crate::vocoder::{
     parse_midi_notes, pitch_track_to_samples, render_midi, render_osc, track_pitch, vocode_classic, vocode_spectral,
-    VocoderParams, Waveform,
+    MidiNote, VocoderParams, Waveform,
 };
 use ferraus_core::prelude::*;
 use std::path::Path;
@@ -11,7 +11,7 @@ use std::path::Path;
 pub fn ops() -> Vec<OpSpec> {
     vec![OpSpec::transform("vocoder", Category::Tone, "Vocoder: make a carrier speak or sing with the input's voice", vocoder)
         .about("The input is the modulator (usually a voice). --carrier is an audio file, or a built-in oscillator (saw, square, pulse, noise) at --note, following the voice's detected pitch (--follow), or playing a MIDI file (--midi part.mid). Bands are log-spaced over --range. With --unvoiced noise, sibilants (detected by their high-band energy ratio) are re-synthesized from a noise carrier so consonants stay intelligible. --mode classic is a filter-bank channel vocoder; --mode spectral is STFT cross-synthesis (smoother, suits high band counts). The output level matches the modulator.")
-        .param(param("carrier", ParamKind::Str).default("saw").help("Audio file, or saw, square, pulse, noise (plugin:<name> needs ferraus-plugins)"))
+        .param(param("carrier", ParamKind::Str).default("saw").help("Audio file, or saw, square, pulse, noise or plugin:<name> (an installed instrument plugin playing --midi, --follow, or --note)"))
         .param(param("note", ParamKind::Freq).default("C3").help("Oscillator pitch when not following or playing MIDI"))
         .param(param("follow", ParamKind::Flag).help("Oscillator follows the modulator's detected pitch"))
         .param(param("midi", ParamKind::Path).help("MIDI file whose notes play the oscillator carrier (polyphonic)"))
@@ -33,8 +33,49 @@ fn carrier_signal(a: &Args, modulator: &[f32], rate: u32, ctx: &mut OpCtx) -> Re
     let n = modulator.len();
     let fs = rate as f64;
     if spec.trim().to_ascii_lowercase().starts_with("plugin:") {
-        return Err(Error::unsupported("plugin carriers need ferraus-plugins")
-            .with_hint("use --carrier saw|square|pulse|noise or an audio file"));
+        let name = spec.trim()[7..].trim().trim_matches('"').to_string();
+        let Some(render) = crate::vocoder::plugin_carrier() else {
+            return Err(Error::unsupported("plugin carriers need the plugin host, which this build does not include")
+                .with_hint("use --carrier saw|square|pulse|noise or an audio file"));
+        };
+        // the notes the instrument plays: a MIDI file, the modulator's own melody, or one held note
+        let notes: Vec<MidiNote> = if let Some(midi) = a.path("midi") {
+            ctx.check_allowed(&midi)?;
+            let bytes = std::fs::read(&midi)
+                .map_err(|e| Error::input(format!("cannot read MIDI file {}: {e}", midi.display())))?;
+            ctx.note_input(&midi);
+            parse_midi_notes(&bytes).map_err(Error::input)?
+        } else if a.flag("follow") {
+            let hop = 256;
+            let frames = track_pitch(modulator, fs, hop, 60.0, 1000.0);
+            let mut notes: Vec<MidiNote> = Vec::new();
+            for (k, f) in frames.iter().enumerate() {
+                let t0 = k as f64 * hop as f64 / fs;
+                let t1 = (k + 1) as f64 * hop as f64 / fs;
+                match f {
+                    Some(hz) => {
+                        let key = (69.0 + 12.0 * (hz / 440.0).log2()).round().clamp(0.0, 127.0) as u8;
+                        match notes.last_mut() {
+                            Some(last) if last.key == key && (last.end_s - t0).abs() < 1e-6 => last.end_s = t1,
+                            _ => notes.push(MidiNote { start_s: t0, end_s: t1, key, velocity: 100 }),
+                        }
+                    }
+                    None => {}
+                }
+            }
+            notes.retain(|n| n.end_s - n.start_s >= 0.03);
+            notes
+        } else {
+            let hz = a.freq("note")?;
+            let key = (69.0 + 12.0 * (hz / 440.0).log2()).round().clamp(0.0, 127.0) as u8;
+            vec![MidiNote { start_s: 0.0, end_s: n as f64 / fs, key, velocity: 100 }]
+        };
+        ctx.note("carrier", format!("plugin:{name}"));
+        ctx.note("carrier_notes", notes.len());
+        ctx.deterministic = Some(false);
+        let mut out = render(&name, &notes, n, rate)?;
+        out.resize(n, 0.0);
+        return Ok(out);
     }
     let as_osc = Waveform::parse(&spec).filter(|_| !Path::new(&spec).exists());
     match as_osc {
@@ -155,10 +196,13 @@ mod tests {
     }
 
     #[test]
-    fn plugin_carrier_is_unsupported() {
+    fn plugin_carrier_without_a_host_is_unsupported() {
+        if crate::vocoder::plugin_carrier().is_some() {
+            return;
+        }
         let e = run(&spec(), &[("carrier", "plugin:Surge XT")], sine(16000, 200.0, 0.1, 0.3)).unwrap_err();
         assert_eq!(e.kind, ErrorKind::Unsupported);
-        assert!(e.message.contains("ferraus-plugins"));
+        assert!(e.message.contains("plugin host"));
     }
 
     #[test]
