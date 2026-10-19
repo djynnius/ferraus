@@ -202,3 +202,80 @@ fn denormal_silence_is_not_slower() {
     }
     assert!(bad.is_empty(), "silence is slower than noise: {bad:?}");
 }
+
+/// Registry with the core built-ins and this crate's ops.
+fn registry() -> &'static ferraus_core::Registry {
+    let mut ops = ferraus_core::builtin::ops();
+    ops.extend(all());
+    ferraus_core::testing::leak_registry(ops)
+}
+
+#[test]
+fn presets_show_compress_tighten() {
+    let reg = registry();
+    let spec = reg.require("presets show").unwrap();
+    let a = ferraus_core::testing::args(spec, &[("name", "compress/tighten")]);
+    let mut c = ferraus_core::testing::ctx_with(reg);
+    let f = match spec.runner {
+        ferraus_core::Runner::Custom(f) => f,
+        _ => unreachable!(),
+    };
+    let v = f(&a, &mut c).unwrap();
+    assert_eq!(v["values"]["highpass"], "60Hz");
+    assert_eq!(v["values"]["ratio"], "4:1");
+    assert_eq!(v["values"]["attack"], "5ms");
+    assert_eq!(v["values"]["release"], "60ms");
+    assert_eq!(v["values"]["deess"], "on");
+    assert!(v["help"].as_str().unwrap().contains("--lowpass 16kHz"));
+}
+
+#[test]
+fn fx_chain_and_executor_round_trip() {
+    let reg = registry();
+    let mut c = ferraus_core::testing::ctx_with(reg);
+    let x = stereo(noise(48000, 0.3, 0.3, 21));
+    let y = ferraus_core::exec::run_transform(
+        &mut c,
+        "compress",
+        &[("preset", "tighten"), ("lowpass", "16kHz")],
+        x.clone(),
+    )
+    .unwrap();
+    assert_eq!(y.frames(), x.frames());
+    // the whole executor path: decode, run, encode, sidecar
+    let dir = ferraus_core::testing::TempDir::new("dsp-exec");
+    let inp = dir.path("in.wav");
+    ferraus_core::testing::write_wav(&inp, &x);
+    let out = dir.path("out.wav");
+    let rt = ferraus_core::exec::Runtime {
+        registry: reg,
+        io: &ferraus_core::testing::SIMPLE_IO,
+        progress: &ferraus_core::testing::NO_PROGRESS,
+        presets: &|_, _| None,
+        cancel: Default::default(),
+    };
+    for (cmd, args) in [
+        ("reverb", vec![("type", "hall"), ("tail", "1s")]),
+        ("fx", vec![("fx", "compress:preset=vocal"), ("fx", "deess"), ("fx", "reverb:type=plate,mix=18%")]),
+        ("pan", vec![("points", "0s=L100,end=R100")]),
+        ("vocoder", vec![("carrier", "square"), ("note", "A2")]),
+    ] {
+        let g = ferraus_core::Globals {
+            output: Some(out.display().to_string()),
+            overwrite: true,
+            sidecar: false,
+            ..Default::default()
+        };
+        let inv = ferraus_core::exec::Invocation {
+            command: cmd.into(),
+            args: args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            inputs: vec![inp.display().to_string()],
+            globals: g,
+            ..Default::default()
+        };
+        let o = rt.invoke(inv);
+        assert!(o.envelope.ok, "{cmd}: {:?}", o.envelope.error);
+        let y = ferraus_core::testing::read_wav(&out);
+        assert!(y.frames() >= x.frames(), "{cmd}");
+    }
+}
