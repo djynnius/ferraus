@@ -1,8 +1,11 @@
 # Using ferraus from AI agents (MCP)
 
 ferraus runs as a Model Context Protocol server. Every command is a tool named
-`ferraus_<command>` (spaces become underscores: `ferraus_denoise_profile`), with the same
-argument schema as `ferraus schema <command>` and the JSON envelope as its result.
+`ferraus_<command>` (spaces and hyphens become underscores: `ferraus_denoise_profile`,
+`ferraus_enhance_voice`), with the same argument schema as `ferraus schema <command>` and the
+JSON envelope as its result (in `structuredContent`, and as text in `content`). ferraus 0.1.0
+lists 175 tools. A complete session is in the
+[MCP setup and tool-call recipe](../cookbook/mcp-tool-calls.md).
 
 ## Claude Code
 

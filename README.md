@@ -48,7 +48,7 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 | Debian / Ubuntu | `sudo apt install ./ferraus_<version>_amd64.deb` |
 | Fedora / RHEL | `sudo dnf install ./ferraus-<version>.x86_64.rpm` |
 | Windows package managers | `winget install djynnius.ferraus` |
-| From source | `cargo install ferraus-cli` |
+| From source | `cargo install ferraus` |
 
 Release artifacts are built, signed, and attested only by this repository's GitHub Actions
 workflows. Model weights are not in the package; they download on first use (with `-y` or

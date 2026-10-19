@@ -15,7 +15,9 @@ everywhere.
 | `-10s` | 10 seconds before the end |
 | `start`, `end` | the ends of the input |
 
-Ranges use `..`: `--range 0s..2s`, `--range 1:00..end`, `--range ..30s` (from the start).
+Ranges use `..`: `--range 0s..2s`, `--range 1:00..end`, `--range ..30s` (from the start),
+`--range -10s..end` (the last ten seconds). In a beat range, give the tempo once with
+`--bpm 120 --range 0b..4b`; an `@120` suffix applies only to the end it is written on.
 
 ## Gain
 
@@ -29,7 +31,8 @@ Ranges use `..`: `--range 0s..2s`, `--range 1:00..end`, `--range ..30s` (from th
 
 ## Ratios and percentages
 
-`4:1` or `4`. `80%` or the fraction `0.8`; `130%` is 1.3. A bare `80` means 80, not 80%.
+`4:1` or `4`. `80%` or the fraction `0.8`; `130%` is 1.3. A bare number is a fraction, so
+`80` means 8000%, not 80%: always write the `%`.
 
 ## Musical grid
 

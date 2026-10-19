@@ -54,15 +54,16 @@ ferraus tune vocal.clean.wav --key auto --strength 85% -o vocal.tuned.wav --json
 ferraus mix vocal.tuned.wav beat.wav --gains 0dB,-3dB -o mix.wav --json
 ferraus master mix.wav --target streaming -o master.wav --report report.json --json
 
-# stems for a remix
-ferraus separate song.mp3 --stems 4 --tier quality -y --json
+# stems for a remix (only the fast tier's model is downloadable in this release)
+ferraus separate song.mp3 --stems 4 --tier fast -y --json
 
 # hummed idea to an instrument
 ferraus hum idea.wav --to piano -o idea.piano.wav --json
 
-# score from a song / perform a sheet-music PDF
-ferraus score song.wav --layout lead-sheet --chords diagrams -o song.musicxml --pdf song.pdf --json
-ferraus score perform sonata.pdf --instrument piano -o sonata.wav --json
+# score from MIDI / perform a MusicXML or ABC file
+# (score from audio and reading PDFs need models that are not downloadable in this release)
+ferraus score song.mid --chords diagrams -o song.musicxml --json
+ferraus score perform sonata.musicxml --instrument piano -o sonata.wav --json
 ```
 
 ## MCP
@@ -74,7 +75,8 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 Tools are `ferraus_<command>` (`ferraus_denoise_profile`), arguments are the command's flags
 with `_` instead of `-` plus `inputs` and `output`. Prompts: `clean-and-tune-vocal`,
 `extract-stems-for-remix`, `hum-to-instrument`, `master-song`. See
-[docs/guides/concepts/mcp.md](docs/guides/concepts/mcp.md).
+[docs/guides/concepts/mcp.md](docs/guides/concepts/mcp.md) and the agent recipes in
+[docs/guides/cookbook/](docs/guides/cookbook/).
 
 ## Working on the ferraus codebase
 
