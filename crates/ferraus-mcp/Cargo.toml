@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-mcp"
+description = "MCP server exposing every ferraus command as a tool"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,4 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tiny_http = "0.12"
