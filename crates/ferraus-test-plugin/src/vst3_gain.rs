@@ -126,7 +126,7 @@ impl IComponentTrait for GainProcessor {
         bus.channelCount = 2;
         copy_wstring(if dir == BusDirections_::kInput as BusDirection { "Input" } else { "Output" }, &mut bus.name);
         bus.busType = BusTypes_::kMain as BusType;
-        bus.flags = BusInfo_::BusFlags_::kDefaultActive;
+        bus.flags = BusInfo_::BusFlags_::kDefaultActive as u32;
         kResultOk
     }
     unsafe fn getRoutingInfo(&self, _i: *mut RoutingInfo, _o: *mut RoutingInfo) -> tresult {

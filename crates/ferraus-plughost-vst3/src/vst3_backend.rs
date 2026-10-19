@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 use vst3::Steinberg::Vst::*;
 use vst3::Steinberg::*;
 use vst3::{Class, ComPtr, ComRef, ComWrapper, Interface};
@@ -518,6 +518,7 @@ struct Module {
     factory: Option<ComPtr<IPluginFactory>>,
     exit: Option<ExitFn>,
     path: PathBuf,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     bundle_ref: *mut c_void,
     // never unloaded (see the CLAP host for why)
     _lib: ManuallyDrop<libloading::Library>,
@@ -526,6 +527,7 @@ struct Module {
 impl Module {
     fn open(bundle: &Path) -> HostResult<Module> {
         let bin = vst3_binary(bundle)?;
+        #[allow(unused_mut)] // only assigned on macOS
         let mut bundle_ref: *mut c_void = null_mut();
         #[cfg(unix)]
         let (lib, handle) = unsafe {
@@ -552,9 +554,14 @@ impl Module {
                     #[cfg(target_os = "macos")]
                     {
                         let p = bundle.as_os_str().as_encoded_bytes();
-                        let url = cf::CFURLCreateFromFileSystemRepresentation(null(), p.as_ptr(), p.len() as isize, 1);
+                        let url = cf::CFURLCreateFromFileSystemRepresentation(
+                            std::ptr::null(),
+                            p.as_ptr(),
+                            p.len() as isize,
+                            1,
+                        );
                         if !url.is_null() {
-                            bundle_ref = cf::CFBundleCreate(null(), url);
+                            bundle_ref = cf::CFBundleCreate(std::ptr::null(), url);
                             cf::CFRelease(url);
                         }
                     }
@@ -1094,7 +1101,7 @@ impl Vst3Backend {
         }
         let mut ctx: ProcessContext = unsafe { std::mem::zeroed() };
         use ProcessContext_::StatesAndFlags_ as SF;
-        ctx.state = SF::kPlaying | SF::kTempoValid | SF::kProjectTimeMusicValid | SF::kTimeSigValid;
+        ctx.state = (SF::kPlaying | SF::kTempoValid | SF::kProjectTimeMusicValid | SF::kTimeSigValid) as u32;
         ctx.sampleRate = self.sample_rate;
         ctx.projectTimeSamples = self.steady;
         ctx.continousTimeSamples = self.steady;

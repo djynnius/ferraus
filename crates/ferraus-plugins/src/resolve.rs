@@ -702,6 +702,17 @@ fn candidates_error(q: &str, hits: &[&Sound]) -> Error {
     .with_hint(hint)
 }
 
+/// [`resolve_sound`] with the standard ferraus folders and the default watchdog: the entry
+/// point for `render --instrument <name>` (pass `ctx.globals.sound_paths`).
+pub fn resolve_instrument(query: &str, sound_paths: &[PathBuf]) -> Result<Option<Resolved>> {
+    resolve_sound(&SoundsEnv::from_env(), query, sound_paths, crate::client::default_watchdog())
+}
+
+/// [`discover`] with the standard ferraus folders and the default watchdog.
+pub fn discover_sounds(sound_paths: &[PathBuf]) -> Result<Vec<Sound>> {
+    discover(&SoundsEnv::from_env(), sound_paths, crate::client::default_watchdog())
+}
+
 /// Resolve an instrument (or IR) name. `Ok(None)` when nothing matches, so callers can
 /// fall back to General MIDI names; an ambiguous name is an error listing candidates.
 pub fn resolve_sound(
