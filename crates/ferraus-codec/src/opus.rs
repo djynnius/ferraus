@@ -22,8 +22,7 @@ type EncCreate = unsafe extern "C" fn(i32, c_int, c_int, *mut c_int) -> *mut c_v
 type EncCtl = unsafe extern "C" fn(*mut c_void, c_int, ...) -> c_int;
 type EncFloat = unsafe extern "C" fn(*mut c_void, *const f32, c_int, *mut u8, i32) -> i32;
 type Destroy = unsafe extern "C" fn(*mut c_void);
-type MsDecCreate =
-    unsafe extern "C" fn(i32, c_int, c_int, c_int, *const u8, *mut c_int) -> *mut c_void;
+type MsDecCreate = unsafe extern "C" fn(i32, c_int, c_int, c_int, *const u8, *mut c_int) -> *mut c_void;
 type MsDecFloat = unsafe extern "C" fn(*mut c_void, *const u8, i32, *mut f32, c_int, c_int) -> c_int;
 type VersionFn = unsafe extern "C" fn() -> *const c_char;
 
@@ -167,15 +166,7 @@ impl OpusHead {
             }
             (b[19], b[20], b[21..21 + channels].to_vec())
         };
-        Some(OpusHead {
-            channels,
-            pre_skip,
-            input_rate,
-            gain_db: gain as f32 / 256.0,
-            streams,
-            coupled,
-            mapping,
-        })
+        Some(OpusHead { channels, pre_skip, input_rate, gain_db: gain as f32 / 256.0, streams, coupled, mapping })
     }
 
     /// An `OpusHead` for channel mapping family 0.
@@ -223,14 +214,10 @@ impl Decoder for SymOpusDecoder {
             Some(l) => l,
             None => return unsupported_error("opus: libopus not found"),
         };
-        let head = params
-            .extra_data
-            .as_deref()
-            .and_then(OpusHead::parse)
-            .or_else(|| {
-                let ch = params.channels.map(|c| c.count()).unwrap_or(2);
-                OpusHead::parse(&OpusHead::build(ch.min(2) as u8, 0, 48000))
-            });
+        let head = params.extra_data.as_deref().and_then(OpusHead::parse).or_else(|| {
+            let ch = params.channels.map(|c| c.count()).unwrap_or(2);
+            OpusHead::parse(&OpusHead::build(ch.min(2) as u8, 0, 48000))
+        });
         let head = match head {
             Some(h) => h,
             None => return decode_error("opus: invalid OpusHead"),

@@ -58,17 +58,14 @@ impl OggOpusEncoder {
         }
         let bitrate = bitrate.clamp(6_000, 510_000);
         let mut enc = OpusEncoder::new(spec.channels, bitrate as i32, vbr).map_err(|e| {
-            Error::unsupported(format!("Opus encoding unavailable: {e}"))
-                .with_hint(crate::ffmpeg_bridge::INSTALL_HINT)
+            Error::unsupported(format!("Opus encoding unavailable: {e}")).with_hint(crate::ffmpeg_bridge::INSTALL_HINT)
         })?;
         let pre_skip = enc.lookahead();
         let serial = (seed.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 32) as u32 | 1;
         let mut w = PacketWriter::new(sink);
         let head = OpusHead::build(spec.channels as u8, pre_skip as u16, 48000);
-        w.write_packet(head, serial, PacketWriteEndInfo::EndPage, 0)
-            .map_err(oerr)?;
-        w.write_packet(tags_packet(), serial, PacketWriteEndInfo::EndPage, 0)
-            .map_err(oerr)?;
+        w.write_packet(head, serial, PacketWriteEndInfo::EndPage, 0).map_err(oerr)?;
+        w.write_packet(tags_packet(), serial, PacketWriteEndInfo::EndPage, 0).map_err(oerr)?;
         Ok(OggOpusEncoder {
             enc,
             w,
@@ -88,11 +85,8 @@ impl OggOpusEncoder {
     fn emit(&mut self, packet: Vec<u8>, granule: u64) -> Result<()> {
         if let Some((p, g)) = self.held.take() {
             self.packets += 1;
-            let info = if self.packets % 50 == 0 {
-                PacketWriteEndInfo::EndPage
-            } else {
-                PacketWriteEndInfo::NormalPacket
-            };
+            let info =
+                if self.packets % 50 == 0 { PacketWriteEndInfo::EndPage } else { PacketWriteEndInfo::NormalPacket };
             self.bytes += p.len() as u64;
             self.w.write_packet(p, self.serial, info, g).map_err(oerr)?;
         }
@@ -144,13 +138,9 @@ impl StreamEncoder for OggOpusEncoder {
         let end_g = self.pre_skip as u64 + self.real;
         if let Some((p, _)) = self.held.take() {
             self.bytes += p.len() as u64;
-            self.w
-                .write_packet(p, self.serial, PacketWriteEndInfo::EndStream, end_g)
-                .map_err(oerr)?;
+            self.w.write_packet(p, self.serial, PacketWriteEndInfo::EndStream, end_g).map_err(oerr)?;
         } else {
-            self.w
-                .write_packet(Vec::new(), self.serial, PacketWriteEndInfo::EndStream, end_g)
-                .map_err(oerr)?;
+            self.w.write_packet(Vec::new(), self.serial, PacketWriteEndInfo::EndStream, end_g).map_err(oerr)?;
         }
         let mut inner = self.w.into_inner();
         std::io::Write::flush(&mut inner)?;

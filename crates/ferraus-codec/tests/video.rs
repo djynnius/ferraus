@@ -10,8 +10,14 @@ use ferraus_core::testing::{tone_level, TempDir};
 fn make(td: &TempDir, name: &str, vcodec: &[&str], acodec: &[&str]) -> Option<std::path::PathBuf> {
     let p = td.path(name);
     let mut args = vec![
-        "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=1",
-        "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x48:rate=10:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=880:sample_rate=48000:duration=1",
     ];
     args.extend_from_slice(vcodec);
     args.extend_from_slice(acodec);
@@ -86,7 +92,9 @@ fn webm_opus_audio_track() {
         return;
     }
     let td = TempDir::new("webm");
-    let Some(p) = make(&td, "v.webm", &["-c:v", "libvpx", "-b:v", "50k"], &["-c:a", "libopus", "-b:a", "96k"]) else { return };
+    let Some(p) = make(&td, "v.webm", &["-c:v", "libvpx", "-b:v", "50k"], &["-c:a", "libopus", "-b:a", "96k"]) else {
+        return;
+    };
     check(&p, "opus");
 }
 
@@ -96,9 +104,21 @@ fn second_audio_track_selection() {
     let p = td.path("two.mkv");
     let s = p.display().to_string();
     let ok = ffmpeg_gen(&[
-        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=0.5",
-        "-f", "lavfi", "-i", "sine=frequency=1500:sample_rate=48000:duration=0.5",
-        "-map", "0:a", "-map", "1:a", "-c:a", "flac", &s,
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=0.5",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=1500:sample_rate=48000:duration=0.5",
+        "-map",
+        "0:a",
+        "-map",
+        "1:a",
+        "-c:a",
+        "flac",
+        &s,
     ]);
     if !ok {
         return;

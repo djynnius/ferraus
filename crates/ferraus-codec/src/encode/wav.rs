@@ -35,15 +35,10 @@ impl WavEncoder {
         } else if [8, 16, 24, 32].contains(&bits) {
             (false, bits)
         } else {
-            return Err(Error::unsupported(format!(
-                "WAV bit depth {bits} is not supported (8, 16, 24, 32, or float)"
-            )));
+            return Err(Error::unsupported(format!("WAV bit depth {bits} is not supported (8, 16, 24, 32, or float)")));
         };
         let bps = (bits / 8) as u64;
-        let est = spec
-            .total_frames
-            .map(|f| f * bps * spec.channels as u64)
-            .unwrap_or(u64::MAX);
+        let est = spec.total_frames.map(|f| f * bps * spec.channels as u64).unwrap_or(u64::MAX);
         let has_junk = est > 0xF000_0000;
         let mut enc = WavEncoder {
             w: BufWriter::with_capacity(1 << 16, sink),
@@ -95,8 +90,7 @@ impl WavEncoder {
             h.extend_from_slice(&mask.to_le_bytes());
             // KSDATAFORMAT_SUBTYPE_PCM
             h.extend_from_slice(&[
-                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00,
-                0x38, 0x9B, 0x71,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71,
             ]);
         }
         h.extend_from_slice(b"data");
@@ -106,10 +100,7 @@ impl WavEncoder {
 
     fn header_len(&self) -> u64 {
         let extensible = !self.float && (self.spec.channels > 2 || self.bits > 16);
-        12 + if self.has_junk { 8 + JUNK_LEN as u64 } else { 0 }
-            + 8
-            + if extensible { 40 } else { 16 }
-            + 8
+        12 + if self.has_junk { 8 + JUNK_LEN as u64 } else { 0 } + 8 + if extensible { 40 } else { 16 } + 8
     }
 }
 
@@ -156,9 +147,7 @@ impl StreamEncoder for WavEncoder {
         let w = &mut self.w;
         if riff > u32::MAX as u64 {
             if !self.has_junk {
-                return Err(Error::processing(
-                    "WAV output exceeds 4 GiB; write FLAC or use a lower bit depth",
-                ));
+                return Err(Error::processing("WAV output exceeds 4 GiB; write FLAC or use a lower bit depth"));
             }
             w.seek(SeekFrom::Start(0)).map_err(io_err)?;
             w.write_all(b"RF64").map_err(io_err)?;

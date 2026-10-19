@@ -50,11 +50,8 @@ impl FlacEncoder {
         if spec.channels > 8 {
             return Err(Error::unsupported("FLAC supports at most 8 channels"));
         }
-        let config = flacenc::config::Encoder::default()
-            .into_verified()
-            .map_err(|e| ferr(e.1))?;
-        let info = StreamInfo::new(spec.sample_rate as usize, spec.channels, bits as usize)
-            .map_err(ferr)?;
+        let config = flacenc::config::Encoder::default().into_verified().map_err(|e| ferr(e.1))?;
+        let info = StreamInfo::new(spec.sample_rate as usize, spec.channels, bits as usize).map_err(ferr)?;
         let mut enc = FlacEncoder {
             w: BufWriter::with_capacity(1 << 16, sink),
             spec,
@@ -76,11 +73,9 @@ impl FlacEncoder {
     }
 
     fn encode_block(&mut self, interleaved: &[i32]) -> Result<()> {
-        (&mut self.fb, &mut self.ctx)
-            .fill_interleaved(interleaved)
-            .map_err(ferr)?;
-        let frame = flacenc::encode_fixed_size_frame(&self.config, &self.fb, self.frame_no, &self.info)
-            .map_err(ferr)?;
+        (&mut self.fb, &mut self.ctx).fill_interleaved(interleaved).map_err(ferr)?;
+        let frame =
+            flacenc::encode_fixed_size_frame(&self.config, &self.fb, self.frame_no, &self.info).map_err(ferr)?;
         let mut sink = MemSink::<u8>::with_capacity(interleaved.len() * 16);
         frame.write(&mut sink).map_err(ferr)?;
         let mut b = sink.into_inner();

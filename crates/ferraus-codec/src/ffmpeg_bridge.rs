@@ -34,9 +34,7 @@ pub fn managed_dir() -> PathBuf {
 pub fn which(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     let file = exe(name);
-    std::env::split_paths(&path)
-        .map(|d| d.join(&file))
-        .find(|p| is_executable(p))
+    std::env::split_paths(&path).map(|d| d.join(&file)).find(|p| is_executable(p))
 }
 
 fn is_executable(p: &Path) -> bool {
@@ -57,10 +55,7 @@ fn is_executable(p: &Path) -> bool {
 }
 
 fn env_bin(var: &str) -> Option<PathBuf> {
-    std::env::var_os(var)
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .filter(|p| is_executable(p))
+    std::env::var_os(var).filter(|v| !v.is_empty()).map(PathBuf::from).filter(|p| is_executable(p))
 }
 
 /// Locate the ffmpeg binary.
@@ -160,11 +155,7 @@ pub fn version_info(bin: &Path) -> Option<(String, String)> {
     let out = Command::new(bin).arg("-version").output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     let first = s.lines().next().unwrap_or("").to_string();
-    let config = s
-        .lines()
-        .find(|l| l.starts_with("configuration:"))
-        .unwrap_or("")
-        .to_string();
+    let config = s.lines().find(|l| l.starts_with("configuration:")).unwrap_or("").to_string();
     Some((first, config))
 }
 
@@ -247,10 +238,7 @@ pub fn encode_file(buf: &AudioBuffer, path: &Path, opts: &EncodeOptions) -> Resu
     let _ = std::fs::remove_file(&tmp);
     let out = res?;
     if !out.status.success() {
-        return Err(Error::processing(format!(
-            "ffmpeg could not encode .{ext}:\n{}",
-            tail(&out.stderr, 8)
-        )));
+        return Err(Error::processing(format!("ffmpeg could not encode .{ext}:\n{}", tail(&out.stderr, 8))));
     }
     Ok(())
 }
@@ -292,10 +280,7 @@ mod tests {
 
     #[test]
     fn license_detection() {
-        assert_eq!(
-            license_from_config("configuration: --enable-gpl --enable-version3"),
-            "GPL-3.0-or-later"
-        );
+        assert_eq!(license_from_config("configuration: --enable-gpl --enable-version3"), "GPL-3.0-or-later");
         assert_eq!(license_from_config("configuration: --enable-gpl"), "GPL-2.0-or-later");
         assert_eq!(license_from_config("configuration: --prefix=/x"), "LGPL-2.1-or-later");
         assert!(license_from_config("--enable-nonfree --enable-gpl").starts_with("nonfree"));

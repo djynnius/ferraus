@@ -9,8 +9,7 @@ type Init = unsafe extern "C" fn() -> *mut c_void;
 type SetInt = unsafe extern "C" fn(*mut c_void, c_int) -> c_int;
 type SetFloat = unsafe extern "C" fn(*mut c_void, f32) -> c_int;
 type Params = unsafe extern "C" fn(*mut c_void) -> c_int;
-type EncodeFloat =
-    unsafe extern "C" fn(*mut c_void, *const f32, *const f32, c_int, *mut u8, c_int) -> c_int;
+type EncodeFloat = unsafe extern "C" fn(*mut c_void, *const f32, *const f32, c_int, *mut u8, c_int) -> c_int;
 type Flush = unsafe extern "C" fn(*mut c_void, *mut u8, c_int) -> c_int;
 type TagFrame = unsafe extern "C" fn(*mut c_void, *mut u8, usize) -> usize;
 type Close = unsafe extern "C" fn(*mut c_void) -> c_int;
@@ -76,7 +75,18 @@ pub fn lib() -> Option<&'static LameLib> {
 pub fn vbr_quality_for(bitrate: u32) -> f32 {
     let kbps = bitrate as f32 / 1000.0;
     // (kbps, V-level) anchor points from LAME's documented averages
-    let table = [(245.0, 0.0), (225.0, 1.0), (190.0, 2.0), (175.0, 3.0), (165.0, 4.0), (130.0, 5.0), (115.0, 6.0), (100.0, 7.0), (85.0, 8.0), (65.0, 9.0)];
+    let table = [
+        (245.0, 0.0),
+        (225.0, 1.0),
+        (190.0, 2.0),
+        (175.0, 3.0),
+        (165.0, 4.0),
+        (130.0, 5.0),
+        (115.0, 6.0),
+        (100.0, 7.0),
+        (85.0, 8.0),
+        (65.0, 9.0),
+    ];
     if kbps >= table[0].0 {
         return 0.0;
     }

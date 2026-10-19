@@ -24,13 +24,7 @@ pub fn globals() -> Globals {
 pub fn invoke(cmd: &str, args: &[(&str, &str)], inputs: &[&Path], g: Globals) -> Envelope {
     let reg = registry();
     let presets = |_: &str, _: &str| None;
-    let rt = Runtime {
-        registry: reg,
-        io: &IO,
-        progress: &NP,
-        presets: &presets,
-        cancel: Default::default(),
-    };
+    let rt = Runtime { registry: reg, io: &IO, progress: &NP, presets: &presets, cancel: Default::default() };
     let inv = Invocation {
         command: cmd.into(),
         args: args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
@@ -56,7 +50,8 @@ pub fn int_signal(sr: u32, ch: usize, secs: f64, bits: u16) -> AudioBuffer {
                     x ^= x >> 7;
                     x ^= x << 17;
                     let noise = ((x >> 11) as f64 / (1u64 << 53) as f64 - 0.5) * 0.1;
-                    let v = 0.7 * (2.0 * std::f64::consts::PI * (220.0 * (c + 1) as f64) * i as f64 / sr as f64).sin() + noise;
+                    let v = 0.7 * (2.0 * std::f64::consts::PI * (220.0 * (c + 1) as f64) * i as f64 / sr as f64).sin()
+                        + noise;
                     let q = (v * s).round().clamp(-s, s - 1.0);
                     (q / s) as f32
                 })
@@ -93,11 +88,7 @@ pub fn ffmpeg_gen(args: &[&str]) -> bool {
 }
 
 pub fn max_abs_diff(a: &AudioBuffer, b: &AudioBuffer) -> f32 {
-    a.data
-        .iter()
-        .zip(&b.data)
-        .flat_map(|(x, y)| x.iter().zip(y).map(|(p, q)| (p - q).abs()))
-        .fold(0.0, f32::max)
+    a.data.iter().zip(&b.data).flat_map(|(x, y)| x.iter().zip(y).map(|(p, q)| (p - q).abs())).fold(0.0, f32::max)
 }
 
 /// Best alignment lag (0..max_lag) of `b` against `a` by correlation, then SNR in dB.

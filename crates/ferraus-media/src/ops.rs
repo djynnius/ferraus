@@ -124,7 +124,11 @@ fn input_file(ctx: &mut OpCtx, i: usize) -> Result<PathBuf> {
     }
     ctx.check_allowed(&p)?;
     if !p.exists() {
-        return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", p.display())));
+        return Err(Error::new(
+            ErrorKind::InputMissing,
+            "input_not_found",
+            format!("input not found: {}", p.display()),
+        ));
     }
     Ok(p)
 }
@@ -140,7 +144,10 @@ fn media_info(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         v["source"] = json!("ffprobe");
         return Ok(v);
     }
-    ctx.warn("ffprobe_missing", format!("ffprobe not found; showing the native description (install with: {})", ffmpeg_bridge::INSTALL_HINT));
+    ctx.warn(
+        "ffprobe_missing",
+        format!("ffprobe not found; showing the native description (install with: {})", ffmpeg_bridge::INSTALL_HINT),
+    );
     let ds = ferraus_codec::DecodeStream::open(&p, None)?;
     let inv = streams::native_streams(&p)?;
     Ok(json!({
@@ -161,7 +168,13 @@ fn media_streams(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     ctx.note_input(&p);
     let (list, source) = streams::streams(&p)?;
     if source == "symphonia" {
-        ctx.warn("ffprobe_missing", format!("ffprobe not found; only streams Symphonia understands are listed (install with: {})", ffmpeg_bridge::INSTALL_HINT));
+        ctx.warn(
+            "ffprobe_missing",
+            format!(
+                "ffprobe not found; only streams Symphonia understands are listed (install with: {})",
+                ffmpeg_bridge::INSTALL_HINT
+            ),
+        );
     }
     let count = |k: StreamKind| list.iter().filter(|s| s.kind == k).count();
     let text = list.iter().map(describe).collect::<Vec<_>>().join("\n");
@@ -222,10 +235,7 @@ fn copy_ext(codec: &str) -> &'static str {
 
 fn audio_codec_of(p: &Path, track: usize) -> Option<String> {
     if let Ok((list, _)) = streams::streams(p) {
-        return list
-            .into_iter()
-            .find(|s| s.kind == StreamKind::Audio && s.kind_index == track)
-            .map(|s| s.codec);
+        return list.into_iter().find(|s| s.kind == StreamKind::Audio && s.kind_index == track).map(|s| s.codec);
     }
     None
 }
@@ -261,7 +271,8 @@ fn ffmpeg_to(ctx: &mut OpCtx, what: &str, mut args: Vec<String>, out: &Path) -> 
     }
     std::fs::rename(&tmp, out)?;
     // record the command with the final path for provenance
-    let shown = cmd.replace(&bridge::shell_quote(&tmp.display().to_string()), &bridge::shell_quote(&out.display().to_string()));
+    let shown =
+        cmd.replace(&bridge::shell_quote(&tmp.display().to_string()), &bridge::shell_quote(&out.display().to_string()));
     ctx.note("command_line", &shown);
     record(ctx, out);
     Ok(shown)
@@ -283,13 +294,25 @@ fn extract_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let p = input_file(ctx, 0)?;
     let track = a.usize("track")?;
     if a.flag("copy") {
-        let codec = audio_codec_of(&p, track)
-            .ok_or_else(|| Error::usage(format!("{} has no audio track {track}", p.display())).with_hint(format!("ferraus media streams {}", p.display())))?;
+        let codec = audio_codec_of(&p, track).ok_or_else(|| {
+            Error::usage(format!("{} has no audio track {track}", p.display()))
+                .with_hint(format!("ferraus media streams {}", p.display()))
+        })?;
         let ext = out_ext_or(ctx, copy_ext(&codec));
         let out = ctx.output_path(None, &ext)?;
         ctx.prepare_output(&out)?;
         ctx.note_input(&p);
-        let args: Vec<String> = vec!["-i".into(), p.display().to_string(), "-map".into(), format!("0:a:{track}"), "-vn".into(), "-sn".into(), "-dn".into(), "-c:a".into(), "copy".into()];
+        let args: Vec<String> = vec![
+            "-i".into(),
+            p.display().to_string(),
+            "-map".into(),
+            format!("0:a:{track}"),
+            "-vn".into(),
+            "-sn".into(),
+            "-dn".into(),
+            "-c:a".into(),
+            "copy".into(),
+        ];
         if ctx.globals.dry_run {
             record(ctx, &out);
             return Ok(json!({"output": out.display().to_string(), "codec": codec, "copied": true}));
@@ -299,7 +322,8 @@ fn extract_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     let ext = out_ext_or(ctx, "wav");
     let fmt = Format::from_name(&ext).ok_or_else(|| {
-        Error::unsupported(format!("cannot encode '.{ext}'")).with_hint("use .wav, .flac, .ogg, .opus, .mp3, .aiff, or --copy")
+        Error::unsupported(format!("cannot encode '.{ext}'"))
+            .with_hint("use .wav, .flac, .ogg, .opus, .mp3, .aiff, or --copy")
     })?;
     let out = ctx.output_path(None, &ext)?;
     ctx.prepare_output(&out)?;
@@ -311,11 +335,14 @@ fn extract_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     // stream when possible (long videos), else decode fully
     let probe = ferraus_codec::DecodeStream::open(&p, Some(track));
-    let streamable = probe.as_ref().map(|ds| can_stream(&fmt, ds.info.sample_rate, ctx.globals.sample_rate)).unwrap_or(false);
+    let streamable =
+        probe.as_ref().map(|ds| can_stream(&fmt, ds.info.sample_rate, ctx.globals.sample_rate)).unwrap_or(false);
     let codec = probe.as_ref().ok().and_then(|d| d.info.codec.clone());
     if let Ok(ds) = &probe {
         if opts.bit_depth.is_none() {
-            opts.bit_depth = ds.info.bit_depth.or(Some(if codec.as_deref().map(ferraus_codec::decode::is_lossy_codec).unwrap_or(false) { 16 } else { 24 }));
+            opts.bit_depth = ds.info.bit_depth.or(Some(
+                if codec.as_deref().map(ferraus_codec::decode::is_lossy_codec).unwrap_or(false) { 16 } else { 24 },
+            ));
         }
     }
     drop(probe);
@@ -330,12 +357,18 @@ fn extract_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             progress.progress(&command, f);
             Ok(())
         };
-        let stats = convert_streaming(&p, &tmp, &opts, ctx.globals.channels, Some(track), &mut cb).inspect_err(|_| {
-            let _ = std::fs::remove_file(&tmp);
-        })?;
+        let stats =
+            convert_streaming(&p, &tmp, &opts, ctx.globals.channels, Some(track), &mut cb).inspect_err(|_| {
+                let _ = std::fs::remove_file(&tmp);
+            })?;
         std::fs::rename(&tmp, &out)?;
         let s = &stats.source;
-        ctx.input_records.push(InputRecord { path: p.display().to_string(), duration_s: Some(s.duration_s), sample_rate: Some(s.sample_rate), channels: Some(s.channels) });
+        ctx.input_records.push(InputRecord {
+            path: p.display().to_string(),
+            duration_s: Some(s.duration_s),
+            sample_rate: Some(s.sample_rate),
+            channels: Some(s.channels),
+        });
         ctx.outputs.push(OutputRecord {
             path: out.display().to_string(),
             role: None,
@@ -345,13 +378,22 @@ fn extract_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             extra: Map::new(),
         });
         ctx.progress.output(&out.display().to_string(), None);
-        return Ok(json!({"output": out.display().to_string(), "track": track, "format": fmt.name(), "source_codec": codec, "duration_s": s.duration_s, "streamed": true}));
+        return Ok(
+            json!({"output": out.display().to_string(), "track": track, "format": fmt.name(), "source_codec": codec, "duration_s": s.duration_s, "streamed": true}),
+        );
     }
     let (buf, info) = read_path(&p, Some(track))?;
-    ctx.input_records.push(InputRecord { path: p.display().to_string(), duration_s: Some(info.duration_s), sample_rate: Some(info.sample_rate), channels: Some(info.channels) });
+    ctx.input_records.push(InputRecord {
+        path: p.display().to_string(),
+        duration_s: Some(info.duration_s),
+        sample_rate: Some(info.sample_rate),
+        channels: Some(info.channels),
+    });
     let buf = conform_output(buf, &ctx.globals);
     ctx.write_audio_with(&out, &buf, None, &opts)?;
-    Ok(json!({"output": out.display().to_string(), "track": track, "format": fmt.name(), "source_codec": info.codec, "duration_s": buf.duration_s(), "streamed": false}))
+    Ok(
+        json!({"output": out.display().to_string(), "track": track, "format": fmt.name(), "source_codec": info.codec, "duration_s": buf.duration_s(), "streamed": false}),
+    )
 }
 
 fn replace_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -368,13 +410,25 @@ fn replace_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let codec = if choice == "auto" {
         match container.as_str() {
             "mp4" | "m4v" | "mov" => {
-                if matches!(src_codec.as_str(), "aac" | "alac" | "mp3") { "copy" } else { "aac" }
+                if matches!(src_codec.as_str(), "aac" | "alac" | "mp3") {
+                    "copy"
+                } else {
+                    "aac"
+                }
             }
             "webm" => {
-                if matches!(src_codec.as_str(), "opus" | "vorbis") { "copy" } else { "opus" }
+                if matches!(src_codec.as_str(), "opus" | "vorbis") {
+                    "copy"
+                } else {
+                    "opus"
+                }
             }
             _ => {
-                if src_codec.is_empty() || src_codec.starts_with("pcm") { "flac" } else { "copy" }
+                if src_codec.is_empty() || src_codec.starts_with("pcm") {
+                    "flac"
+                } else {
+                    "copy"
+                }
             }
         }
         .to_string()
@@ -383,10 +437,14 @@ fn replace_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     };
     let bitrate = ferraus_codec::encode::normalize_bitrate(ctx.globals.bitrate.unwrap_or(192_000));
     let mut args: Vec<String> = vec![
-        "-i".into(), video.display().to_string(),
-        "-i".into(), audio.display().to_string(),
-        "-map".into(), "0:v?".into(),
-        "-map".into(), "1:a:0".into(),
+        "-i".into(),
+        video.display().to_string(),
+        "-i".into(),
+        audio.display().to_string(),
+        "-map".into(),
+        "0:v?".into(),
+        "-map".into(),
+        "1:a:0".into(),
     ];
     if a.flag("keep-original") {
         args.extend(["-map".into(), "0:a?".into()]);
@@ -415,7 +473,9 @@ fn replace_audio(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         return Ok(json!({"output": out.display().to_string(), "audio_codec": codec, "args": args}));
     }
     let cmd = ffmpeg_to(ctx, "media replace-audio", args, &out)?;
-    Ok(json!({"output": out.display().to_string(), "audio_codec": codec, "source_audio_codec": src_codec, "command_line": cmd}))
+    Ok(
+        json!({"output": out.display().to_string(), "audio_codec": codec, "source_audio_codec": src_codec, "command_line": cmd}),
+    )
 }
 
 fn remux(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -425,7 +485,8 @@ fn remux(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let out = ctx.output_path(None, &ext)?;
     ctx.prepare_output(&out)?;
     ctx.note_input(&p);
-    let mut args: Vec<String> = vec!["-i".into(), p.display().to_string(), "-map".into(), "0".into(), "-c".into(), "copy".into()];
+    let mut args: Vec<String> =
+        vec!["-i".into(), p.display().to_string(), "-map".into(), "0".into(), "-c".into(), "copy".into()];
     if matches!(ext.as_str(), "mp4" | "m4v" | "mov" | "m4a") {
         args.extend(["-movflags".into(), "+faststart".into()]);
     }
@@ -442,7 +503,12 @@ fn remux(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         record(ctx, &out);
         return Ok(json!({"output": out.display().to_string(), "args": args}));
     }
-    let cmd = ffmpeg_to(ctx, "media remux", args, &out)
-        .map_err(|e| if e.code == "ffmpeg_failed" { e.with_hint("the target container may not support a stream's codec; transcode with `ferraus ffmpeg -- ...`") } else { e })?;
+    let cmd = ffmpeg_to(ctx, "media remux", args, &out).map_err(|e| {
+        if e.code == "ffmpeg_failed" {
+            e.with_hint("the target container may not support a stream's codec; transcode with `ferraus ffmpeg -- ...`")
+        } else {
+            e
+        }
+    })?;
     Ok(json!({"output": out.display().to_string(), "container": ext, "command_line": cmd}))
 }

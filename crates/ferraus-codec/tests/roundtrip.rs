@@ -183,7 +183,8 @@ fn missing_encoders_are_exit_4_with_bridge_hint() {
         let td = TempDir::new("no-encoders");
         assert!(!CodecIo.can_encode("mp3") && !CodecIo.can_encode("m4a") && !CodecIo.can_encode("opus"));
         for ext in ["mp3", "opus", "m4a"] {
-            let e = write_file(&td.path(&format!("a.{ext}")), &sine(48000, 440.0, 0.1, 0.5), &opts(ext, None)).unwrap_err();
+            let e =
+                write_file(&td.path(&format!("a.{ext}")), &sine(48000, 440.0, 0.1, 0.5), &opts(ext, None)).unwrap_err();
             assert_eq!(e.exit_code, 4, "{ext}");
             assert!(e.hint.as_deref().unwrap_or("").contains("ferraus doctor --install-ffmpeg"), "{ext}: {e:?}");
         }

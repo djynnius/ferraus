@@ -56,9 +56,16 @@ fn convert_flac_round_trip_bit_exact() {
 fn convert_resample_and_dither_uses_full_path() {
     let td = TempDir::new("conv-sr");
     let p = td.path("hi.wav");
-    write_file(&p, &sine(48000, 1000.0, 0.5, 0.5), &EncodeOptions { bit_depth: Some(24), ..Default::default() }).unwrap();
+    write_file(&p, &sine(48000, 1000.0, 0.5, 0.5), &EncodeOptions { bit_depth: Some(24), ..Default::default() })
+        .unwrap();
     let out = td.path("cd.wav");
-    let g = Globals { output: Some(out.display().to_string()), sample_rate: Some(44100), bit_depth: Some(16), seed: 3, ..globals() };
+    let g = Globals {
+        output: Some(out.display().to_string()),
+        sample_rate: Some(44100),
+        bit_depth: Some(16),
+        seed: 3,
+        ..globals()
+    };
     let env = invoke("convert", &[("dither", "triangular")], &[&p], g);
     assert!(env.ok, "{:?}", env.error);
     assert_eq!(env.result["streamed"], false);
@@ -114,7 +121,8 @@ fn info_reports_fields_loudness_and_spectrum() {
     let p = td.path("tone.flac");
     let mut tags = BTreeMap::new();
     tags.insert("title".to_string(), "Tone".to_string());
-    write_file(&p, &sine(48000, 1000.0, 2.0, 0.1), &EncodeOptions { bit_depth: Some(24), tags, ..Default::default() }).unwrap();
+    write_file(&p, &sine(48000, 1000.0, 2.0, 0.1), &EncodeOptions { bit_depth: Some(24), tags, ..Default::default() })
+        .unwrap();
     let env = invoke("info", &[("loudness", "true"), ("spectrum", "true")], &[&p], globals());
     assert!(env.ok, "{:?}", env.error);
     let r = &env.result;
@@ -154,7 +162,12 @@ fn tags_read_write_in_place_and_copy() {
     let env = invoke("tags", &[("set", "title=X")], &[&flac], globals());
     assert_eq!(env.error.unwrap().exit_code, 2);
     // in place, keeping a .bak
-    let env = invoke("tags", &[("set", "title=Song"), ("set", "artist=Me")], &[&flac], Globals { in_place: true, ..globals() });
+    let env = invoke(
+        "tags",
+        &[("set", "title=Song"), ("set", "artist=Me")],
+        &[&flac],
+        Globals { in_place: true, ..globals() },
+    );
     assert!(env.ok, "{:?}", env.error);
     assert_eq!(env.result["tags"]["title"], "Song");
     assert!(td.path("s.flac.bak").exists());
@@ -165,7 +178,12 @@ fn tags_read_write_in_place_and_copy() {
     let png = td.path("c.png");
     std::fs::write(&png, tiny_png()).unwrap();
     let copy = td.path("copy.flac");
-    let env = invoke("tags", &[("art", png.to_str().unwrap()), ("remove", "artist")], &[&flac], Globals { output: Some(copy.display().to_string()), ..globals() });
+    let env = invoke(
+        "tags",
+        &[("art", png.to_str().unwrap()), ("remove", "artist")],
+        &[&flac],
+        Globals { output: Some(copy.display().to_string()), ..globals() },
+    );
     assert!(env.ok, "{:?}", env.error);
     assert_eq!(env.result["art"]["present"], true);
     assert!(env.result["tags"].get("artist").is_none());
@@ -182,10 +200,9 @@ fn tags_read_write_in_place_and_copy() {
 fn tiny_png() -> Vec<u8> {
     // 1x1 transparent PNG
     vec![
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-        0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-        0x42, 0x60, 0x82,
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+        0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D,
+        0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ]
 }

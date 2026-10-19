@@ -88,14 +88,22 @@ pub fn parse_ffprobe(json: &Value) -> Vec<MediaStream> {
             index: s.get("index").and_then(num).unwrap_or(out.len()),
             kind,
             codec: s.get("codec_name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-            language: tags.and_then(|t| t.get("language")).and_then(|v| v.as_str()).filter(|l| *l != "und").map(String::from),
+            language: tags
+                .and_then(|t| t.get("language"))
+                .and_then(|v| v.as_str())
+                .filter(|l| *l != "und")
+                .map(String::from),
             duration_s: s.get("duration").and_then(num).or(fmt_dur),
             kind_index: counts[k],
             sample_rate: s.get("sample_rate").and_then(num),
             channels: s.get("channels").and_then(num),
             width: s.get("width").and_then(num),
             height: s.get("height").and_then(num),
-            frame_rate: if kind == StreamKind::Video { s.get("avg_frame_rate").and_then(rate).or_else(|| s.get("r_frame_rate").and_then(rate)) } else { None },
+            frame_rate: if kind == StreamKind::Video {
+                s.get("avg_frame_rate").and_then(rate).or_else(|| s.get("r_frame_rate").and_then(rate))
+            } else {
+                None
+            },
             bitrate: s.get("bit_rate").and_then(num),
             title: tags.and_then(|t| t.get("title")).and_then(|v| v.as_str()).map(String::from),
             default: s.get("disposition").and_then(|d| d.get("default")).and_then(num::<i64>).unwrap_or(0) == 1,

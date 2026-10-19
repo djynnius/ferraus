@@ -44,11 +44,7 @@ impl AiffEncoder {
         let bits = match bits {
             8 | 16 | 24 | 32 => bits,
             64 => 32,
-            b => {
-                return Err(Error::unsupported(format!(
-                    "AIFF bit depth {b} is not supported (8, 16, 24, 32)"
-                )))
-            }
+            b => return Err(Error::unsupported(format!("AIFF bit depth {b} is not supported (8, 16, 24, 32)"))),
         };
         let mut enc = AiffEncoder {
             w: BufWriter::with_capacity(1 << 16, sink),
@@ -129,9 +125,6 @@ impl StreamEncoder for AiffEncoder {
 mod tests {
     #[test]
     fn ext80_44100() {
-        assert_eq!(
-            super::ext80(44100),
-            [0x40, 0x0E, 0xAC, 0x44, 0, 0, 0, 0, 0, 0]
-        );
+        assert_eq!(super::ext80(44100), [0x40, 0x0E, 0xAC, 0x44, 0, 0, 0, 0, 0, 0]);
     }
 }

@@ -18,13 +18,7 @@ fn verr(e: vorbis_rs::VorbisError) -> Error {
 }
 
 impl VorbisEnc {
-    pub fn new(
-        sink: Box<dyn WriteSeek>,
-        spec: StreamSpec,
-        bitrate: u32,
-        vbr: bool,
-        seed: u64,
-    ) -> Result<VorbisEnc> {
+    pub fn new(sink: Box<dyn WriteSeek>, spec: StreamSpec, bitrate: u32, vbr: bool, seed: u64) -> Result<VorbisEnc> {
         let sr = NonZeroU32::new(spec.sample_rate).ok_or_else(|| Error::usage("sample rate 0"))?;
         let ch = u8::try_from(spec.channels)
             .ok()

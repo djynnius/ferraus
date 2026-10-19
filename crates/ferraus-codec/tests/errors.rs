@@ -33,7 +33,8 @@ fn unknown_output_format_is_exit_4() {
     let b = int_signal(8000, 1, 0.01, 16);
     let e = write_file(&td.path("a.xyz"), &b, &EncodeOptions::default()).unwrap_err();
     assert_eq!(e.exit_code, 4);
-    let e = write_bytes(&b, &EncodeOptions { format: Some("wav".into()), bit_depth: Some(12), ..Default::default() }).unwrap_err();
+    let e = write_bytes(&b, &EncodeOptions { format: Some("wav".into()), bit_depth: Some(12), ..Default::default() })
+        .unwrap_err();
     assert_eq!(e.exit_code, 4);
 }
 
@@ -105,7 +106,10 @@ fn truncated_and_corrupt_inputs_never_panic() {
 #[test]
 fn truncated_wav_decodes_what_is_there() {
     let b = int_signal(8000, 1, 0.5, 16);
-    let bytes = write_bytes(&b, &EncodeOptions { format: Some("wav".into()), bit_depth: Some(16), ..Default::default() }).unwrap().0;
+    let bytes =
+        write_bytes(&b, &EncodeOptions { format: Some("wav".into()), bit_depth: Some(16), ..Default::default() })
+            .unwrap()
+            .0;
     let half = &bytes[..bytes.len() / 2];
     let (got, _) = CodecIo.read_bytes(half, Some("wav")).unwrap();
     assert!(got.frames() > 1000 && got.frames() < b.frames());

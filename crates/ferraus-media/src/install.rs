@@ -191,7 +191,9 @@ pub fn check_verifiable(b: &FfmpegBuild) -> Result<bool> {
             b.os, b.arch
         ),
     )
-    .with_hint("set FERRAUS_ALLOW_UNVERIFIED=1 to accept it anyway, or point ffmpeg.path in the config at your own ffmpeg"))
+    .with_hint(
+        "set FERRAUS_ALLOW_UNVERIFIED=1 to accept it anyway, or point ffmpeg.path in the config at your own ffmpeg",
+    ))
 }
 
 /// SHA-256 of a file as lowercase hex.
@@ -304,12 +306,8 @@ pub fn install_ffmpeg(yes: bool, offline: bool) -> Result<PathBuf> {
 /// Like [`install_ffmpeg`], returning the full report.
 pub fn install_ffmpeg_report(yes: bool, offline: bool) -> Result<InstallReport> {
     let b = current_build().ok_or_else(|| {
-        Error::unsupported(format!(
-            "no pinned FFmpeg build for {}-{}",
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        ))
-        .with_hint("install ffmpeg with your package manager and set ffmpeg.path in the config")
+        Error::unsupported(format!("no pinned FFmpeg build for {}-{}", std::env::consts::OS, std::env::consts::ARCH))
+            .with_hint("install ffmpeg with your package manager and set ffmpeg.path in the config")
     })?;
     install_build(b, yes, offline, &ffmpeg_bridge::managed_dir())
 }
@@ -420,7 +418,13 @@ mod tests {
             }
             assert!(!b.license.is_empty() && !b.version.is_empty());
         }
-        for (os, arch) in [("linux", "x86_64"), ("linux", "aarch64"), ("macos", "x86_64"), ("macos", "aarch64"), ("windows", "x86_64")] {
+        for (os, arch) in [
+            ("linux", "x86_64"),
+            ("linux", "aarch64"),
+            ("macos", "x86_64"),
+            ("macos", "aarch64"),
+            ("windows", "x86_64"),
+        ] {
             assert!(build_for(os, arch).is_some(), "{os}-{arch}");
         }
     }

@@ -18,10 +18,7 @@ pub struct RunOutput {
 
 /// Quote one argument for display as a POSIX shell word.
 pub fn shell_quote(a: &str) -> String {
-    if !a.is_empty()
-        && a.chars()
-            .all(|c| c.is_ascii_alphanumeric() || "-_./:=+,@%^".contains(c))
-    {
+    if !a.is_empty() && a.chars().all(|c| c.is_ascii_alphanumeric() || "-_./:=+,@%^".contains(c)) {
         a.to_string()
     } else {
         format!("'{}'", a.replace('\'', "'\\''"))
@@ -68,12 +65,8 @@ pub fn run_streaming(bin: &Path, args: &[String], echo: bool) -> Result<RunOutpu
         tail.into_iter().collect::<Vec<_>>()
     });
     let mut out = Vec::new();
-    stdout
-        .read_to_end(&mut out)
-        .map_err(|e| Error::processing(format!("reading ffmpeg output: {e}")))?;
-    let status = child
-        .wait()
-        .map_err(|e| Error::processing(format!("waiting for ffmpeg: {e}")))?;
+    stdout.read_to_end(&mut out).map_err(|e| Error::processing(format!("reading ffmpeg output: {e}")))?;
+    let status = child.wait().map_err(|e| Error::processing(format!("waiting for ffmpeg: {e}")))?;
     let tail = err_thread.join().unwrap_or_default();
     Ok(RunOutput { status: status.code(), success: status.success(), stdout: out, stderr_tail: tail })
 }

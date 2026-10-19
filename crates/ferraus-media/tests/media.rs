@@ -55,13 +55,40 @@ fn movie(td: &TempDir) -> Option<std::path::PathBuf> {
     let p = td.path("movie.mkv");
     let (s, p_s) = (srt.display().to_string(), p.display().to_string());
     gen(&[
-        "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=2",
-        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2",
-        "-f", "lavfi", "-i", "sine=frequency=1500:sample_rate=44100:duration=2",
-        "-i", &s,
-        "-map", "0:v", "-map", "1:a", "-map", "2:a", "-map", "3:s",
-        "-c:v", "mpeg4", "-c:a:0", "aac", "-c:a:1", "flac", "-c:s", "srt",
-        "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fra",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x48:rate=10:duration=2",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=2",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=1500:sample_rate=44100:duration=2",
+        "-i",
+        &s,
+        "-map",
+        "0:v",
+        "-map",
+        "1:a",
+        "-map",
+        "2:a",
+        "-map",
+        "3:s",
+        "-c:v",
+        "mpeg4",
+        "-c:a:0",
+        "aac",
+        "-c:a:1",
+        "flac",
+        "-c:s",
+        "srt",
+        "-metadata:s:a:0",
+        "language=eng",
+        "-metadata:s:a:1",
+        "language=fra",
         &p_s,
     ])
     .then_some(p)
@@ -104,7 +131,8 @@ fn ffmpeg_passthrough_writes_files_and_fails_cleanly() {
     assert!(env.ok, "{:?}", env.error);
     assert!(o.exists());
     // a failing run is a processing error carrying ffmpeg's stderr
-    let env = invoke("ffmpeg", &[("args", "-hide_banner"), ("args", "-i"), ("args", "/definitely/not/here.wav")], &[], g());
+    let env =
+        invoke("ffmpeg", &[("args", "-hide_banner"), ("args", "-i"), ("args", "/definitely/not/here.wav")], &[], g());
     let e = env.error.unwrap();
     assert_eq!(e.exit_code, 1);
     assert_eq!(e.code, "ffmpeg_failed");
@@ -172,7 +200,21 @@ fn replace_audio_and_remux() {
     let td = TempDir::new("media-replace");
     let v = td.path("clip.mp4");
     let vs = v.display().to_string();
-    if !gen(&["-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", "mpeg4", "-c:a", "aac", &vs]) {
+    if !gen(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x48:rate=10:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=1",
+        "-c:v",
+        "mpeg4",
+        "-c:a",
+        "aac",
+        &vs,
+    ]) {
         return;
     }
     let a = td.path("new.wav");
@@ -201,7 +243,12 @@ fn replace_audio_and_remux() {
     assert_eq!(list.len(), 2);
     assert!(env.result["command_line"].as_str().unwrap().contains("-c copy"));
     // dry run writes nothing
-    let env = invoke("media remux", &[], &[&v], Globals { output: Some(td.path("dry.mov").display().to_string()), dry_run: true, ..g() });
+    let env = invoke(
+        "media remux",
+        &[],
+        &[&v],
+        Globals { output: Some(td.path("dry.mov").display().to_string()), dry_run: true, ..g() },
+    );
     assert!(env.ok);
     assert!(!td.path("dry.mov").exists());
 }

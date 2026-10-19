@@ -68,8 +68,8 @@ pub fn can_encode(ext: &str) -> bool {
 
 /// Extensions this build can decode natively (FFmpeg may add more).
 pub const DECODE_EXTENSIONS: &[&str] = &[
-    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "mp2", "m4a", "m4b", "mp4", "mov", "aac",
-    "ogg", "oga", "opus", "mkv", "mka", "webm", "caf",
+    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "mp2", "m4a", "m4b", "mp4", "mov", "aac", "ogg", "oga",
+    "opus", "mkv", "mka", "webm", "caf",
 ];
 
 /// Decode a file, selecting the n-th audio track; falls back to FFmpeg for unsupported codecs.
@@ -193,7 +193,11 @@ pub fn write_file(path: &Path, buf: &AudioBuffer, opts: &EncodeOptions) -> Resul
         let mut o = opts.clone();
         o.format = Some(fmt.name().to_string());
         ffmpeg_bridge::encode_file(buf, path, &o)?;
-        return Ok(EncodeReport { codec: format!("{} (ffmpeg)", fmt.name()), frames: buf.frames() as u64, ..Default::default() });
+        return Ok(EncodeReport {
+            codec: format!("{} (ffmpeg)", fmt.name()),
+            frames: buf.frames() as u64,
+            ..Default::default()
+        });
     }
     let b = prepare_buffer(&fmt, buf);
     let file = std::fs::File::create(path)?;
@@ -227,10 +231,7 @@ pub fn write_bytes(buf: &AudioBuffer, opts: &EncodeOptions) -> Result<(Vec<u8>, 
 }
 
 fn nanos() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)
 }
 
 /// Statistics from [`convert_streaming`].

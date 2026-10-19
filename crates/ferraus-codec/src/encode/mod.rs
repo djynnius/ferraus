@@ -203,8 +203,9 @@ pub fn native_encoder(
         Format::Vorbis => Box::new(vorbis::VorbisEnc::new(sink, spec, bitrate, opts.vbr, opts.seed)?),
         #[cfg(not(feature = "vorbis"))]
         Format::Vorbis => {
-            return Err(Error::unsupported("this build has no Vorbis encoder")
-                .with_hint(crate::ffmpeg_bridge::INSTALL_HINT))
+            return Err(
+                Error::unsupported("this build has no Vorbis encoder").with_hint(crate::ffmpeg_bridge::INSTALL_HINT)
+            )
         }
         Format::Opus => Box::new(opus_ogg::OggOpusEncoder::new(sink, spec, bitrate, opts.vbr, opts.seed)?),
         Format::Mp3 => Box::new(mp3::Mp3Encoder::new(sink, spec, bitrate, opts.vbr)?),

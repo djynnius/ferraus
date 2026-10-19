@@ -12,10 +12,7 @@ fn candidates(env: &str, base: &str, soname_major: &str) -> Vec<PathBuf> {
         v.push(PathBuf::from(p));
     }
     if cfg!(target_os = "macos") {
-        let names = [
-            format!("lib{base}.{soname_major}.dylib"),
-            format!("lib{base}.dylib"),
-        ];
+        let names = [format!("lib{base}.{soname_major}.dylib"), format!("lib{base}.dylib")];
         for n in &names {
             v.push(PathBuf::from(n));
         }
@@ -25,18 +22,11 @@ fn candidates(env: &str, base: &str, soname_major: &str) -> Vec<PathBuf> {
             }
         }
     } else if cfg!(windows) {
-        for n in [
-            format!("{base}.dll"),
-            format!("lib{base}.dll"),
-            format!("lib{base}-{soname_major}.dll"),
-        ] {
+        for n in [format!("{base}.dll"), format!("lib{base}.dll"), format!("lib{base}-{soname_major}.dll")] {
             v.push(PathBuf::from(n));
         }
     } else {
-        for n in [
-            format!("lib{base}.so.{soname_major}"),
-            format!("lib{base}.so"),
-        ] {
+        for n in [format!("lib{base}.so.{soname_major}"), format!("lib{base}.so")] {
             v.push(PathBuf::from(n));
         }
     }

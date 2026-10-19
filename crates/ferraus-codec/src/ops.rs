@@ -87,7 +87,11 @@ fn open_input(ctx: &mut OpCtx) -> Result<(DecodeStream, PathBuf)> {
     }
     ctx.check_allowed(&path)?;
     if !path.exists() {
-        return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", path.display())));
+        return Err(Error::new(
+            ErrorKind::InputMissing,
+            "input_not_found",
+            format!("input not found: {}", path.display()),
+        ));
     }
     Ok((DecodeStream::open(&path, None)?, path))
 }
@@ -194,10 +198,7 @@ fn default_ext(ctx: &OpCtx, input: &Path) -> String {
             return e.to_string_lossy().to_lowercase();
         }
     }
-    let ext = input
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_else(|| "wav".into());
+    let ext = input.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_else(|| "wav".into());
     // video containers keep their audio as wav unless asked otherwise
     if can_encode(&ext) && Format::from_name(&ext).is_some() {
         ext
@@ -230,15 +231,15 @@ fn convert(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     } else {
         ctx.check_allowed(&input)?;
         if !input.exists() {
-            return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", input.display())));
+            return Err(Error::new(
+                ErrorKind::InputMissing,
+                "input_not_found",
+                format!("input not found: {}", input.display()),
+            ));
         }
         Some(DecodeStream::open(&input, None)?.info)
     };
-    let src_lossy = src
-        .as_ref()
-        .and_then(|s| s.codec.as_deref())
-        .map(crate::decode::is_lossy_codec)
-        .unwrap_or(false);
+    let src_lossy = src.as_ref().and_then(|s| s.codec.as_deref()).map(crate::decode::is_lossy_codec).unwrap_or(false);
     opts.bit_depth = ctx
         .globals
         .bit_depth
@@ -310,7 +311,14 @@ fn convert(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         });
         ctx.progress.output(&out.display().to_string(), None);
         if stats.report.clipped > 0 {
-            ctx.warn("clipped", format!("{} samples clipped while quantizing to {} bits", stats.report.clipped, opts.bit_depth.unwrap_or(24)));
+            ctx.warn(
+                "clipped",
+                format!(
+                    "{} samples clipped while quantizing to {} bits",
+                    stats.report.clipped,
+                    opts.bit_depth.unwrap_or(24)
+                ),
+            );
         }
         if stats.skipped_packets > 0 {
             ctx.warn("corrupt_packets", format!("{} undecodable packets were skipped", stats.skipped_packets));
@@ -348,7 +356,11 @@ fn tags_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     ctx.check_allowed(&input)?;
     if !input.exists() {
-        return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", input.display())));
+        return Err(Error::new(
+            ErrorKind::InputMissing,
+            "input_not_found",
+            format!("input not found: {}", input.display()),
+        ));
     }
     ctx.note_input(&input);
     let mut edit = tags::TagEdit {
@@ -360,12 +372,18 @@ fn tags_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     if let Some(art) = &edit.art {
         ctx.check_allowed(art)?;
         if !art.exists() {
-            return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("cover image not found: {}", art.display())));
+            return Err(Error::new(
+                ErrorKind::InputMissing,
+                "input_not_found",
+                format!("cover image not found: {}", art.display()),
+            ));
         }
     }
     if edit.is_empty() {
         let t = tags::read(&input)?;
-        return Ok(json!({"path": input.display().to_string(), "tag_type": t.tag_type, "tags": t.tags, "art": {"present": !t.art.is_empty(), "pictures": t.art}}));
+        return Ok(
+            json!({"path": input.display().to_string(), "tag_type": t.tag_type, "tags": t.tags, "art": {"present": !t.art.is_empty(), "pictures": t.art}}),
+        );
     }
     let target = if ctx.globals.in_place {
         input.clone()
@@ -398,5 +416,7 @@ fn tags_op(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     std::fs::rename(&tmp, &target)?;
     ctx.record_output(&target, None);
     let t = tags::read(&target)?;
-    Ok(json!({"path": target.display().to_string(), "tag_type": t.tag_type, "tags": t.tags, "art": {"present": !t.art.is_empty(), "pictures": t.art}}))
+    Ok(
+        json!({"path": target.display().to_string(), "tag_type": t.tag_type, "tags": t.tags, "art": {"present": !t.art.is_empty(), "pictures": t.art}}),
+    )
 }

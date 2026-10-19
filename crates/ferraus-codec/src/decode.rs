@@ -129,31 +129,21 @@ fn std_key_name(k: StandardTagKey) -> Option<&'static str> {
 
 fn collect_meta(rev: &MetadataRevision, tags: &mut BTreeMap<String, String>, art: &mut Vec<ArtInfo>) {
     for t in rev.tags() {
-        let key = t
-            .std_key
-            .and_then(std_key_name)
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| t.key.to_ascii_lowercase());
-        let val = t.value.to_string();
+        let key = t.std_key.and_then(std_key_name).map(|s| s.to_string()).unwrap_or_else(|| t.key.to_ascii_lowercase());
+        let val = t.value.to_string().trim_end_matches('\0').trim().to_string();
         if !val.is_empty() && !key.is_empty() {
             tags.entry(key).or_insert(val);
         }
     }
     for v in rev.visuals() {
-        art.push(ArtInfo {
-            mime: v.media_type.clone(),
-            bytes: v.data.len(),
-            usage: v.usage.map(|u| format!("{u:?}")),
-        });
+        art.push(ArtInfo { mime: v.media_type.clone(), bytes: v.data.len(), usage: v.usage.map(|u| format!("{u:?}")) });
     }
 }
 
 /// True for lossy codecs (used to pick a default output bit depth).
 pub fn is_lossy_codec(codec: &str) -> bool {
-    matches!(
-        codec,
-        "mp3" | "mp2" | "mp1" | "aac" | "vorbis" | "opus" | "adpcm_ima" | "adpcm_ms" | "ac3" | "wma"
-    ) || codec.starts_with("adpcm")
+    matches!(codec, "mp3" | "mp2" | "mp1" | "aac" | "vorbis" | "opus" | "adpcm_ima" | "adpcm_ms" | "ac3" | "wma")
+        || codec.starts_with("adpcm")
 }
 
 fn sym_err(e: SymError, what: &str) -> Error {
@@ -166,7 +156,9 @@ fn sym_err(e: SymError, what: &str) -> Error {
             }
         }
         SymError::Unsupported(m) => Error::unsupported(format!("{what}: unsupported format or codec ({m})")),
-        SymError::DecodeError(m) => Error::new(ErrorKind::InputMissing, "input_corrupt", format!("{what}: corrupt data ({m})")),
+        SymError::DecodeError(m) => {
+            Error::new(ErrorKind::InputMissing, "input_corrupt", format!("{what}: corrupt data ({m})"))
+        }
         SymError::LimitError(m) => Error::new(ErrorKind::InputMissing, "input_corrupt", format!("{what}: {m}")),
         SymError::ResetRequired => Error::processing(format!("{what}: decoder reset required")),
         SymError::SeekError(_) => Error::processing(format!("{what}: seek error")),
@@ -237,9 +229,9 @@ impl DecodeStream {
         let mut probed = symphonia::default::get_probe()
             .format(&hint, mss, &fmt_opts, &MetadataOptions::default())
             .map_err(|e| match e {
-                SymError::Unsupported(_) => Error::unsupported(format!(
-                    "{label}: not a recognized audio or media file"
-                )),
+                SymError::Unsupported(_) => {
+                    Error::unsupported(format!("{label}: not a recognized audio or media file"))
+                }
                 other => sym_err(other, &label),
             })?;
         let mut tags = BTreeMap::new();
@@ -260,10 +252,13 @@ impl DecodeStream {
             if is_audio {
                 audio.push(t.id);
             }
-            let codec = codecs()
-                .get_codec(p.codec)
-                .map(|d| d.short_name.to_string())
-                .unwrap_or_else(|| if p.codec == CODEC_TYPE_NULL { "unknown".into() } else { format!("{}", p.codec) });
+            let codec = codecs().get_codec(p.codec).map(|d| d.short_name.to_string()).unwrap_or_else(|| {
+                if p.codec == CODEC_TYPE_NULL {
+                    "unknown".into()
+                } else {
+                    format!("{}", p.codec)
+                }
+            });
             tracks.push(TrackInfo {
                 index: i,
                 id: t.id,
@@ -331,10 +326,7 @@ impl DecodeStream {
         };
         if !art.is_empty() {
             let a = &art[0];
-            tags.insert(
-                "embedded_art".into(),
-                format!("{} picture(s), first {} {} bytes", art.len(), a.mime, a.bytes),
-            );
+            tags.insert("embedded_art".into(), format!("{} picture(s), first {} {} bytes", art.len(), a.mime, a.bytes));
         }
         let info = SourceInfo {
             path: label.clone(),
@@ -464,7 +456,9 @@ pub fn to_planar(buf: &AudioBufferRef) -> AudioBuffer {
     match buf {
         AudioBufferRef::U8(b) => conv!(b, |v: &u8| (*v as f32 - 128.0) / 128.0),
         AudioBufferRef::U16(b) => conv!(b, |v: &u16| (*v as f32 - 32768.0) / 32768.0),
-        AudioBufferRef::U24(b) => conv!(b, |v: &symphonia::core::sample::u24| (v.inner() as f32 - 8388608.0) / 8388608.0),
+        AudioBufferRef::U24(b) => {
+            conv!(b, |v: &symphonia::core::sample::u24| (v.inner() as f32 - 8388608.0) / 8388608.0)
+        }
         AudioBufferRef::U32(b) => conv!(b, |v: &u32| ((*v as f64 - S31) / S31) as f32),
         AudioBufferRef::S8(b) => conv!(b, |v: &i8| *v as f32 / 128.0),
         AudioBufferRef::S16(b) => conv!(b, |v: &i16| *v as f32 / 32768.0),

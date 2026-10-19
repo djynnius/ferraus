@@ -101,6 +101,7 @@ pub fn read(path: &Path) -> Result<TagSet> {
         out.tag_type = Some(format!("{tt:?}"));
         for item in tag.items() {
             if let Some(t) = item.value().text() {
+                let t = t.trim_end_matches('\0').trim();
                 if !t.is_empty() {
                     out.tags.entry(friendly(item.key(), tt)).or_insert_with(|| t.to_string());
                 }
@@ -108,7 +109,10 @@ pub fn read(path: &Path) -> Result<TagSet> {
         }
         for p in tag.pictures() {
             out.art.push(ArtInfo {
-                mime: p.mime_type().map(|m| m.as_str().to_string()).unwrap_or_else(|| "application/octet-stream".into()),
+                mime: p
+                    .mime_type()
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_else(|| "application/octet-stream".into()),
                 bytes: p.data().len(),
                 usage: Some(format!("{:?}", p.pic_type())),
             });
@@ -165,9 +169,7 @@ pub fn write(path: &Path, edit: &TagEdit) -> Result<()> {
         if v.is_empty() {
             tag.remove_key(key);
         } else if !tag.insert_text(key, v.clone()) {
-            return Err(Error::unsupported(format!(
-                "tag '{k}' cannot be stored in a {tt:?} tag"
-            )));
+            return Err(Error::unsupported(format!("tag '{k}' cannot be stored in a {tt:?} tag")));
         }
     }
     if let Some(art) = &edit.art {
@@ -198,9 +200,7 @@ pub fn apply(path: &Path, tags: &BTreeMap<String, String>) -> Result<()> {
 
 /// Parse `key=value`.
 pub fn parse_assignment(s: &str) -> Result<(String, String)> {
-    let (k, v) = s
-        .split_once('=')
-        .ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
+    let (k, v) = s.split_once('=').ok_or_else(|| Error::usage(format!("--set expects key=value, got '{s}'")))?;
     if k.trim().is_empty() {
         return Err(Error::usage(format!("--set expects key=value, got '{s}'")));
     }

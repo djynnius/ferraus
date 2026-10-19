@@ -16,20 +16,15 @@ pub struct Mp3Encoder {
 
 /// The error returned when MP3 is requested but neither LAME nor FFmpeg is available.
 pub fn unavailable() -> Error {
-    Error::unsupported(
-        "MP3 encoding needs libmp3lame (loaded at run time) or the FFmpeg bridge; neither was found",
-    )
-    .with_hint(crate::ffmpeg_bridge::INSTALL_HINT)
+    Error::unsupported("MP3 encoding needs libmp3lame (loaded at run time) or the FFmpeg bridge; neither was found")
+        .with_hint(crate::ffmpeg_bridge::INSTALL_HINT)
 }
 
 impl Mp3Encoder {
     pub fn new(sink: Box<dyn WriteSeek>, spec: StreamSpec, bitrate: u32, vbr: bool) -> Result<Mp3Encoder> {
         if spec.channels > 2 {
-            return Err(Error::unsupported(format!(
-                "MP3 supports 1 or 2 channels, got {}",
-                spec.channels
-            ))
-            .with_hint("add --channels 2"));
+            return Err(Error::unsupported(format!("MP3 supports 1 or 2 channels, got {}", spec.channels))
+                .with_hint("add --channels 2"));
         }
         if crate::lame::lib().is_none() {
             return Err(unavailable());

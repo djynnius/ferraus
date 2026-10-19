@@ -166,12 +166,7 @@ mod tests {
         let mut q = Quantizer::new(16, Dither::None, 7);
         let mut plain = Vec::new();
         q.quantize(&data, &mut plain);
-        let diff: i64 = plain
-            .iter()
-            .zip(run(7))
-            .map(|(a, b)| (*a as i64 - b as i64).abs())
-            .max()
-            .unwrap();
+        let diff: i64 = plain.iter().zip(run(7)).map(|(a, b)| (*a as i64 - b as i64).abs()).max().unwrap();
         assert!(diff <= 1, "TPDF stays within 1 LSB of rounding");
     }
 

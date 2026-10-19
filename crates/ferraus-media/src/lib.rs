@@ -42,13 +42,14 @@ pub fn ffmpeg_status() -> Value {
             "pinned_build": install::current_build().map(|b| json!({"version": b.version, "license": b.license, "provider": b.provider})),
         });
     };
-    let source = if std::env::var_os("FERRAUS_FFMPEG").is_some_and(|v| !v.is_empty() && std::path::Path::new(&v) == path) {
-        "config"
-    } else if path.starts_with(ffmpeg_bridge::managed_dir()) {
-        "managed"
-    } else {
-        "path"
-    };
+    let source =
+        if std::env::var_os("FERRAUS_FFMPEG").is_some_and(|v| !v.is_empty() && std::path::Path::new(&v) == path) {
+            "config"
+        } else if path.starts_with(ffmpeg_bridge::managed_dir()) {
+            "managed"
+        } else {
+            "path"
+        };
     let (version, config) = ffmpeg_bridge::version_info(&path).unwrap_or_default();
     json!({
         "found": true,

@@ -41,9 +41,7 @@ impl Loudness {
             }
         }
         let planes: Vec<&[f32]> = buf.data.iter().map(|c| c.as_slice()).collect();
-        self.meter
-            .add_frames_planar_f32(&planes)
-            .map_err(|e| Error::processing(format!("loudness meter: {e:?}")))
+        self.meter.add_frames_planar_f32(&planes).map_err(|e| Error::processing(format!("loudness meter: {e:?}")))
     }
 
     pub fn result(&self) -> Value {
@@ -64,9 +62,8 @@ impl Loudness {
 
 /// ISO 266 nominal 1/3-octave centre frequencies from 25 Hz to 20 kHz.
 pub const THIRD_OCTAVE: [f64; 30] = [
-    25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0,
-    630.0, 800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0,
-    10000.0, 12500.0, 16000.0, 20000.0,
+    25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0, 800.0, 1000.0,
+    1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0,
 ];
 
 /// Average power spectrum (Welch, Hann window) accumulated over chunks of a mono mix.
@@ -84,9 +81,8 @@ impl Spectrum {
     pub fn new(sample_rate: u32) -> Spectrum {
         let n = 8192;
         let mut planner = rustfft::FftPlanner::new();
-        let window = (0..n)
-            .map(|i| (0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / n as f64).cos()) as f32)
-            .collect();
+        let window =
+            (0..n).map(|i| (0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / n as f64).cos()) as f32).collect();
         Spectrum {
             n,
             sr: sample_rate,
