@@ -69,9 +69,7 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("repair", ParamKind::Switch).default("on").help("Remove hum, clicks, and hiss (on|off)"))
         .param(param("clarity", ParamKind::Switch).default("on").help("Tonal and dynamic shaping (on|off)"))
         .param(
-            param("reverb", ParamKind::Percent)
-                .default("0%")
-                .help("Creative reverb wet level in percent (0% = none)"),
+            param("reverb", ParamKind::Percent).default("0%").help("Creative reverb wet level in percent (0% = none)"),
         )
         .example("ferraus enhance interview.wav -o clean.wav", "Repair, clarify, and level dialogue to -16 LUFS")
         .example(
@@ -91,16 +89,15 @@ pub fn ops() -> Vec<OpSpec> {
              a built-in 4x12-style cabinet filter. The output level is matched to the input.",
         )
         .param(
-            param("amp", ParamKind::Choice)
-                .choices(&["clean", "crunch", "lead"])
-                .default("crunch")
-                .help("Amp voicing"),
+            param("amp", ParamKind::Choice).choices(&["clean", "crunch", "lead"]).default("crunch").help("Amp voicing"),
         )
-        .param(param("cab", ParamKind::Path).help("Cabinet impulse response (audio file); default is a built-in cabinet"))
         .param(
-            param("filter", ParamKind::List)
-                .default("auto")
-                .help("Tone filter(s) after the amp, e.g. lowpass:5kHz,peak:800Hz:+2dB, or 'auto' for the amp's voicing"),
+            param("cab", ParamKind::Path).help("Cabinet impulse response (audio file); default is a built-in cabinet"),
+        )
+        .param(
+            param("filter", ParamKind::List).default("auto").help(
+                "Tone filter(s) after the amp, e.g. lowpass:5kHz,peak:800Hz:+2dB, or 'auto' for the amp's voicing",
+            ),
         )
         .param(
             param("drive", ParamKind::Str)
@@ -181,11 +178,7 @@ fn own(
         .into_iter()
         .find(|o| o.name == name)
         .ok_or_else(|| Error::internal(format!("missing built-in stage {name}")))?;
-    let args = Args::build(
-        &spec,
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
-        &|_, _| None,
-    )?;
+    let args = Args::build(&spec, pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), &|_, _| None)?;
     let mut child = ctx.child(name, vec![]);
     let out = ferraus_core::exec::apply_spec(&spec, &args, buf, &mut child)?;
     ctx.absorb(child);
@@ -218,11 +211,8 @@ pub(crate) fn deplosive(buf: &mut AudioBuffer) -> usize {
     let n = buf.frames();
     // zero-phase low band, so the complementary remainder carries almost none of it
     let pad = (sr * 0.05) as usize;
-    let lows: Vec<Vec<f32>> = buf
-        .data
-        .iter()
-        .map(|c| lp.filtfilt(c, pad).into_iter().map(|v| v as f32).collect())
-        .collect();
+    let lows: Vec<Vec<f32>> =
+        buf.data.iter().map(|c| lp.filtfilt(c, pad).into_iter().map(|v| v as f32).collect()).collect();
     // detection compares against a true high-pass (the complementary remainder still
     // carries part of the low band because of the low-pass phase shift)
     let hp = butterworth(2, 300.0, sr, true);
@@ -245,11 +235,7 @@ pub(crate) fn deplosive(buf: &mut AudioBuffer) -> usize {
         let eh_v = eh.tick(h / nch);
         // ratio of low-band to rest-of-band envelope; above 2 (6 dB) the low band is
         // ducked with a square law (continuous at the threshold)
-        let target = if el_v > thr && el_v > 2.0 * eh_v {
-            (2.0 * eh_v / el_v).powi(2).clamp(0.1, 1.0)
-        } else {
-            1.0
-        };
+        let target = if el_v > thr && el_v > 2.0 * eh_v { (2.0 * eh_v / el_v).powi(2).clamp(0.1, 1.0) } else { 1.0 };
         let g = gs.tick(target);
         if g < 0.9 {
             ducked += 1;
@@ -304,7 +290,11 @@ fn voice_chain(ctx: &mut OpCtx, log: &mut Vec<Value>, mode: &str, mut buf: Audio
     highpass(&mut buf, s.hpf, 4);
     native(log, "highpass", json!({"freq_hz": s.hpf, "order": 4}));
     let ducked = deplosive(&mut buf);
-    native(log, "de-plosive", json!({"below_hz": 150, "ducked_ms": (ducked as f64 * 1000.0 / buf.sample_rate as f64).round()}));
+    native(
+        log,
+        "de-plosive",
+        json!({"below_hz": 150, "ducked_ms": (ducked as f64 * 1000.0 / buf.sample_rate as f64).round()}),
+    );
     buf = stage(ctx, log, "deess", &s.deess, buf)?;
     buf = stage(ctx, log, "compress", &s.compress, buf)?;
     let bands: Vec<(&str, &str)> = s.eq.iter().map(|b| ("band", *b)).collect();
@@ -353,7 +343,13 @@ fn enhance(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffe
                     &[("threshold", "-18dB"), ("ratio", "1.5:1"), ("attack", "30ms"), ("release", "200ms")],
                     buf,
                 )?;
-                buf = stage(ctx, &mut log, "eq", &[("band", "lowshelf:100Hz:+1dB"), ("band", "highshelf:10kHz:+1dB")], buf)?;
+                buf = stage(
+                    ctx,
+                    &mut log,
+                    "eq",
+                    &[("band", "lowshelf:100Hz:+1dB"), ("band", "highshelf:10kHz:+1dB")],
+                    buf,
+                )?;
             }
             "sfx" => {
                 highpass(&mut buf, 30.0, 2);
@@ -615,7 +611,12 @@ mod tests {
         CALLS.with(|c| c.borrow_mut().drain(..).collect())
     }
 
-    fn apply(name: &str, pairs: &[(&str, &str)], x: AudioBuffer, reg: Option<&'static ferraus_core::Registry>) -> (AudioBuffer, OpCtx<'static>) {
+    fn apply(
+        name: &str,
+        pairs: &[(&str, &str)],
+        x: AudioBuffer,
+        reg: Option<&'static ferraus_core::Registry>,
+    ) -> (AudioBuffer, OpCtx<'static>) {
         let sp = crate::ops().into_iter().find(|o| o.name == name).unwrap();
         let mut c = match reg {
             Some(r) => testing::ctx_with(r),
@@ -701,7 +702,8 @@ mod tests {
         assert!(stages.contains("dehum") && stages.contains("reverb"), "{stages}");
         assert!((c.metrics["loudness_out_lufs"].as_f64().unwrap() + 20.0).abs() < 1.0);
         // everything off is the identity
-        let (o, _) = apply("enhance", &[("repair", "off"), ("clarity", "off"), ("loudness", "off")], x.clone(), Some(reg));
+        let (o, _) =
+            apply("enhance", &[("repair", "off"), ("clarity", "off"), ("loudness", "off")], x.clone(), Some(reg));
         assert_eq!(o, x);
         let (n, _) = apply("enhance", &[("mix", "0%")], x.clone(), Some(reg));
         assert_eq!(n, x);
@@ -714,7 +716,8 @@ mod tests {
         let di = testing::sine(sr, 220.0, 1.0, 0.2);
         let (clean, _) = apply("guitar", &[("amp", "clean"), ("compress", "off")], di.clone(), Some(reg));
         let (lead, c) = apply("guitar", &[("amp", "lead")], di.clone(), Some(reg));
-        let h = |b: &AudioBuffer| tone_level(&b.data[0][12000..], sr, 660.0) / tone_level(&b.data[0][12000..], sr, 220.0);
+        let h =
+            |b: &AudioBuffer| tone_level(&b.data[0][12000..], sr, 660.0) / tone_level(&b.data[0][12000..], sr, 220.0);
         assert!(h(&lead) > h(&clean) * 2.0, "lead {} clean {}", h(&lead), h(&clean));
         assert!((lead.rms() - di.rms()).abs() / di.rms() < 0.01, "level matched");
         assert!(c.metrics["stages"].to_string().contains("compress"));

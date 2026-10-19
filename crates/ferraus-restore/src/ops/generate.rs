@@ -97,7 +97,7 @@ pub fn ops() -> Vec<OpSpec> {
 
 fn duration_frames(a: &Args, sr: u32) -> Result<usize> {
     let secs = a.seconds("dur")?;
-    if !(secs > 0.0) || secs > 24.0 * 3600.0 {
+    if secs.is_nan() || secs <= 0.0 || secs > 24.0 * 3600.0 {
         return Err(Error::usage("--dur must be between 0 and 24 hours"));
     }
     Ok((secs * sr as f64).round() as usize)
@@ -308,7 +308,10 @@ fn gen_noise(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let buf = AudioBuffer::from_planar(sr, data);
     let path = gen_output(ctx, "noise")?;
     if buf.peak() > 1.0 {
-        ctx.warn("noise_peaks_clip", "noise peaks exceed full scale; lower --amplitude to avoid clipping in integer formats");
+        ctx.warn(
+            "noise_peaks_clip",
+            "noise peaks exceed full scale; lower --amplitude to avoid clipping in integer formats",
+        );
     }
     ctx.write_audio(&path, &buf, None)?;
     Ok(json!({
@@ -358,10 +361,7 @@ pub(crate) fn split_bands(buf: &AudioBuffer, crossovers: &[f64]) -> Vec<AudioBuf
         }
         bands[crossovers.len()].push(rest.into_iter().map(|v| v as f32).collect());
     }
-    bands
-        .into_iter()
-        .map(|d| AudioBuffer::from_planar(buf.sample_rate, d))
-        .collect()
+    bands.into_iter().map(|d| AudioBuffer::from_planar(buf.sample_rate, d)).collect()
 }
 
 fn band_split(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -470,7 +470,11 @@ mod tests {
         let sr = 48000;
         let f = 1000.0;
         for shape in ["square", "saw", "triangle"] {
-            let (b, _, _) = gen("generate tone", &[("freq", "1kHz"), ("dur", "0.25s"), ("shape", shape), ("amplitude", "0dB")], |_| {});
+            let (b, _, _) = gen(
+                "generate tone",
+                &[("freq", "1kHz"), ("dur", "0.25s"), ("shape", shape), ("amplitude", "0dB")],
+                |_| {},
+            );
             // Fourier-series harmonic amplitudes of the ideal waveforms
             for h in [1usize, 2, 3, 5, 7] {
                 let kf = h as f64;
@@ -490,12 +494,22 @@ mod tests {
         // 19606.5 Hz and the 25th to 17137.5 Hz; compare with the naive waveform
         let f = 1234.5;
         for shape in ["square", "saw", "triangle"] {
-            let (b, _, _) = gen("generate tone", &[("freq", "1234.5Hz"), ("dur", "0.5s"), ("shape", shape), ("amplitude", "0dB")], |_| {});
+            let (b, _, _) = gen(
+                "generate tone",
+                &[("freq", "1234.5Hz"), ("dur", "0.5s"), ("shape", shape), ("amplitude", "0dB")],
+                |_| {},
+            );
             let naive: Vec<f32> = (0..b.frames())
                 .map(|i| {
                     let t = (i as f64 * f / sr as f64).fract();
                     (match shape {
-                        "square" => if t < 0.5 { 1.0 } else { -1.0 },
+                        "square" => {
+                            if t < 0.5 {
+                                1.0
+                            } else {
+                                -1.0
+                            }
+                        }
                         "saw" => 2.0 * t - 1.0,
                         _ => 1.0 - 4.0 * (((t + 0.25) % 1.0) - 0.5).abs(),
                     }) as f32
@@ -564,7 +578,8 @@ mod tests {
         let v = band_split(&testing::args(&sp, &[]), &mut c).unwrap();
         let bands = v["bands"].as_array().unwrap();
         assert_eq!(bands.len(), 4);
-        let bufs: Vec<AudioBuffer> = (1..=4).map(|i| testing::read_wav(&dir.path(&format!("mix.band{i}.wav")))).collect();
+        let bufs: Vec<AudioBuffer> =
+            (1..=4).map(|i| testing::read_wav(&dir.path(&format!("mix.band{i}.wav")))).collect();
         let mut sum = bufs[0].clone();
         for b in &bufs[1..] {
             sum = testing::add(&sum, b);

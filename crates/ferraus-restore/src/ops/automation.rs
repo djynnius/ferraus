@@ -119,11 +119,8 @@ fn automation(points: &[(f64, f64)], spline: bool) -> Curve {
 fn envelope(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     let target = a.choice("target");
     let spline = a.choice("curve") == "spline";
-    let items: Vec<String> = if !a.is_explicit("points") && target != "gain" {
-        vec!["0s=0".to_string()]
-    } else {
-        a.list("points")
-    };
+    let items: Vec<String> =
+        if !a.is_explicit("points") && target != "gain" { vec!["0s=0".to_string()] } else { a.list("points") };
     let sr = buf.sample_rate;
     let n = buf.frames();
     let kf = match target.as_str() {

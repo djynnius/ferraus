@@ -74,12 +74,10 @@ impl std::ops::Mul for C {
     type Output = C;
     #[inline]
     fn mul(self, o: C) -> C {
-        C::new(
-            self.re * o.re - self.im * o.im,
-            self.re * o.im + self.im * o.re,
-        )
+        C::new(self.re * o.re - self.im * o.im, self.re * o.im + self.im * o.re)
     }
 }
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl std::ops::Div for C {
     type Output = C;
     #[inline]
@@ -132,12 +130,8 @@ impl Fft {
     pub fn new(n: usize) -> Fft {
         assert!(n.is_power_of_two() && n >= 2, "FFT size must be a power of two");
         let bits = n.trailing_zeros();
-        let rev = (0..n as u32)
-            .map(|i| i.reverse_bits() >> (32 - bits))
-            .collect();
-        let twiddles = (0..n / 2)
-            .map(|k| C::polar(1.0, -2.0 * PI * k as f64 / n as f64))
-            .collect();
+        let rev = (0..n as u32).map(|i| i.reverse_bits() >> (32 - bits)).collect();
+        let twiddles = (0..n / 2).map(|k| C::polar(1.0, -2.0 * PI * k as f64 / n as f64)).collect();
         Fft { n, twiddles, rev }
     }
 
@@ -224,9 +218,7 @@ impl Fft {
 
 /// Periodic Hann window.
 pub fn hann(n: usize) -> Vec<f64> {
-    (0..n)
-        .map(|i| 0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos())
-        .collect()
+    (0..n).map(|i| 0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos()).collect()
 }
 
 /// Short-time Fourier transform with a sqrt-Hann analysis/synthesis window pair and
@@ -244,12 +236,7 @@ impl Stft {
         let n = next_pow2(n);
         let hop = hop.clamp(1, n);
         let window = hann(n).into_iter().map(|w| w.sqrt()).collect();
-        Stft {
-            n,
-            hop,
-            fft: Fft::new(n),
-            window,
-        }
+        Stft { n, hop, fft: Fft::new(n), window }
     }
 
     /// STFT sized for a sample rate: `ms` window length rounded to a power of two, `overlap`
@@ -402,7 +389,7 @@ pub fn convolve(x: &[f32], h: &[f64]) -> Vec<f64> {
         }
         fft.forward(&mut buf);
         for (b, hv) in buf.iter_mut().zip(&hf) {
-            *b = *b * *hv;
+            *b *= *hv;
         }
         fft.inverse(&mut buf);
         for (i, b) in buf.iter().enumerate() {
@@ -421,15 +408,13 @@ pub fn convolve(x: &[f32], h: &[f64]) -> Vec<f64> {
 pub fn fir_zero_delay(x: &[f32], h: &[f64]) -> Vec<f32> {
     let d = (h.len().saturating_sub(1)) / 2;
     let y = convolve(x, h);
-    (0..x.len())
-        .map(|i| y.get(i + d).copied().unwrap_or(0.0) as f32)
-        .collect()
+    (0..x.len()).map(|i| y.get(i + d).copied().unwrap_or(0.0) as f32).collect()
 }
 
 /// Design a linear-phase FIR of odd length `taps` whose magnitude follows
 /// `mag(freq_hz)` (linear gain), by frequency sampling and a Blackman window.
 pub fn design_fir(taps: usize, sample_rate: u32, mag: impl Fn(f64) -> f64) -> Vec<f64> {
-    let taps = if taps % 2 == 0 { taps + 1 } else { taps }.max(3);
+    let taps = if taps & 1 == 0 { taps + 1 } else { taps }.max(3);
     let m = next_pow2(taps * 4).max(1024);
     let fft = Fft::new(m);
     let half: Vec<C> = (0..=m / 2)
@@ -469,9 +454,7 @@ mod tests {
     fn fft_roundtrip_and_tone() {
         let n = 256;
         let f = Fft::new(n);
-        let x: Vec<f64> = (0..n)
-            .map(|i| (2.0 * PI * 8.0 * i as f64 / n as f64).cos())
-            .collect();
+        let x: Vec<f64> = (0..n).map(|i| (2.0 * PI * 8.0 * i as f64 / n as f64).cos()).collect();
         let spec = f.forward_real(&x);
         assert!((spec[8].abs() - n as f64 / 2.0).abs() < 1e-9);
         assert!(spec[7].abs() < 1e-9);

@@ -82,12 +82,6 @@ pub fn add_clicks(clean: &AudioBuffer, count: usize, seed: u64) -> (AudioBuffer,
     (out, pos)
 }
 
-/// Energy ratio in dB of `a` over `b`.
-pub fn energy_db(x: &[f32]) -> f64 {
-    let e: f64 = x.iter().map(|v| (*v as f64).powi(2)).sum();
-    10.0 * e.max(1e-30).log10()
-}
-
 /// Dominant frequency of `x` between `lo` and `hi` (Goertzel scan + refinement).
 pub fn dominant_freq(x: &[f32], sr: u32, lo: f64, hi: f64) -> f64 {
     let mut best = (lo, 0.0);

@@ -37,44 +37,36 @@ pub fn ops() -> Vec<OpSpec> {
                 .default("1000ms")
                 .help("FIR length (time); longer is more precise in the low bands"),
         )
-        .example(
-            "ferraus graphic-eq mix.wav --gains \"+3,+2,0,0,-2,0,0,+1,+2,+2\" -o eq.wav",
-            "Ten-band smile curve",
-        )
+        .example("ferraus graphic-eq mix.wav --gains \"+3,+2,0,0,-2,0,0,+1,+2,+2\" -o eq.wav", "Ten-band smile curve")
         .example(
             "ferraus graphic-eq vox.wav --bands 30 --gains \"0,0,0,0,-3,-3\" --accuracy 500ms -o eq.wav",
             "Third-octave cut around 40-63 Hz with a shorter filter",
         ),
-        OpSpec::transform(
-            "fft-filter",
-            Category::Tone,
-            "Filter by a drawn magnitude curve",
-            fft_filter,
-        )
-        .about(
-            "Draws a magnitude response from 'frequency:gain' points (joined linearly over \
+        OpSpec::transform("fft-filter", Category::Tone, "Filter by a drawn magnitude curve", fft_filter)
+            .about(
+                "Draws a magnitude response from 'frequency:gain' points (joined linearly over \
              log-frequency and held flat beyond the ends), designs a linear-phase FIR of half \
              the FFT size, and applies it by FFT overlap-add without shifting the signal.",
-        )
-        .param(
-            param("curve", ParamKind::Str)
-                .default("20Hz:0dB,120Hz:-6dB,1kHz:0dB,8kHz:+3dB")
-                .help("Points as frequency:gain, e.g. \"20Hz:0dB,120Hz:-6dB,1kHz:0dB,8kHz:+3dB\""),
-        )
-        .param(
-            param("fft", ParamKind::Int)
-                .default("4096")
-                .range("256..65536")
-                .help("FFT size (power of two); the filter is half as long"),
-        )
-        .example(
-            "ferraus fft-filter in.wav --curve \"20Hz:-30dB,80Hz:0dB,12kHz:0dB,16kHz:-30dB\" -o band.wav",
-            "Steep band-limit between 80 Hz and 12 kHz",
-        )
-        .example(
-            "ferraus fft-filter in.wav --curve \"200Hz:0dB,400Hz:-8dB,800Hz:0dB\" --fft 16384 -o out.wav",
-            "Narrow cut around 400 Hz with a long filter",
-        ),
+            )
+            .param(
+                param("curve", ParamKind::Str)
+                    .default("20Hz:0dB,120Hz:-6dB,1kHz:0dB,8kHz:+3dB")
+                    .help("Points as frequency:gain, e.g. \"20Hz:0dB,120Hz:-6dB,1kHz:0dB,8kHz:+3dB\""),
+            )
+            .param(
+                param("fft", ParamKind::Int)
+                    .default("4096")
+                    .range("256..65536")
+                    .help("FFT size (power of two); the filter is half as long"),
+            )
+            .example(
+                "ferraus fft-filter in.wav --curve \"20Hz:-30dB,80Hz:0dB,12kHz:0dB,16kHz:-30dB\" -o band.wav",
+                "Steep band-limit between 80 Hz and 12 kHz",
+            )
+            .example(
+                "ferraus fft-filter in.wav --curve \"200Hz:0dB,400Hz:-8dB,800Hz:0dB\" --fft 16384 -o out.wav",
+                "Narrow cut around 400 Hz with a long filter",
+            ),
         OpSpec::transform(
             "filter",
             Category::Tone,
@@ -102,21 +94,12 @@ pub fn ops() -> Vec<OpSpec> {
                 .help("Response type"),
         )
         .param(
-            param("freq", ParamKind::Str)
-                .default("auto")
-                .help("Cutoff (1kHz) or band (300Hz..3.4kHz); auto = 8 kHz LP, 80 Hz HP, 300 Hz-3.4 kHz BP, 50-70 Hz BS"),
+            param("freq", ParamKind::Str).default("auto").help(
+                "Cutoff (1kHz) or band (300Hz..3.4kHz); auto = 8 kHz LP, 80 Hz HP, 300 Hz-3.4 kHz BP, 50-70 Hz BS",
+            ),
         )
-        .param(
-            param("order", ParamKind::Int)
-                .default("4")
-                .range("1..24")
-                .help("Prototype order (steepness)"),
-        )
-        .param(
-            param("ripple", ParamKind::Gain)
-                .default("0.5dB")
-                .help("Passband ripple in dB (chebyshev1, elliptic)"),
-        )
+        .param(param("order", ParamKind::Int).default("4").range("1..24").help("Prototype order (steepness)"))
+        .param(param("ripple", ParamKind::Gain).default("0.5dB").help("Passband ripple in dB (chebyshev1, elliptic)"))
         .param(
             param("stopband", ParamKind::Gain)
                 .default("60dB")
@@ -139,13 +122,12 @@ pub fn ops() -> Vec<OpSpec> {
 
 const ISO10: [f64; 10] = [31.5, 63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0];
 const ISO20: [f64; 20] = [
-    31.5, 44.0, 63.0, 88.0, 125.0, 177.0, 250.0, 355.0, 500.0, 710.0, 1000.0, 1400.0, 2000.0, 2800.0,
-    4000.0, 5600.0, 8000.0, 11200.0, 16000.0, 22400.0,
+    31.5, 44.0, 63.0, 88.0, 125.0, 177.0, 250.0, 355.0, 500.0, 710.0, 1000.0, 1400.0, 2000.0, 2800.0, 4000.0, 5600.0,
+    8000.0, 11200.0, 16000.0, 22400.0,
 ];
 const ISO30: [f64; 30] = [
-    25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0,
-    800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0,
-    12500.0, 16000.0, 20000.0,
+    25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0, 800.0, 1000.0,
+    1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0,
 ];
 
 /// Gain curve (dB) over log-frequency through `(freq, dB)` points.
@@ -181,7 +163,10 @@ fn graphic_eq(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBu
         if *f < nyq * 0.95 {
             pts.push((*f, g));
         } else if g != 0.0 {
-            ctx.warn("band_above_nyquist", format!("the {f} Hz band is above this sample rate's range and was ignored"));
+            ctx.warn(
+                "band_above_nyquist",
+                format!("the {f} Hz band is above this sample rate's range and was ignored"),
+            );
         }
     }
     if pts.iter().all(|p| p.1 == 0.0) {
@@ -197,10 +182,7 @@ fn graphic_eq(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBu
     let realised: serde_json::Map<String, Value> = pts
         .iter()
         .map(|(f, _)| {
-            (
-                format!("{f}Hz"),
-                json!((20.0 * fir_response(&h, *f, sr).max(1e-12).log10() * 100.0).round() / 100.0),
-            )
+            (format!("{f}Hz"), json!((20.0 * fir_response(&h, *f, sr).max(1e-12).log10() * 100.0).round() / 100.0))
         })
         .collect();
     ctx.metric("realised_gain_db", Value::Object(realised));
@@ -236,10 +218,7 @@ fn fft_filter(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBu
         .iter()
         .filter(|(f, _)| *f < sr as f64 / 2.0)
         .map(|(f, _)| {
-            (
-                format!("{f}Hz"),
-                json!((20.0 * fir_response(&h, *f, sr).max(1e-12).log10() * 100.0).round() / 100.0),
-            )
+            (format!("{f}Hz"), json!((20.0 * fir_response(&h, *f, sr).max(1e-12).log10() * 100.0).round() / 100.0))
         })
         .collect();
     ctx.metric("realised_gain_db", Value::Object(realised));
@@ -282,9 +261,7 @@ fn filter(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
     };
     let top = f1.max(f2);
     if f1 <= 0.0 || top >= nyq {
-        return Err(Error::usage(format!(
-            "--freq must be between 0 and the Nyquist frequency ({nyq} Hz)"
-        )));
+        return Err(Error::usage(format!("--freq must be between 0 and the Nyquist frequency ({nyq} Hz)")));
     }
     let sos = design::design(d, band, order, f1, f2, ripple, stop, sr);
     for ch in buf.data.iter_mut() {
@@ -308,10 +285,7 @@ fn filter(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
     ctx.metric("response_db", Value::Object(resp));
     ctx.metric("group_delay_ms", Value::Object(gd));
     ctx.metric("sections", sos.sections.len());
-    ctx.metric(
-        "poles",
-        if matches!(band, Band::Bandpass | Band::Bandstop) { order * 2 } else { order },
-    );
+    ctx.metric("poles", if matches!(band, Band::Bandpass | Band::Bandstop) { order * 2 } else { order });
     Ok(buf)
 }
 
@@ -375,8 +349,7 @@ mod tests {
             let y = ferraus_core::exec::apply_spec(&sp, &testing::args(&sp, &pairs), x.clone(), &mut c).unwrap();
             let reported = c.metrics["response_db"]["2kHz"].as_f64().unwrap();
             let measured = 20.0
-                * (tone_level(&y.data[0][24000..], sr, 2000.0) / tone_level(&x.data[0][24000..], sr, 2000.0))
-                    .log10();
+                * (tone_level(&y.data[0][24000..], sr, 2000.0) / tone_level(&x.data[0][24000..], sr, 2000.0)).log10();
             if reported > -80.0 {
                 assert!((measured - reported).abs() < 0.3, "{d}: measured {measured:.2} reported {reported:.2}");
             }

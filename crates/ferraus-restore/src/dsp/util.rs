@@ -34,9 +34,7 @@ impl Curve {
         let n = xs.len();
         let mut slopes = vec![0.0; n];
         if n >= 2 {
-            let d: Vec<f64> = (0..n - 1)
-                .map(|i| (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]))
-                .collect();
+            let d: Vec<f64> = (0..n - 1).map(|i| (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i])).collect();
             slopes[0] = d[0];
             slopes[n - 1] = d[n - 2];
             for i in 1..n - 1 {
@@ -52,12 +50,7 @@ impl Curve {
                 }
             }
         }
-        Curve {
-            xs,
-            ys,
-            slopes,
-            spline,
-        }
+        Curve { xs, ys, slopes, spline }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -76,10 +69,7 @@ impl Curve {
             return self.ys[n - 1];
         }
         // binary search for segment
-        let i = match self
-            .xs
-            .binary_search_by(|v| v.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Less))
-        {
+        let i = match self.xs.binary_search_by(|v| v.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Less)) {
             Ok(i) => return self.ys[i],
             Err(i) => i - 1,
         };
@@ -116,21 +106,13 @@ pub struct Keyframe {
 }
 
 /// Parse `0s=0dB,2s=-6dB,end=-60dB` style keyframes (items already split on commas).
-pub fn parse_keyframes(
-    items: &[String],
-    value: impl Fn(&str) -> Result<f64>,
-) -> Result<Vec<Keyframe>> {
+pub fn parse_keyframes(items: &[String], value: impl Fn(&str) -> Result<f64>) -> Result<Vec<Keyframe>> {
     let mut out = Vec::new();
     for it in items {
-        let (t, v) = it.split_once('=').ok_or_else(|| {
-            Error::usage(format!(
-                "keyframe '{it}' should be time=value, e.g. 2s=-6dB"
-            ))
-        })?;
-        out.push(Keyframe {
-            time: Time::parse(t)?,
-            value: value(v.trim())?,
-        });
+        let (t, v) = it
+            .split_once('=')
+            .ok_or_else(|| Error::usage(format!("keyframe '{it}' should be time=value, e.g. 2s=-6dB")))?;
+        out.push(Keyframe { time: Time::parse(t)?, value: value(v.trim())? });
     }
     if out.is_empty() {
         return Err(Error::usage("at least one keyframe is needed, e.g. 0s=0dB"));
@@ -139,15 +121,8 @@ pub fn parse_keyframes(
 }
 
 /// Resolve keyframes to (frame position, value) pairs.
-pub fn resolve_keyframes(
-    kf: &[Keyframe],
-    sample_rate: u32,
-    total: usize,
-    bpm: Option<f64>,
-) -> Result<Vec<(f64, f64)>> {
-    kf.iter()
-        .map(|k| Ok((k.time.frames(sample_rate, total, bpm)? as f64, k.value)))
-        .collect()
+pub fn resolve_keyframes(kf: &[Keyframe], sample_rate: u32, total: usize, bpm: Option<f64>) -> Result<Vec<(f64, f64)>> {
+    kf.iter().map(|k| Ok((k.time.frames(sample_rate, total, bpm)? as f64, k.value))).collect()
 }
 
 /// 4-point cubic Hermite (Catmull-Rom) read at fractional position `pos`; zero outside.
@@ -177,22 +152,14 @@ pub fn read_sinc(x: &[f32], pos: f64) -> f64 {
     let i = pos.floor() as isize;
     let frac = pos - i as f64;
     if frac.abs() < 1e-12 {
-        return if i >= 0 && (i as usize) < x.len() {
-            x[i as usize] as f64
-        } else {
-            0.0
-        };
+        return if i >= 0 && (i as usize) < x.len() { x[i as usize] as f64 } else { 0.0 };
     }
     let mut acc = 0.0;
     let mut wsum = 0.0;
     for k in -HALF + 1..=HALF {
         let idx = i + k;
         let d = k as f64 - frac;
-        let s = if d.abs() < 1e-12 {
-            1.0
-        } else {
-            (PI * d).sin() / (PI * d)
-        };
+        let s = if d.abs() < 1e-12 { 1.0 } else { (PI * d).sin() / (PI * d) };
         let u = (d + HALF as f64) / (2.0 * HALF as f64);
         let w = 0.42 - 0.5 * (2.0 * PI * u).cos() + 0.08 * (4.0 * PI * u).cos();
         let c = s * w;
@@ -249,11 +216,7 @@ pub struct Follower {
 
 impl Follower {
     pub fn new(attack_s: f64, release_s: f64, sr: f64) -> Follower {
-        Follower {
-            att: coef(attack_s, sr),
-            rel: coef(release_s, sr),
-            y: 0.0,
-        }
+        Follower { att: coef(attack_s, sr), rel: coef(release_s, sr), y: 0.0 }
     }
     #[inline]
     pub fn tick(&mut self, x: f64) -> f64 {
@@ -371,9 +334,7 @@ mod tests {
         let y = shift_channel(&x, 3.0);
         assert_eq!(y[3], 0.0);
         assert_eq!(y[10], 7.0);
-        let s: Vec<f32> = (0..400)
-            .map(|i| (2.0 * PI * 0.01 * i as f64).sin() as f32)
-            .collect();
+        let s: Vec<f32> = (0..400).map(|i| (2.0 * PI * 0.01 * i as f64).sin() as f32).collect();
         let y = shift_channel(&s, 0.5);
         let expect = (2.0 * PI * 0.01 * (200.0 - 0.5)).sin();
         assert!((y[200] as f64 - expect).abs() < 1e-3);

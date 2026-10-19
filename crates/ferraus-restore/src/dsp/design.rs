@@ -167,11 +167,7 @@ pub fn buttap(n: usize) -> Zpk {
             -C::polar(1.0, PI * m / (2.0 * n as f64))
         })
         .collect();
-    Zpk {
-        z: vec![],
-        p,
-        k: 1.0,
-    }
+    Zpk { z: vec![], p, k: 1.0 }
 }
 
 pub fn cheb1ap(n: usize, rp: f64) -> Zpk {
@@ -186,7 +182,7 @@ pub fn cheb1ap(n: usize, rp: f64) -> Zpk {
         })
         .collect();
     let mut k = prod_neg(&p).re;
-    if n % 2 == 0 {
+    if n & 1 == 0 {
         k /= (1.0 + eps * eps).sqrt();
     }
     Zpk { z: vec![], p, k }
@@ -196,10 +192,7 @@ pub fn cheb2ap(n: usize, rs: f64) -> Zpk {
     let de = 1.0 / (10f64.powf(0.1 * rs) - 1.0).sqrt();
     let mu = (1.0 / de).asinh() / n as f64;
     let ms: Vec<f64> = if n % 2 == 1 {
-        let mut v: Vec<f64> = (0..)
-            .map(|i| -(n as f64) + 1.0 + 2.0 * i as f64)
-            .take_while(|m| *m < 0.0)
-            .collect();
+        let mut v: Vec<f64> = (0..).map(|i| -(n as f64) + 1.0 + 2.0 * i as f64).take_while(|m| *m < 0.0).collect();
         v.extend((0..).map(|i| 2.0 + 2.0 * i as f64).take_while(|m| *m < n as f64));
         v
     } else {
@@ -238,9 +231,7 @@ fn poly_roots(c: &[f64]) -> Vec<C> {
         (p, d)
     };
     let radius = c[0].abs().powf(1.0 / n as f64).max(1e-3);
-    let mut z: Vec<C> = (0..n)
-        .map(|i| C::polar(radius, 2.0 * PI * (i as f64 + 0.25) / n as f64 + 0.4))
-        .collect();
+    let mut z: Vec<C> = (0..n).map(|i| C::polar(radius, 2.0 * PI * (i as f64 + 0.25) / n as f64 + 0.4)).collect();
     for _ in 0..500 {
         let mut maxstep: f64 = 0.0;
         for i in 0..n {
@@ -270,14 +261,9 @@ fn poly_roots(c: &[f64]) -> Vec<C> {
 pub fn besselap(n: usize) -> Zpk {
     // reverse Bessel polynomial: a_k = (2n-k)! / (2^(n-k) k! (n-k)!)
     let fact = |m: usize| -> f64 { (1..=m).map(|v| v as f64).product::<f64>() };
-    let coeffs: Vec<f64> = (0..=n)
-        .map(|k| fact(2 * n - k) / (2f64.powi((n - k) as i32) * fact(k) * fact(n - k)))
-        .collect();
-    let mut p = if n == 1 {
-        vec![C::new(-coeffs[0], 0.0)]
-    } else {
-        poly_roots(&coeffs)
-    };
+    let coeffs: Vec<f64> =
+        (0..=n).map(|k| fact(2 * n - k) / (2f64.powi((n - k) as i32) * fact(k) * fact(n - k))).collect();
+    let mut p = if n == 1 { vec![C::new(-coeffs[0], 0.0)] } else { poly_roots(&coeffs) };
     // clean conjugate symmetry
     for r in p.iter_mut() {
         if r.im.abs() < 1e-9 * r.abs() {
@@ -311,11 +297,7 @@ pub fn besselap(n: usize) -> Zpk {
 pub fn ellipap(n: usize, rp: f64, rs: f64) -> Zpk {
     if n == 1 {
         let p = -(1.0 / (10f64.powf(0.1 * rp) - 1.0)).sqrt();
-        return Zpk {
-            z: vec![],
-            p: vec![C::new(p, 0.0)],
-            k: -p,
-        };
+        return Zpk { z: vec![], p: vec![C::new(p, 0.0)], k: -p };
     }
     let eps_sq = 10f64.powf(0.1 * rp) - 1.0;
     let eps = eps_sq.sqrt();
@@ -344,11 +326,7 @@ pub fn ellipap(n: usize, rp: f64, rs: f64) -> Zpk {
         })
         .collect();
     if n % 2 == 1 {
-        let newp: Vec<C> = p
-            .iter()
-            .filter(|v| v.im.abs() > 1e-12 * v.abs())
-            .map(|v| v.conj())
-            .collect();
+        let newp: Vec<C> = p.iter().filter(|v| v.im.abs() > 1e-12 * v.abs()).map(|v| v.conj()).collect();
         for v in p.iter_mut() {
             if v.im.abs() <= 1e-12 * v.abs() {
                 v.im = 0.0;
@@ -360,7 +338,7 @@ pub fn ellipap(n: usize, rp: f64, rs: f64) -> Zpk {
         p.extend(pc);
     }
     let mut k = (prod_neg(&p) / prod_neg(&z)).re;
-    if n % 2 == 0 {
+    if n & 1 == 0 {
         k /= (1.0 + eps_sq).sqrt();
     }
     Zpk { z, p, k }
@@ -412,11 +390,7 @@ fn lp2bp(f: Zpk, wo: f64, bw: f64) -> Zpk {
     }
     p.extend(p2);
     z.extend(std::iter::repeat_n(C::ZERO, deg));
-    Zpk {
-        z,
-        p,
-        k: f.k * bw.powi(deg as i32),
-    }
+    Zpk { z, p, k: f.k * bw.powi(deg as i32) }
 }
 
 fn lp2bs(f: Zpk, wo: f64, bw: f64) -> Zpk {
@@ -521,12 +495,7 @@ fn groups(v: &[C], single_near: Option<f64>) -> Vec<Group> {
         let (idx, _) = reals
             .iter()
             .enumerate()
-            .min_by(|a, b| {
-                (a.1 - target)
-                    .abs()
-                    .partial_cmp(&(b.1 - target).abs())
-                    .unwrap()
-            })
+            .min_by(|a, b| (a.1 - target).abs().partial_cmp(&(b.1 - target).abs()).unwrap())
             .unwrap();
         single = Some(reals.remove(idx));
     }
@@ -551,12 +520,7 @@ pub fn zpk_to_sos(f: &Zpk) -> Sos {
     let mut zg = groups(&f.z, single_pole);
     let mut pg = pg;
     // closest to the unit circle first for pairing
-    pg.sort_by(|a, b| {
-        (1.0 - a.rep().abs())
-            .abs()
-            .partial_cmp(&(1.0 - b.rep().abs()).abs())
-            .unwrap()
-    });
+    pg.sort_by(|a, b| (1.0 - a.rep().abs()).abs().partial_cmp(&(1.0 - b.rep().abs()).abs()).unwrap());
     let mut secs: Vec<Coefs> = Vec::new();
     for g in &pg {
         let (_, a1, a2) = g.poly();
@@ -566,22 +530,12 @@ pub fn zpk_to_sos(f: &Zpk) -> Sos {
             .iter()
             .enumerate()
             .filter(|(_, z)| z.order() == g.order())
-            .min_by(|a, b| {
-                (a.1.rep() - rep)
-                    .abs()
-                    .partial_cmp(&(b.1.rep() - rep).abs())
-                    .unwrap()
-            })
+            .min_by(|a, b| (a.1.rep() - rep).abs().partial_cmp(&(b.1.rep() - rep).abs()).unwrap())
             .map(|(i, _)| i)
             .or_else(|| {
                 zg.iter()
                     .enumerate()
-                    .min_by(|a, b| {
-                        (a.1.rep() - rep)
-                            .abs()
-                            .partial_cmp(&(b.1.rep() - rep).abs())
-                            .unwrap()
-                    })
+                    .min_by(|a, b| (a.1.rep() - rep).abs().partial_cmp(&(b.1.rep() - rep).abs()).unwrap())
                     .map(|(i, _)| i)
             });
         let (b0, b1, b2) = match pick {
@@ -591,14 +545,12 @@ pub fn zpk_to_sos(f: &Zpk) -> Sos {
         secs.push(Coefs { b0, b1, b2, a1, a2 });
     }
     secs.reverse();
-    Sos {
-        sections: secs,
-        gain: f.k,
-    }
+    Sos { sections: secs, gain: f.k }
 }
 
 /// A complete digital design. `f1` is the cutoff (or lower edge), `f2` the upper edge for
 /// band filters. `order` is the prototype order (band filters have twice as many poles).
+#[allow(clippy::too_many_arguments)]
 pub fn design(
     design: Design,
     band: Band,

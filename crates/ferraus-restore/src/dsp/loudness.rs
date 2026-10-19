@@ -23,13 +23,7 @@ fn k_weighting(sr: f64) -> Sos {
     let (f0, q) = (38.135_470_876_024_44, 0.500_327_037_323_877_3);
     let k = (PI * f0 / sr).tan();
     let d = 1.0 + k / q + k * k;
-    let hp = Coefs {
-        b0: 1.0,
-        b1: -2.0,
-        b2: 1.0,
-        a1: 2.0 * (k * k - 1.0) / d,
-        a2: (1.0 - k / q + k * k) / d,
-    };
+    let hp = Coefs { b0: 1.0, b1: -2.0, b2: 1.0, a1: 2.0 * (k * k - 1.0) / d, a2: (1.0 - k / q + k * k) / d };
     Sos::new(vec![shelf, hp])
 }
 
@@ -42,7 +36,15 @@ pub fn integrated(chans: &[Vec<f32>], sr: u32) -> Option<f64> {
     let srf = sr as f64;
     let kw = k_weighting(srf);
     let weighted: Vec<Vec<f32>> = chans.iter().map(|c| kw.apply(c)).collect();
-    let weight = |c: usize| if c == 3 { 0.0 } else if c >= 4 { 1.41 } else { 1.0 };
+    let weight = |c: usize| {
+        if c == 3 {
+            0.0
+        } else if c >= 4 {
+            1.41
+        } else {
+            1.0
+        }
+    };
     let block = ((0.4 * srf) as usize).min(n).max(1);
     let hop = ((0.1 * srf) as usize).max(1);
     let mut powers = Vec::new();

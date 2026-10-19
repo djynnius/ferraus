@@ -9,13 +9,7 @@ pub fn ar_autocorr(x: &[f64], order: usize) -> Ar {
     let n = x.len();
     let p = order.min(n.saturating_sub(1)).max(1);
     let w: Vec<f64> = (0..n)
-        .map(|i| {
-            if n > 1 {
-                0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / (n - 1) as f64).cos()
-            } else {
-                1.0
-            }
-        })
+        .map(|i| if n > 1 { 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / (n - 1) as f64).cos() } else { 1.0 })
         .collect();
     let xw: Vec<f64> = x.iter().zip(&w).map(|(a, b)| a * b).collect();
     let mut r = vec![0.0; p + 1];
@@ -239,11 +233,7 @@ pub fn ar_interpolate(x: &mut [f64], known: &[bool], a: &[f64]) -> bool {
             let kmin = ci.saturating_sub(bw);
             for k in kmin..cj {
                 let lik = band[ci * (bw + 1) + (ci - k)];
-                let ljk = if cj - k <= bw {
-                    band[cj * (bw + 1) + (cj - k)]
-                } else {
-                    0.0
-                };
+                let ljk = if cj - k <= bw { band[cj * (bw + 1) + (cj - k)] } else { 0.0 };
                 s -= lik * ljk;
             }
             if d == 0 {
@@ -318,16 +308,8 @@ pub fn repair_channel(x: &mut [f32], missing: &[bool], order: usize, block: usiz
         // the model is estimated on genuinely known samples only; samples repaired in
         // the previous block act as known boundary values for the interpolation
         let est_known: Vec<bool> = (s0..e0).map(|i| !missing[i]).collect();
-        let known: Vec<bool> = (s0..e0)
-            .map(|i| if i < start { true } else { !missing[i] })
-            .collect();
-        let limit = 8.0
-            * seg
-                .iter()
-                .zip(&known)
-                .filter(|(_, k)| **k)
-                .map(|(v, _)| v.abs())
-                .fold(1e-9, f64::max);
+        let known: Vec<bool> = (s0..e0).map(|i| if i < start { true } else { !missing[i] }).collect();
+        let limit = 8.0 * seg.iter().zip(&known).filter(|(_, k)| **k).map(|(v, _)| v.abs()).fold(1e-9, f64::max);
         let mut done = false;
         // covariance estimates on complete rows at several orders; high orders fitted to
         // very simple material can be ill-conditioned, so each candidate interpolation
@@ -342,9 +324,7 @@ pub fn repair_channel(x: &mut [f32], missing: &[bool], order: usize, block: usiz
         while p >= 2 {
             if let Some(a) = ar_covariance_known(&seg, &est_known, p) {
                 let mut trial = seg.clone();
-                if ar_interpolate(&mut trial, &known, &a)
-                    && trial.iter().all(|v| v.abs() <= limit)
-                {
+                if ar_interpolate(&mut trial, &known, &a) && trial.iter().all(|v| v.abs() <= limit) {
                     let score = predictability(&trial[lo..hi], 12);
                     if best.as_ref().map(|(s, _)| score < *s).unwrap_or(true) {
                         best = Some((score, trial));
@@ -429,9 +409,7 @@ mod tests {
 
     #[test]
     fn interpolates_sine_gap_exactly() {
-        let x: Vec<f64> = (0..400)
-            .map(|i| (2.0 * std::f64::consts::PI * 0.013 * i as f64).sin())
-            .collect();
+        let x: Vec<f64> = (0..400).map(|i| (2.0 * std::f64::consts::PI * 0.013 * i as f64).sin()).collect();
         let mut known = vec![true; 400];
         for k in known.iter_mut().take(240).skip(200) {
             *k = false;
@@ -457,11 +435,7 @@ mod tests {
         let missing: Vec<bool> = x.iter().map(|v| v.abs() >= 1.0).collect();
         let mut y: Vec<f32> = x.iter().map(|v| v.clamp(-1.0, 1.0) as f32).collect();
         repair_channel(&mut y, &missing, 32, 2048);
-        let err = x
-            .iter()
-            .zip(&y)
-            .map(|(a, b)| (a - *b as f64).abs())
-            .fold(0.0, f64::max);
+        let err = x.iter().zip(&y).map(|(a, b)| (a - *b as f64).abs()).fold(0.0, f64::max);
         assert!(err < 1e-4, "max error {err}");
     }
 

@@ -3,101 +3,77 @@
 use crate::dsp::biquad::{butterworth, Biquad, Coefs};
 use crate::dsp::util::{goertzel_amp, median};
 use ferraus_core::prelude::*;
-use std::path::PathBuf;
 
 pub fn ops() -> Vec<OpSpec> {
     vec![
-        OpSpec::transform(
-            "dehum",
-            Category::Restoration,
-            "Remove mains hum (50/60 Hz) and its harmonics",
-            dehum,
-        )
-        .about(
-            "Detects the mains frequency (50 or 60 Hz) from the spectrum, measures it \
+        OpSpec::transform("dehum", Category::Restoration, "Remove mains hum (50/60 Hz) and its harmonics", dehum)
+            .about(
+                "Detects the mains frequency (50 or 60 Hz) from the spectrum, measures it \
              precisely, follows its slow drift, and removes it with a cascade of narrow \
              notches at the fundamental and its harmonics. --depth is the attenuation floor: \
              each notch centre is cut 6 dB deeper than --depth so small frequency drift stays \
              below it. --slope makes each higher harmonic's notch that much deeper (negative) \
              or shallower (positive). --residual writes the removed hum to a file.",
-        )
-        .param(
-            param("freq", ParamKind::Str)
-                .default("auto")
-                .help("Hum fundamental in Hz (50Hz, 60Hz, 59.94Hz) or 'auto' to detect 50 or 60 Hz"),
-        )
-        .param(
-            param("harmonics", ParamKind::Int)
-                .default("8")
-                .range("1..32")
-                .help("Number of harmonics to notch, counting the fundamental"),
-        )
-        .param(
-            param("q", ParamKind::Float)
-                .default("30")
-                .help("Notch quality factor (centre frequency / bandwidth); higher is narrower"),
-        )
-        .param(
-            param("depth", ParamKind::Gain)
-                .default("-40dB")
-                .help("Minimum attenuation of each hum line in dB"),
-        )
-        .param(
-            param("slope", ParamKind::Gain)
-                .default("-3dB")
-                .help("Depth change per harmonic in dB (negative cuts higher harmonics deeper)"),
-        )
-        .param(
-            param("track", ParamKind::Switch)
-                .default("on")
-                .help("Follow slow drift of the mains frequency over time (on|off)"),
-        )
-        .param(
-            param("residual", ParamKind::Path)
-                .help("Also write the removed hum to this file"),
-        )
-        .example("ferraus dehum interview.wav -o clean.wav", "Detect and remove hum automatically")
-        .example(
-            "ferraus dehum gtr.wav --freq 50Hz --harmonics 12 --residual hum.wav -o clean.wav",
-            "Remove 50 Hz hum and 12 harmonics and keep what was removed",
-        ),
-        OpSpec::transform(
-            "notch",
-            Category::Tone,
-            "Narrow notch filter, optionally with harmonics",
-            notch,
-        )
-        .about(
-            "Cuts a narrow band around --freq by exactly --depth at the centre (and returns to \
+            )
+            .param(
+                param("freq", ParamKind::Str)
+                    .default("auto")
+                    .help("Hum fundamental in Hz (50Hz, 60Hz, 59.94Hz) or 'auto' to detect 50 or 60 Hz"),
+            )
+            .param(
+                param("harmonics", ParamKind::Int)
+                    .default("8")
+                    .range("1..32")
+                    .help("Number of harmonics to notch, counting the fundamental"),
+            )
+            .param(
+                param("q", ParamKind::Float)
+                    .default("30")
+                    .help("Notch quality factor (centre frequency / bandwidth); higher is narrower"),
+            )
+            .param(param("depth", ParamKind::Gain).default("-40dB").help("Minimum attenuation of each hum line in dB"))
+            .param(
+                param("slope", ParamKind::Gain)
+                    .default("-3dB")
+                    .help("Depth change per harmonic in dB (negative cuts higher harmonics deeper)"),
+            )
+            .param(
+                param("track", ParamKind::Switch)
+                    .default("on")
+                    .help("Follow slow drift of the mains frequency over time (on|off)"),
+            )
+            .param(param("residual", ParamKind::Path).help("Also write the removed hum to this file"))
+            .example("ferraus dehum interview.wav -o clean.wav", "Detect and remove hum automatically")
+            .example(
+                "ferraus dehum gtr.wav --freq 50Hz --harmonics 12 --residual hum.wav -o clean.wav",
+                "Remove 50 Hz hum and 12 harmonics and keep what was removed",
+            ),
+        OpSpec::transform("notch", Category::Tone, "Narrow notch filter, optionally with harmonics", notch)
+            .about(
+                "Cuts a narrow band around --freq by exactly --depth at the centre (and returns to \
              unity away from it). --harmonics adds that many notches at integer multiples of \
              the frequency. `dehum` is the tuned, self-detecting version for mains hum.",
-        )
-        .param(
-            param("freq", ParamKind::Freq)
-                .default("60Hz")
-                .help("Notch centre frequency (Hz, kHz, or a note name)"),
-        )
-        .param(
-            param("q", ParamKind::Float)
-                .default("30")
-                .help("Quality factor (centre / bandwidth); higher is narrower"),
-        )
-        .param(
-            param("depth", ParamKind::Gain)
-                .default("-40dB")
-                .help("Attenuation at the centre in dB"),
-        )
-        .param(
-            param("harmonics", ParamKind::Int)
-                .default("0")
-                .range("0..64")
-                .help("Additional notches at 2x, 3x, ... the frequency"),
-        )
-        .example("ferraus notch in.wav --freq 1kHz -o out.wav", "Remove a 1 kHz whine")
-        .example(
-            "ferraus notch in.wav --freq 60Hz --harmonics 4 --depth -60dB -o out.wav",
-            "Deep notches at 60, 120, 180, 240, and 300 Hz",
-        ),
+            )
+            .param(
+                param("freq", ParamKind::Freq).default("60Hz").help("Notch centre frequency (Hz, kHz, or a note name)"),
+            )
+            .param(
+                param("q", ParamKind::Float)
+                    .default("30")
+                    .help("Quality factor (centre / bandwidth); higher is narrower"),
+            )
+            .param(param("depth", ParamKind::Gain).default("-40dB").help("Attenuation at the centre in dB"))
+            .param(
+                param("harmonics", ParamKind::Int)
+                    .default("0")
+                    .range("0..64")
+                    .help("Additional notches at 2x, 3x, ... the frequency"),
+            )
+            .example("ferraus notch in.wav --freq 1kHz -o out.wav", "Remove a 1 kHz whine")
+            .example(
+                "ferraus notch in.wav --freq 60Hz --harmonics 4 --depth -60dB -o out.wav",
+                "Deep notches at 60, 120, 180, 240, and 300 Hz",
+            ),
     ]
 }
 
@@ -123,11 +99,7 @@ fn decimate(x: &[f64], sr: f64, max_f: f64) -> (Vec<f64>, f64) {
 
 /// Summed harmonic power of a hum candidate.
 fn hum_score(x: &[f64], sr: f64, f0: f64, nh: usize) -> f64 {
-    (1..=nh)
-        .map(|k| k as f64 * f0)
-        .filter(|f| *f < sr * 0.45)
-        .map(|f| goertzel_amp(x, sr, f).powi(2))
-        .sum()
+    (1..=nh).map(|k| k as f64 * f0).filter(|f| *f < sr * 0.45).map(|f| goertzel_amp(x, sr, f).powi(2)).sum()
 }
 
 /// Locate the hum fundamental near `guess` (grid then golden-section search).
@@ -186,12 +158,7 @@ impl NotchBank {
             let d = depth(k);
             sections.push((k as f64, d, Biquad::new(Coefs::notch_depth(f, q, d, sr))));
         }
-        NotchBank {
-            sections,
-            q,
-            sr,
-            f0,
-        }
+        NotchBank { sections, q, sr, f0 }
     }
 
     fn retune(&mut self, f0: f64) {
@@ -277,10 +244,7 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
         let head = &dec[..dec.len().min((dsr * 30.0) as usize)];
         let (f, s, strength) = mains_candidate(head, dsr, est_h);
         if strength < 10.0 || s < 1e-14 {
-            ctx.warn(
-                "hum_not_detected",
-                "no clear 50/60 Hz hum found; assuming 60 Hz (pass --freq to choose)",
-            );
+            ctx.warn("hum_not_detected", "no clear 50/60 Hz hum found; assuming 60 Hz (pass --freq to choose)");
             60.0
         } else {
             f.round()
@@ -305,11 +269,7 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
             let seg = &dec[start..start + win];
             let (f, s) = refine(seg, dsr, prev, (f0 * 0.004).max(0.05), est_h);
             let amp = (s / est_h as f64).sqrt();
-            let est = if amp > 0.3 * global_amp && (f - f0).abs() < f0 * 0.01 {
-                f
-            } else {
-                prev
-            };
+            let est = if amp > 0.3 * global_amp && (f - f0).abs() < f0 * 0.01 { f } else { prev };
             prev = est;
             let centre = (start + win / 2) as f64 * sr / dsr;
             raw.push((centre, est));
@@ -340,11 +300,7 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
     };
 
     let depth_k = |k: usize| -> f64 { ((depth + slope * (k as f64 - 1.0)).min(-1.0) - 6.0).max(-140.0) };
-    let input = if a.path("residual").is_some() {
-        Some(buf.clone())
-    } else {
-        None
-    };
+    let input = if a.path("residual").is_some() { Some(buf.clone()) } else { None };
     let nch = buf.channels();
     const CHUNK: usize = 32;
     for (ci, ch) in buf.data.iter_mut().enumerate() {
@@ -365,10 +321,7 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
         let before = hum_score(&mono[settle..e], sr, f0, nh);
         let after = hum_score(&out_mono[settle..e], sr, f0, nh);
         if before > 1e-14 {
-            ctx.metric(
-                "hum_reduction_db",
-                (10.0 * (before / after.max(1e-30)).log10() * 10.0).round() / 10.0,
-            );
+            ctx.metric("hum_reduction_db", (10.0 * (before / after.max(1e-30)).log10() * 10.0).round() / 10.0);
         }
     }
     if let (Some(path), Some(inp)) = (a.path("residual"), input) {
@@ -378,7 +331,7 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
                 *rv -= *ov;
             }
         }
-        ctx.write_audio(&PathBuf::from(path), &res, Some("residual"))?;
+        ctx.write_audio(&path, &res, Some("residual"))?;
     }
     Ok(buf)
 }
@@ -431,8 +384,7 @@ mod tests {
         let (x, _) = hum_fixture(sr, 2.0, 60.0);
         let mut c = testing::ctx();
         let sp = spec("dehum");
-        let out = ferraus_core::exec::apply_spec(&sp, &testing::args(&sp, &[]), x.clone(), &mut c)
-            .unwrap();
+        let out = ferraus_core::exec::apply_spec(&sp, &testing::args(&sp, &[]), x.clone(), &mut c).unwrap();
         assert_eq!(c.notes["freq"], json!("60.000Hz"));
         let a = &x.data[0][48000..];
         let b = &out.data[0][48000..];
@@ -496,9 +448,7 @@ mod tests {
         ] {
             let x = testing::sine(sr, f, 2.0, 0.5);
             let out = run(&sp, &args, x.clone()).unwrap();
-            let g = 20.0
-                * (tone_level(&out.data[0][48000..], sr, f) / tone_level(&x.data[0][48000..], sr, f))
-                    .log10();
+            let g = 20.0 * (tone_level(&out.data[0][48000..], sr, f) / tone_level(&x.data[0][48000..], sr, f)).log10();
             assert!((g + 30.0).abs() < 0.5, "{f}: {g}");
         }
         let x = testing::sine(sr, 3000.0, 1.0, 0.5);

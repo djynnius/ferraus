@@ -45,56 +45,46 @@ pub fn ops() -> Vec<OpSpec> {
             "ferraus declip take.wav --threshold -0.3dB --headroom 6dB -o fixed.wav",
             "Treat everything above -0.3 dBFS as clipped and leave 6 dB of room",
         ),
-        OpSpec::transform(
-            "declick",
-            Category::Restoration,
-            "Remove clicks, pops, and crackle",
-            declick,
-        )
-        .about(
-            "Fits an autoregressive model to the audio and flags samples whose forward and \
+        OpSpec::transform("declick", Category::Restoration, "Remove clicks, pops, and crackle", declick)
+            .about(
+                "Fits an autoregressive model to the audio and flags samples whose forward and \
              backward prediction errors are both outliers (a click), then re-synthesises \
              each flagged run by least-squares AR interpolation. Several passes catch \
              clicks hidden by bigger ones. --auto is the vinyl-crackle preset; --big-pops \
              also repairs wider pops.",
-        )
-        .param(
-            param("sensitivity", ParamKind::Percent)
-                .default("30%")
-                .help("Detection sensitivity in percent: higher finds quieter clicks (and risks transients)"),
-        )
-        .param(
-            param("complexity", ParamKind::Int)
-                .default("16")
-                .range("4..64")
-                .help("AR model order used for detection and interpolation"),
-        )
-        .param(
-            param("max-width", ParamKind::Time)
-                .default("2ms")
-                .help("Widest click to repair (time); wider events are treated as music"),
-        )
-        .param(
-            param("big-pops", ParamKind::Switch)
-                .default("off")
-                .help("Also repair wide pops up to 20 ms (on|off)"),
-        )
-        .param(
-            param("passes", ParamKind::Int)
-                .default("4")
-                .range("1..16")
-                .help("Number of detect-and-repair passes"),
-        )
-        .param(
-            param("auto", ParamKind::Flag)
-                .help("Vinyl crackle preset: higher sensitivity, more passes, higher order"),
-        )
-        .example("ferraus declick lp-rip.wav -o clean.wav", "Remove clicks with the defaults")
-        .example("ferraus declick lp-rip.wav --auto -o clean.wav", "Vinyl crackle preset")
-        .example(
-            "ferraus declick tape.wav --big-pops on --sensitivity 50% -o clean.wav",
-            "Catch quieter clicks and wide pops",
-        ),
+            )
+            .param(
+                param("sensitivity", ParamKind::Percent)
+                    .default("30%")
+                    .help("Detection sensitivity in percent: higher finds quieter clicks (and risks transients)"),
+            )
+            .param(
+                param("complexity", ParamKind::Int)
+                    .default("16")
+                    .range("4..64")
+                    .help("AR model order used for detection and interpolation"),
+            )
+            .param(
+                param("max-width", ParamKind::Time)
+                    .default("2ms")
+                    .help("Widest click to repair (time); wider events are treated as music"),
+            )
+            .param(
+                param("big-pops", ParamKind::Switch).default("off").help("Also repair wide pops up to 20 ms (on|off)"),
+            )
+            .param(
+                param("passes", ParamKind::Int).default("4").range("1..16").help("Number of detect-and-repair passes"),
+            )
+            .param(
+                param("auto", ParamKind::Flag)
+                    .help("Vinyl crackle preset: higher sensitivity, more passes, higher order"),
+            )
+            .example("ferraus declick lp-rip.wav -o clean.wav", "Remove clicks with the defaults")
+            .example("ferraus declick lp-rip.wav --auto -o clean.wav", "Vinyl crackle preset")
+            .example(
+                "ferraus declick tape.wav --big-pops on --sensitivity 50% -o clean.wav",
+                "Catch quieter clicks and wide pops",
+            ),
     ]
 }
 
@@ -129,12 +119,7 @@ fn runs_of(x: &[f32], pred: impl Fn(f32) -> bool) -> Vec<(usize, usize)> {
 
 fn detect_clipping(x: &[f32], explicit: Option<f32>, max_gap: usize) -> ClipMask {
     let n = x.len();
-    let mut cm = ClipMask {
-        mask: vec![false; n],
-        level: vec![0.0; n],
-        runs: 0,
-        too_long: 0,
-    };
+    let mut cm = ClipMask { mask: vec![false; n], level: vec![0.0; n], runs: 0, too_long: 0 };
     for sign in [1.0f32, -1.0] {
         let level = match explicit {
             Some(l) => l,
@@ -179,11 +164,9 @@ fn declip(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
     let order = a.usize("order")?.clamp(2, 128);
     let thr = match a.str_or("threshold", "auto").as_str() {
         "auto" => None,
-        s => Some(
-            units::Gain::parse(s)
-                .map_err(|e| Error::usage(format!("--threshold: {}", e.message)))?
-                .linear() as f32,
-        ),
+        s => {
+            Some(units::Gain::parse(s).map_err(|e| Error::usage(format!("--threshold: {}", e.message)))?.linear() as f32)
+        }
     };
     let mut total = 0usize;
     let mut runs = 0usize;
@@ -199,14 +182,9 @@ fn declip(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
         }
         total += lpc::repair_channel(ch, &cm.mask, order, 2048);
         // restored samples must not fall below the clip level they replace
-        for i in 0..ch.len() {
-            if cm.mask[i] {
-                let l = cm.level[i];
-                if l > 0.0 && ch[i] < l {
-                    ch[i] = l;
-                } else if l < 0.0 && ch[i] > l {
-                    ch[i] = l;
-                }
+        for ((v, m), l) in ch.iter_mut().zip(&cm.mask).zip(&cm.level) {
+            if *m && ((*l > 0.0 && *v < *l) || (*l < 0.0 && *v > *l)) {
+                *v = *l;
             }
         }
         ctx.set_progress((ci + 1) as f64 / nch);
@@ -232,10 +210,7 @@ fn declip(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
         gain_db = lin_to_db(g);
     }
     if too_long > 0 {
-        ctx.warn(
-            "clip_runs_too_long",
-            format!("{too_long} clipped run(s) longer than --max-gap were left unrepaired"),
-        );
+        ctx.warn("clip_runs_too_long", format!("{too_long} clipped run(s) longer than --max-gap were left unrepaired"));
     }
     ctx.metric("clipped_runs", runs);
     ctx.metric("samples_repaired", total);
@@ -388,10 +363,7 @@ mod tests {
     fn declip_restores_clipped_sine_below_1pct_thd() {
         let sr = 48000;
         let clean = testing::sine(sr, 1000.0, 0.5, 2.0);
-        let clipped = AudioBuffer::from_mono(
-            sr,
-            clean.data[0].iter().map(|v| v.clamp(-1.0, 1.0)).collect(),
-        );
+        let clipped = AudioBuffer::from_mono(sr, clean.data[0].iter().map(|v| v.clamp(-1.0, 1.0)).collect());
         let before = thd(&clipped.data[0][4800..20000], sr, 1000.0);
         assert!(before > 0.05, "fixture should be heavily distorted: {before}");
         let sp = spec("declip");
@@ -410,10 +382,7 @@ mod tests {
         assert_eq!(out, x, "no clipping found means no change");
         let clipped = AudioBuffer::from_mono(
             48000,
-            testing::sine(48000, 440.0, 0.2, 1.5).data[0]
-                .iter()
-                .map(|v| v.clamp(-1.0, 1.0))
-                .collect(),
+            testing::sine(48000, 440.0, 0.2, 1.5).data[0].iter().map(|v| v.clamp(-1.0, 1.0)).collect(),
         );
         let out = run(&spec("declip"), &[("mix", "0%")], clipped.clone()).unwrap();
         assert_eq!(out, clipped);
@@ -439,12 +408,8 @@ mod tests {
         for &(p, w) in &positions {
             let s = p.saturating_sub(2);
             let e = (p + w + 2).min(clean.frames());
-            let err_in: f64 = (s..e)
-                .map(|i| (dirty.data[0][i] - clean.data[0][i]).powi(2) as f64)
-                .sum();
-            let err_out: f64 = (s..e)
-                .map(|i| (out.data[0][i] - clean.data[0][i]).powi(2) as f64)
-                .sum();
+            let err_in: f64 = (s..e).map(|i| (dirty.data[0][i] - clean.data[0][i]).powi(2) as f64).sum();
+            let err_out: f64 = (s..e).map(|i| (out.data[0][i] - clean.data[0][i]).powi(2) as f64).sum();
             if err_out < err_in * 0.01 {
                 removed += 1;
             } else {
@@ -457,10 +422,7 @@ mod tests {
         let guard = 240;
         let mut idx = Vec::new();
         for i in 0..clean.frames() {
-            if positions
-                .iter()
-                .all(|&(p, w)| i + guard < p || i > p + w + guard)
-            {
+            if positions.iter().all(|&(p, w)| i + guard < p || i > p + w + guard) {
                 idx.push(i);
             }
         }

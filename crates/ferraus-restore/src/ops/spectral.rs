@@ -21,9 +21,7 @@ pub fn ops() -> Vec<OpSpec> {
                     .help("Hiss level as dBFS RMS (-60dB) or 'auto' to measure it from the quietest frames"),
             )
             .param(
-                param("reduction", ParamKind::Gain)
-                    .default("12dB")
-                    .help("How far hiss-only bins are lowered, in dB"),
+                param("reduction", ParamKind::Gain).default("12dB").help("How far hiss-only bins are lowered, in dB"),
             )
             .param(
                 param("range", ParamKind::Str)
@@ -93,35 +91,19 @@ pub fn ops() -> Vec<OpSpec> {
              residual energy left in the learned region as a quality estimate. \
              --save-model writes the learned templates for reuse with --model.",
         )
+        .param(param("learn", ParamKind::Range).help("Region containing only the unwanted sound (start..end)"))
         .param(
-            param("learn", ParamKind::Range)
-                .help("Region containing only the unwanted sound (start..end)"),
+            param("model", ParamKind::Path).help("Load templates saved earlier with --save-model instead of --learn"),
         )
-        .param(
-            param("model", ParamKind::Path)
-                .help("Load templates saved earlier with --save-model instead of --learn"),
-        )
-        .param(
-            param("save-model", ParamKind::Path)
-                .help("Write the learned templates to this JSON file"),
-        )
+        .param(param("save-model", ParamKind::Path).help("Write the learned templates to this JSON file"))
         .param(
             param("complexity", ParamKind::Int)
                 .default("20")
                 .range("1..64")
                 .help("Number of spectral templates learned (more follows a changing sound)"),
         )
-        .param(
-            param("passes", ParamKind::Int)
-                .default("2")
-                .range("1..8")
-                .help("Subtraction passes"),
-        )
-        .param(
-            param("strength", ParamKind::Percent)
-                .default("70%")
-                .help("How hard to subtract, in percent"),
-        )
+        .param(param("passes", ParamKind::Int).default("2").range("1..8").help("Subtraction passes"))
+        .param(param("strength", ParamKind::Percent).default("70%").help("How hard to subtract, in percent"))
         .param(
             param("protect-speech", ParamKind::Switch)
                 .default("on")
@@ -203,30 +185,15 @@ fn dehiss(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
             }
             None => {
                 let energies: Vec<f64> = (0..frames)
-                    .map(|fi| {
-                        st.frame(ch, fi)
-                            .iter()
-                            .zip(&weight)
-                            .map(|(c, w)| c.norm_sqr() * w)
-                            .sum()
-                    })
+                    .map(|fi| st.frame(ch, fi).iter().zip(&weight).map(|(c, w)| c.norm_sqr() * w).sum())
                     .collect();
                 // skip frames that are mostly padding (first and last window)
-                let inner: Vec<usize> = (0..frames)
-                    .filter(|&fi| fi * st.hop >= st.n && fi * st.hop <= ch.len())
-                    .collect();
-                let pool: Vec<usize> = if inner.is_empty() {
-                    (0..frames).collect()
-                } else {
-                    inner
-                };
+                let inner: Vec<usize> =
+                    (0..frames).filter(|&fi| fi * st.hop >= st.n && fi * st.hop <= ch.len()).collect();
+                let pool: Vec<usize> = if inner.is_empty() { (0..frames).collect() } else { inner };
                 let pe: Vec<f64> = pool.iter().map(|&fi| energies[fi]).collect();
                 let cut = percentile(&pe, 0.1);
-                let quiet: Vec<usize> = pool
-                    .iter()
-                    .copied()
-                    .filter(|&fi| energies[fi] <= cut)
-                    .collect();
+                let quiet: Vec<usize> = pool.iter().copied().filter(|&fi| energies[fi] <= cut).collect();
                 let mut acc = vec![0.0; bins];
                 for &fi in &quiet {
                     for (a, c) in acc.iter_mut().zip(st.frame(ch, fi)) {
@@ -245,12 +212,7 @@ fn dehiss(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
                     .collect()
             }
         };
-        let in_range: Vec<f64> = floor
-            .iter()
-            .zip(&weight)
-            .filter(|(_, w)| **w >= 1.0)
-            .map(|(f, _)| *f)
-            .collect();
+        let in_range: Vec<f64> = floor.iter().zip(&weight).filter(|(_, w)| **w >= 1.0).map(|(f, _)| *f).collect();
         if !in_range.is_empty() {
             let mean = in_range.iter().sum::<f64>() / in_range.len() as f64;
             floors_db.push(10.0 * (mean / (st.n as f64 / 2.0)).max(1e-30).log10());
@@ -275,11 +237,7 @@ fn dehiss(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
                 let r_db = 10.0 * (smooth[k] / floor[k].max(1e-30)).max(1e-30).log10();
                 let open = smoothstep((r_db - 3.0) / transition);
                 let target = -reduction * (1.0 - open);
-                gains[k] = if target > gains[k] {
-                    target
-                } else {
-                    (gains[k] - step).max(target)
-                };
+                gains[k] = if target > gains[k] { target } else { (gains[k] - step).max(target) };
                 let g = db_to_lin(gains[k] * weight[k]);
                 x[k] = x[k].scale(g);
             }
@@ -310,8 +268,8 @@ fn wrap(p: f64) -> f64 {
 fn repair(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     let sr = buf.sample_rate;
     let nyq = sr as f64 / 2.0;
-    let (flo, fhi) = parse_band(&a.str_or("freq", "all"), nyq)
-        .map_err(|e| Error::usage(format!("--freq: {}", e.message)))?;
+    let (flo, fhi) =
+        parse_band(&a.str_or("freq", "all"), nyq).map_err(|e| Error::usage(format!("--freq: {}", e.message)))?;
     let attenuate = a.choice("method") == "attenuate";
     let ranges = a.ranges("range")?;
     if ranges.is_empty() {
@@ -427,11 +385,7 @@ fn repair(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer
             new_data.push(full);
         }
         buf.data = new_data;
-        let change_db = if before > 0.0 {
-            10.0 * ((before - removed).max(1e-30) / before).log10()
-        } else {
-            0.0
-        };
+        let change_db = if before > 0.0 { 10.0 * ((before - removed).max(1e-30) / before).log10() } else { 0.0 };
         report.push(json!({
             "start_s": s as f64 / sr as f64,
             "end_s": e as f64 / sr as f64,
@@ -549,11 +503,7 @@ fn remove_sound(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<Audio
             .as_array()
             .ok_or_else(|| Error::input("model has no 'templates'"))?
             .iter()
-            .map(|row| {
-                row.as_array()
-                    .map(|r| r.iter().filter_map(|x| x.as_f64()).collect())
-                    .unwrap_or_default()
-            })
+            .map(|row| row.as_array().map(|r| r.iter().filter_map(|x| x.as_f64()).collect()).unwrap_or_default())
             .collect();
         if fft != st.n || msr != sr || t.iter().any(|r: &Vec<f64>| r.len() != bins) {
             return Err(Error::input(format!(
@@ -579,17 +529,10 @@ fn remove_sound(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<Audio
     let g_min = db_to_lin(-40.0 * strength.min(1.0));
     let g_speech = g_min.max(db_to_lin(-12.0));
     let over = 1.0 + 1.5 * strength;
-    let in_learn = learn
-        .as_ref()
-        .map(|r| r.frames(sr, total, ctx.bpm()))
-        .transpose()?;
+    let in_learn = learn.as_ref().map(|r| r.frames(sr, total, ctx.bpm())).transpose()?;
     let energy_in = |b: &AudioBuffer| -> f64 {
         match in_learn {
-            Some((s, e)) => b
-                .data
-                .iter()
-                .map(|c| c[s..e].iter().map(|v| (*v as f64).powi(2)).sum::<f64>())
-                .sum(),
+            Some((s, e)) => b.data.iter().map(|c| c[s..e].iter().map(|v| (*v as f64).powi(2)).sum::<f64>()).sum(),
             None => 0.0,
         }
     };
@@ -612,12 +555,8 @@ fn remove_sound(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<Audio
                 let mut best = (0usize, 0.0f64);
                 for (j, t) in templates.iter().enumerate() {
                     let tmax = t.iter().cloned().fold(0.0, f64::max);
-                    let ratios: Vec<f64> = t
-                        .iter()
-                        .zip(&mag)
-                        .filter(|(tv, _)| **tv > 0.1 * tmax)
-                        .map(|(tv, m)| m / tv)
-                        .collect();
+                    let ratios: Vec<f64> =
+                        t.iter().zip(&mag).filter(|(tv, _)| **tv > 0.1 * tmax).map(|(tv, m)| m / tv).collect();
                     let alpha = percentile(&ratios, 0.5);
                     if alpha > best.1 {
                         best = (j, alpha);
@@ -644,10 +583,7 @@ fn remove_sound(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<Audio
     buf.data = out;
     if in_learn.is_some() && before > 0.0 {
         let after = energy_in(&buf);
-        ctx.metric(
-            "residual_energy_db",
-            (10.0 * (after.max(1e-30) / before).log10() * 10.0).round() / 10.0,
-        );
+        ctx.metric("residual_energy_db", (10.0 * (after.max(1e-30) / before).log10() * 10.0).round() / 10.0);
     }
     ctx.metric("templates", templates.len());
     Ok(buf)
@@ -735,12 +671,8 @@ mod tests {
         )
         .unwrap();
         let region = 24000..26400;
-        let err_in = testing::rms_db(
-            &region.clone().map(|i| dirty.data[0][i] - clean.data[0][i]).collect::<Vec<_>>(),
-        );
-        let err_out = testing::rms_db(
-            &region.map(|i| out.data[0][i] - clean.data[0][i]).collect::<Vec<_>>(),
-        );
+        let err_in = testing::rms_db(&region.clone().map(|i| dirty.data[0][i] - clean.data[0][i]).collect::<Vec<_>>());
+        let err_out = testing::rms_db(&region.map(|i| out.data[0][i] - clean.data[0][i]).collect::<Vec<_>>());
         assert!(err_out < err_in - 15.0, "{err_in:.1} -> {err_out:.1}");
         // outside the region nothing changes
         let far: Vec<f32> = (0..12000).map(|i| out.data[0][i] - dirty.data[0][i]).collect();
@@ -749,12 +681,9 @@ mod tests {
         assert_eq!(rep.len(), 1);
         assert_eq!(rep[0]["method"], json!("interpolate"));
         // attenuate within a band, null
-        let out = run(
-            &sp,
-            &[("range", "0.5s..0.55s"), ("freq", "2kHz..20kHz"), ("method", "attenuate")],
-            dirty.clone(),
-        )
-        .unwrap();
+        let out =
+            run(&sp, &[("range", "0.5s..0.55s"), ("freq", "2kHz..20kHz"), ("method", "attenuate")], dirty.clone())
+                .unwrap();
         assert!(tone_level(&out.data[0], sr, 440.0) > 0.49);
         assert_eq!(run(&sp, &[("range", "0.5s..0.55s"), ("mix", "0%")], dirty.clone()).unwrap(), dirty);
     }
@@ -795,9 +724,8 @@ mod tests {
         eprintln!("remove-sound drop {drop:.2} dB");
         assert!(drop > 8.0, "buzz reduced by {drop:.1} dB");
         let t = 20.0
-            * (tone_level(&out.data[0][30000..90000], sr, 440.0)
-                / tone_level(&x.data[0][30000..90000], sr, 440.0))
-            .log10();
+            * (tone_level(&out.data[0][30000..90000], sr, 440.0) / tone_level(&x.data[0][30000..90000], sr, 440.0))
+                .log10();
         assert!(t.abs() < 1.0, "tone changed {t:.2} dB");
         // the saved model reproduces the result
         let out2 = run(&sp, &[("model", model.to_str().unwrap())], x.clone()).unwrap();

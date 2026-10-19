@@ -49,9 +49,8 @@ pub fn shift_preserving(x: &[f32], sr: f64, ratio: impl Fn(f64) -> f64, max_rati
     let grain = ((0.046 * sr) as usize).max(64) & !1;
     let hop = grain / 2;
     let search = (0.012 * sr) as isize;
-    let win: Vec<f64> = (0..grain)
-        .map(|i| 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / grain as f64).cos())
-        .collect();
+    let win: Vec<f64> =
+        (0..grain).map(|i| 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / grain as f64).cos()).collect();
     let mut out = vec![0.0f64; n + grain];
     let half = (grain / 2) as f64;
     let mut prev: Option<(f64, f64)> = None; // (anchor, ratio)

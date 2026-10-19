@@ -33,11 +33,7 @@ pub fn ops() -> Vec<OpSpec> {
                 .default("L=0smp,R=0smp")
                 .help("Per-channel delays for --mode shift (L=0smp,R=12smp; times like 0.25ms also work)"),
         )
-        .param(
-            param("window", ParamKind::Time)
-                .default("200ms")
-                .help("Analysis window length for auto mode (time)"),
-        )
+        .param(param("window", ParamKind::Time).default("200ms").help("Analysis window length for auto mode (time)"))
         .param(
             param("max-shift", ParamKind::Time)
                 .default("5ms")
@@ -84,16 +80,8 @@ pub fn ops() -> Vec<OpSpec> {
                 .default("20%")
                 .help("Pan tolerance around --pan, in percent of the full left-right range"),
         )
-        .param(
-            param("freq", ParamKind::Str)
-                .default("120Hz..8kHz")
-                .help("Frequency range to act on (low..high)"),
-        )
-        .param(
-            param("mix", ParamKind::Percent)
-                .default("100%")
-                .help("Dry/wet balance: 0% returns the input unchanged"),
-        )
+        .param(param("freq", ParamKind::Str).default("120Hz..8kHz").help("Frequency range to act on (low..high)"))
+        .param(param("mix", ParamKind::Percent).default("100%").help("Dry/wet balance: 0% returns the input unchanged"))
         .example("ferraus center song.wav --mode remove -o karaoke.wav", "Quick karaoke: remove the centre vocal")
         .example(
             "ferraus center song.wav --mode extract --freq 200Hz..6kHz -o vocal.wav",
@@ -112,15 +100,8 @@ pub fn ops() -> Vec<OpSpec> {
              flip). Channels are named L, R, C, LFE, Ls, Rs, M, or by number (1, ch2). \
              Outputs not mentioned pass through; --invert flips the phase of output channels.",
         )
-        .param(
-            param("out", ParamKind::Str)
-                .repeatable()
-                .help("Output definition, e.g. \"L=0.5L+0.5R\" (repeatable)"),
-        )
-        .param(
-            param("invert", ParamKind::List)
-                .help("Output channels to phase-invert, e.g. R or L,R"),
-        )
+        .param(param("out", ParamKind::Str).repeatable().help("Output definition, e.g. \"L=0.5L+0.5R\" (repeatable)"))
+        .param(param("invert", ParamKind::List).help("Output channels to phase-invert, e.g. R or L,R"))
         .example(
             "ferraus channels mix in.wav --out \"L=0.5L+0.5R\" --out \"R=0.5L+0.5R\" -o mono-in-stereo.wav",
             "Fold to mono in both channels",
@@ -194,11 +175,7 @@ fn xcorr_lag(x: &[f32], y: &[f32], max_lag: usize) -> (f64, f64) {
     let (k, v) = best;
     let (l, r) = (at(k - 1), at(k + 1));
     let den = l - 2.0 * v + r;
-    let frac = if den.abs() > 1e-20 && k > -ml && k < ml {
-        (0.5 * (l - r) / den).clamp(-0.5, 0.5)
-    } else {
-        0.0
-    };
+    let frac = if den.abs() > 1e-20 && k > -ml && k < ml { (0.5 * (l - r) / den).clamp(-0.5, 0.5) } else { 0.0 };
     let norm = (ea * eb).sqrt().max(1e-30);
     (k as f64 + frac, v / norm)
 }
@@ -276,11 +253,7 @@ fn phase_align(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioB
         }
         d
     };
-    let before = if nch >= 2 {
-        Some(zero_lag_corr(&buf.data[0], &buf.data[1]))
-    } else {
-        None
-    };
+    let before = if nch >= 2 { Some(zero_lag_corr(&buf.data[0], &buf.data[1])) } else { None };
     for (c, ch) in buf.data.iter_mut().enumerate() {
         if shifts[c].abs() > 1e-9 {
             *ch = shift_channel(ch, shifts[c]);
@@ -411,11 +384,8 @@ fn parse_expr(expr: &str, nch: usize) -> Result<Vec<(usize, f64)>> {
         while i < s.len() && (s[i].is_ascii_digit() || s[i] == '.') {
             i += 1;
         }
-        let num: Option<f64> = if i > start {
-            Some(s[start..i].iter().collect::<String>().parse().map_err(|_| bad())?)
-        } else {
-            None
-        };
+        let num: Option<f64> =
+            if i > start { Some(s[start..i].iter().collect::<String>().parse().map_err(|_| bad())?) } else { None };
         let mut w = match num {
             Some(v) => {
                 if i < s.len() && s[i] == '%' {
@@ -445,9 +415,7 @@ fn parse_expr(expr: &str, nch: usize) -> Result<Vec<(usize, f64)>> {
             Error::usage(format!("unknown channel '{name}' in '{expr}' (use L, R, C, LFE, Ls, Rs, M, or 1..N)"))
         })?;
         if idx >= nch {
-            return Err(Error::usage(format!(
-                "'{expr}' refers to channel {name} but the input has {nch} channel(s)"
-            )));
+            return Err(Error::usage(format!("'{expr}' refers to channel {name} but the input has {nch} channel(s)")));
         }
         if !w.is_finite() {
             w = 0.0;
@@ -477,15 +445,8 @@ fn channels_mix(a: &Args, buf: AudioBuffer, _ctx: &mut OpCtx) -> Result<AudioBuf
         defs.push((oi, parse_expr(rhs, nin)?));
     }
     let frames = buf.frames();
-    let mut out: Vec<Vec<f32>> = (0..nout)
-        .map(|c| {
-            if c < nin {
-                buf.data[c].clone()
-            } else {
-                vec![0.0; frames]
-            }
-        })
-        .collect();
+    let mut out: Vec<Vec<f32>> =
+        (0..nout).map(|c| if c < nin { buf.data[c].clone() } else { vec![0.0; frames] }).collect();
     for (oi, terms) in &defs {
         let mut ch = vec![0.0f64; frames];
         for (ii, w) in terms {
@@ -608,11 +569,7 @@ mod tests {
         let sp = spec("channels mix");
         let a = Args::build(
             &sp,
-            vec![
-                ("out".into(), "L=R".into()),
-                ("out".into(), "R=L - 50%R".into()),
-                ("invert".into(), "R".into()),
-            ],
+            vec![("out".into(), "L=R".into()), ("out".into(), "R=L - 50%R".into()), ("invert".into(), "R".into())],
             &|_, _| None,
         )
         .unwrap();

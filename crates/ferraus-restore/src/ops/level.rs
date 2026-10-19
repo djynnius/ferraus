@@ -123,9 +123,7 @@ fn leveler(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffe
             // initialise the detector on the first 50 ms so the start is not boosted
             let w = (0.05 * sr) as usize;
             let e = (i + w).min(n);
-            ms = (i..e)
-                .map(|j| buf.data.iter().map(|c| (c[j] as f64).powi(2)).sum::<f64>() / nch)
-                .sum::<f64>()
+            ms = (i..e).map(|j| buf.data.iter().map(|c| (c[j] as f64).powi(2)).sum::<f64>() / nch).sum::<f64>()
                 / (e - i).max(1) as f64;
             warm = false;
         }
@@ -176,9 +174,7 @@ pub(crate) struct Transfer {
 
 impl Transfer {
     pub(crate) fn new(pts: Vec<(f64, f64)>, spline: bool) -> Transfer {
-        Transfer {
-            curve: Curve::new(pts, spline),
-        }
+        Transfer { curve: Curve::new(pts, spline) }
     }
     pub(crate) fn out(&self, x: f64) -> f64 {
         let xs = &self.curve.xs;
@@ -194,15 +190,11 @@ impl Transfer {
 }
 
 fn band_filter(band: &str, sr: f64) -> Result<Option<(Option<Sos>, Option<Sos>)>> {
-    let (lo, hi) = units::parse_num_range(band, units::parse_freq)
-        .map_err(|e| Error::usage(format!("--band: {}", e.message)))?;
+    let (lo, hi) =
+        units::parse_num_range(band, units::parse_freq).map_err(|e| Error::usage(format!("--band: {}", e.message)))?;
     let (lo, hi) = (lo.min(hi), lo.max(hi));
     let hp = if lo > 25.0 { Some(butterworth(2, lo, sr, true)) } else { None };
-    let lp = if hi < sr * 0.45 && hi < 19_000.0 {
-        Some(butterworth(2, hi, sr, false))
-    } else {
-        None
-    };
+    let lp = if hi < sr * 0.45 && hi < 19_000.0 { Some(butterworth(2, hi, sr, false)) } else { None };
     Ok(if hp.is_none() && lp.is_none() { None } else { Some((hp, lp)) })
 }
 
@@ -223,9 +215,7 @@ fn dynamics(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuff
     let mut side: Vec<f32> = if rms {
         buf.mono_mix()
     } else {
-        (0..n)
-            .map(|i| buf.data.iter().map(|c| c[i].abs()).fold(0.0f32, f32::max))
-            .collect()
+        (0..n).map(|i| buf.data.iter().map(|c| c[i].abs()).fold(0.0f32, f32::max)).collect()
     };
     if let Some((hp, lp)) = &filt {
         // band-limit a mono sum for the detector (peak mode uses the sum too)
@@ -331,23 +321,15 @@ mod tests {
     fn dynamics_static_curve_matches_analytic_gain() {
         let sr = 48000;
         let x = testing::sine(sr, 1000.0, 1.0, 1.0);
-        let out = run(
-            &spec("dynamics"),
-            &[("curve", "-100:-100,-20:-20,0:-10"), ("spline", "off")],
-            x.clone(),
-        )
-        .unwrap();
+        let out =
+            run(&spec("dynamics"), &[("curve", "-100:-100,-20:-20,0:-10"), ("spline", "off")], x.clone()).unwrap();
         // rms -3.01 dB -> output -11.505 dB -> gain -8.495 dB
         let g = seg_db(&out.data[0], 0.5, 1.0, sr) - seg_db(&x.data[0], 0.5, 1.0, sr);
         assert!((g + 8.495).abs() < 0.5, "gain {g:.2}");
         // below the knee nothing happens
         let q = testing::sine(sr, 1000.0, 1.0, 0.05);
-        let out = run(
-            &spec("dynamics"),
-            &[("curve", "-100:-100,-20:-20,0:-10"), ("spline", "off")],
-            q.clone(),
-        )
-        .unwrap();
+        let out =
+            run(&spec("dynamics"), &[("curve", "-100:-100,-20:-20,0:-10"), ("spline", "off")], q.clone()).unwrap();
         let g = seg_db(&out.data[0], 0.5, 1.0, sr) - seg_db(&q.data[0], 0.5, 1.0, sr);
         assert!(g.abs() < 0.1, "{g}");
         // defaults: about -10 dB at moderate levels

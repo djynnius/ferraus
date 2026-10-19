@@ -15,22 +15,10 @@ pub struct Coefs {
 }
 
 impl Coefs {
-    pub const IDENTITY: Coefs = Coefs {
-        b0: 1.0,
-        b1: 0.0,
-        b2: 0.0,
-        a1: 0.0,
-        a2: 0.0,
-    };
+    pub const IDENTITY: Coefs = Coefs { b0: 1.0, b1: 0.0, b2: 0.0, a1: 0.0, a2: 0.0 };
 
     fn norm(b0: f64, b1: f64, b2: f64, a0: f64, a1: f64, a2: f64) -> Coefs {
-        Coefs {
-            b0: b0 / a0,
-            b1: b1 / a0,
-            b2: b2 / a0,
-            a1: a1 / a0,
-            a2: a2 / a0,
-        }
+        Coefs { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 }
     }
 
     fn w(freq: f64, sr: f64) -> f64 {
@@ -164,11 +152,7 @@ pub struct Biquad {
 
 impl Biquad {
     pub fn new(c: Coefs) -> Biquad {
-        Biquad {
-            c: Some(c),
-            z1: 0.0,
-            z2: 0.0,
-        }
+        Biquad { c: Some(c), z1: 0.0, z2: 0.0 }
     }
 
     #[inline]
@@ -210,10 +194,7 @@ pub struct Sos {
 
 impl Sos {
     pub fn new(sections: Vec<Coefs>) -> Sos {
-        Sos {
-            sections,
-            gain: 1.0,
-        }
+        Sos { sections, gain: 1.0 }
     }
 
     pub fn response(&self, freq: f64, sr: f64) -> C {
@@ -233,10 +214,7 @@ impl Sos {
     }
 
     pub fn filter(&self) -> SosFilter {
-        SosFilter {
-            stages: self.sections.iter().map(|c| Biquad::new(*c)).collect(),
-            gain: self.gain,
-        }
+        SosFilter { stages: self.sections.iter().map(|c| Biquad::new(*c)).collect(), gain: self.gain }
     }
 
     /// Filter a channel (f32 in, f32 out).
@@ -308,31 +286,15 @@ pub fn butterworth(order: usize, freq: f64, sr: f64, highpass: bool) -> Sos {
     for k in 0..order / 2 {
         let theta = PI * (2 * k + 1) as f64 / (2 * order) as f64;
         let q = 1.0 / (2.0 * theta.sin());
-        secs.push(if highpass {
-            Coefs::highpass(freq, q, sr)
-        } else {
-            Coefs::lowpass(freq, q, sr)
-        });
+        secs.push(if highpass { Coefs::highpass(freq, q, sr) } else { Coefs::lowpass(freq, q, sr) });
     }
     if order % 2 == 1 {
         // first-order section via bilinear transform
         let k = (PI * (freq / sr).clamp(1e-6, 0.4999)).tan();
         let c = if highpass {
-            Coefs {
-                b0: 1.0 / (1.0 + k),
-                b1: -1.0 / (1.0 + k),
-                b2: 0.0,
-                a1: (k - 1.0) / (k + 1.0),
-                a2: 0.0,
-            }
+            Coefs { b0: 1.0 / (1.0 + k), b1: -1.0 / (1.0 + k), b2: 0.0, a1: (k - 1.0) / (k + 1.0), a2: 0.0 }
         } else {
-            Coefs {
-                b0: k / (1.0 + k),
-                b1: k / (1.0 + k),
-                b2: 0.0,
-                a1: (k - 1.0) / (k + 1.0),
-                a2: 0.0,
-            }
+            Coefs { b0: k / (1.0 + k), b1: k / (1.0 + k), b2: 0.0, a1: (k - 1.0) / (k + 1.0), a2: 0.0 }
         };
         secs.push(c);
     }
@@ -353,19 +315,13 @@ pub fn parse_filter_spec(spec: &str, sr: f64) -> ferraus_core::Result<Option<Coe
         .get(1)
         .map(|f| units::parse_freq(f))
         .transpose()?
-        .ok_or_else(|| {
-            ferraus_core::Error::usage(format!(
-                "filter '{s}' needs a frequency, e.g. lowpass:4kHz"
-            ))
-        })?;
+        .ok_or_else(|| ferraus_core::Error::usage(format!("filter '{s}' needs a frequency, e.g. lowpass:4kHz")))?;
     let mut gain = 0.0;
     let mut q = std::f64::consts::FRAC_1_SQRT_2;
     for p in parts.iter().skip(2) {
         let p = p.trim();
         if let Some(v) = p.strip_prefix("q=") {
-            q = v
-                .parse::<f64>()
-                .map_err(|_| ferraus_core::Error::usage(format!("bad q in '{s}'")))?;
+            q = v.parse::<f64>().map_err(|_| ferraus_core::Error::usage(format!("bad q in '{s}'")))?;
         } else {
             gain = units::parse_db(p)?;
         }
@@ -412,9 +368,7 @@ mod tests {
     #[test]
     fn filtfilt_zero_phase() {
         let s = butterworth(2, 1000.0, 48000.0, false);
-        let x: Vec<f32> = (0..4800)
-            .map(|i| (2.0 * PI * 200.0 * i as f64 / 48000.0).sin() as f32)
-            .collect();
+        let x: Vec<f32> = (0..4800).map(|i| (2.0 * PI * 200.0 * i as f64 / 48000.0).sin() as f32).collect();
         let y = s.filtfilt(&x, 1000);
         // zero phase: peak alignment preserved
         for i in 1000..3800 {

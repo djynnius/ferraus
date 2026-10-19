@@ -177,8 +177,7 @@ fn echo(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
 // ---------------------------------------------------------------------------------
 
 fn metres(a: &Args, name: &str, units_: &[&str]) -> Result<f64> {
-    units::parse_with_unit(&a.str_or(name, ""), units_)
-        .map_err(|e| Error::usage(format!("--{name}: {}", e.message)))
+    units::parse_with_unit(&a.str_or(name, ""), units_).map_err(|e| Error::usage(format!("--{name}: {}", e.message)))
 }
 
 fn doppler(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
@@ -207,19 +206,15 @@ fn doppler(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffe
     let r0 = r_at(0.0);
     let n = buf.frames();
     let delay: Vec<f64> = (0..n).map(|i| (r_at(i as f64 / sr) - r0) / C_SOUND * sr).collect();
-    let gain: Vec<f64> = (0..n)
-        .map(|i| if vol { (r_min / r_at(i as f64 / sr)).min(1.0) } else { 1.0 })
-        .collect();
+    let gain: Vec<f64> = (0..n).map(|i| if vol { (r_min / r_at(i as f64 / sr)).min(1.0) } else { 1.0 }).collect();
     for ch in buf.data.iter_mut() {
         let src = ch.clone();
         for i in 0..n {
             ch[i] = (read_cubic(&src, i as f64 - delay[i]) * gain[i]) as f32;
         }
     }
-    let (fmin, fmax) = delay
-        .windows(2)
-        .map(|w| 1.0 - (w[1] - w[0]))
-        .fold((f64::MAX, f64::MIN), |(lo, hi), r| (lo.min(r), hi.max(r)));
+    let (fmin, fmax) =
+        delay.windows(2).map(|w| 1.0 - (w[1] - w[0])).fold((f64::MAX, f64::MIN), |(lo, hi), r| (lo.min(r), hi.max(r)));
     if n > 1 {
         ctx.metric("pitch_ratio_min", (fmin * 10000.0).round() / 10000.0);
         ctx.metric("pitch_ratio_max", (fmax * 10000.0).round() / 10000.0);
@@ -237,9 +232,7 @@ fn parse_amp(s: &str, range_db: f64) -> Result<f64> {
         let db = units::parse_db(t)?.max(-range_db);
         Ok(db_to_lin(db))
     } else {
-        let v: f64 = t
-            .parse()
-            .map_err(|_| Error::usage(format!("'{t}' is not a level (0.5 or -6dB)")))?;
+        let v: f64 = t.parse().map_err(|_| Error::usage(format!("'{t}' is not a level (0.5 or -6dB)")))?;
         Ok(v.abs())
     }
 }
