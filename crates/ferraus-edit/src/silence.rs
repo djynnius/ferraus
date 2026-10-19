@@ -41,11 +41,7 @@ pub fn detect_silence(buf: &AudioBuffer, threshold_db: f64, min_frames: usize) -
     let energy: Vec<Vec<f64>> = buf
         .data
         .iter()
-        .map(|c| {
-            c.chunks(hop)
-                .map(|b| b.iter().map(|v| (*v as f64) * (*v as f64)).sum())
-                .collect()
-        })
+        .map(|c| c.chunks(hop).map(|b| b.iter().map(|v| (*v as f64) * (*v as f64)).sum()).collect())
         .collect();
     let block_len = |j: usize| -> usize { hop.min(n - j * hop) };
     let (before, after) = (4usize, 5usize); // 10-block window centred on the block
@@ -55,10 +51,7 @@ pub fn detect_silence(buf: &AudioBuffer, threshold_db: f64, min_frames: usize) -
         let lo = j.saturating_sub(before);
         let hi = (j + after).min(blocks - 1);
         let count: usize = (lo..=hi).map(block_len).sum();
-        let loudest = energy
-            .iter()
-            .map(|e| e[lo..=hi].iter().sum::<f64>() / count.max(1) as f64)
-            .fold(0.0, f64::max);
+        let loudest = energy.iter().map(|e| e[lo..=hi].iter().sum::<f64>() / count.max(1) as f64).fold(0.0, f64::max);
         *s = loudest < thr;
     }
     let mut out = Vec::new();
@@ -78,10 +71,7 @@ pub fn detect_silence(buf: &AudioBuffer, threshold_db: f64, min_frames: usize) -
             let floor = buf
                 .data
                 .iter()
-                .map(|c| {
-                    c[start..end].iter().map(|v| (*v as f64).powi(2)).sum::<f64>()
-                        / (end - start) as f64
-                })
+                .map(|c| c[start..end].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / (end - start) as f64)
                 .fold(0.0, f64::max);
             out.push(SilenceRegion {
                 start,
@@ -101,35 +91,37 @@ pub fn detect_silence(buf: &AudioBuffer, threshold_db: f64, min_frames: usize) -
 // ---------------------------------------------------------------------------------------
 
 pub fn detect_spec() -> OpSpec {
-    OpSpec::custom("silence detect", Category::Edit, "Find silent regions and report their start, end, and level", detect)
-        .inputs(Inputs::ONE_AUDIO)
-        .about(
-            "Lists every stretch quieter than --threshold that lasts at least --min, with its \
+    OpSpec::custom(
+        "silence detect",
+        Category::Edit,
+        "Find silent regions and report their start, end, and level",
+        detect,
+    )
+    .inputs(Inputs::ONE_AUDIO)
+    .about(
+        "Lists every stretch quieter than --threshold that lasts at least --min, with its \
              start, end, duration, and average level. Nothing is changed. --markers also writes \
              the regions as a marker file (CSV for editors and spreadsheets, or JSON) named \
              <input>.silence-detect.csv unless -o says otherwise.",
-        )
-        .param(
-            param("threshold", ParamKind::Gain)
-                .default("-40dB")
-                .help("Level (dBFS, RMS over 10 ms) below which audio counts as silence"),
-        )
-        .param(param("min", ParamKind::Time).default("300ms").help("Shortest silence (duration) to report"))
-        .param(param("markers", ParamKind::Flag).help("Also write the regions to a marker file"))
-        .param(
-            param("markers-format", ParamKind::Choice)
-                .choices(&["csv", "json"])
-                .default("csv")
-                .help("Marker file format when -o has no .csv/.json extension"),
-        )
-        .example(
-            "ferraus silence detect interview.wav --json",
-            "List pauses of 300 ms or more below -40 dBFS",
-        )
-        .example(
-            "ferraus silence detect lecture.mp3 --threshold -50dB --min 2s --markers -o pauses.csv",
-            "Write long pauses to a CSV marker file",
-        )
+    )
+    .param(
+        param("threshold", ParamKind::Gain)
+            .default("-40dB")
+            .help("Level (dBFS, RMS over 10 ms) below which audio counts as silence"),
+    )
+    .param(param("min", ParamKind::Time).default("300ms").help("Shortest silence (duration) to report"))
+    .param(param("markers", ParamKind::Flag).help("Also write the regions to a marker file"))
+    .param(
+        param("markers-format", ParamKind::Choice)
+            .choices(&["csv", "json"])
+            .default("csv")
+            .help("Marker file format when -o has no .csv/.json extension"),
+    )
+    .example("ferraus silence detect interview.wav --json", "List pauses of 300 ms or more below -40 dBFS")
+    .example(
+        "ferraus silence detect lecture.mp3 --threshold -50dB --min 2s --markers -o pauses.csv",
+        "Write long pauses to a CSV marker file",
+    )
 }
 
 fn detect(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -144,10 +136,7 @@ fn detect(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     if a.flag("markers") {
         let fmt = a.choice("markers-format");
         let path = ctx.output_path(None, &fmt)?;
-        let ext = path
-            .extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
+        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
         let as_json = match ext.as_str() {
             "json" => true,
             "csv" | "txt" | "tsv" => false,
@@ -199,32 +188,44 @@ pub fn markers_csv(regions: &[SilenceRegion]) -> String {
 // ---------------------------------------------------------------------------------------
 
 pub fn trim_spec() -> OpSpec {
-    OpSpec::transform("silence trim", Category::Edit, "Remove leading and trailing silence, optionally long pauses too", silence_trim)
-        .about(
-            "Removes silence below --threshold from the start and end, leaving --keep of it so \
+    OpSpec::transform(
+        "silence trim",
+        Category::Edit,
+        "Remove leading and trailing silence, optionally long pauses too",
+        silence_trim,
+    )
+    .about(
+        "Removes silence below --threshold from the start and end, leaving --keep of it so \
              the sound does not start abruptly (--edges, the default). With --all, pauses inside \
              the audio longer than --min are also shortened to --max-gap, joined with a short \
              crossfade (Audition's Delete Silence).",
-        )
-        .param(param("edges", ParamKind::Flag).help("Trim leading and trailing silence (the default behaviour)"))
-        .param(param("all", ParamKind::Flag).help("Also shorten long silences inside the audio"))
-        .param(
-            param("threshold", ParamKind::Gain)
-                .default("-60dB")
-                .help("Level (dBFS) below which audio counts as silence"),
-        )
-        .param(param("keep", ParamKind::Time).default("10ms").help("Silence (duration) kept before the first and after the last sound"))
-        .param(param("min", ParamKind::Time).default("1s").help("With --all: inner silences longer than this (duration) are shortened"))
-        .param(param("max-gap", ParamKind::Time).default("500ms").help("With --all: length (duration) inner silences are shortened to"))
-        .no_mix()
-        .example(
-            "ferraus silence trim take.wav -o take_trimmed.wav",
-            "Strip dead air from both ends, keeping 10 ms",
-        )
-        .example(
-            "ferraus silence trim podcast.wav --all --threshold -50dB --max-gap 700ms -o tight.wav",
-            "Also shorten every pause longer than 1 s to 700 ms",
-        )
+    )
+    .param(param("edges", ParamKind::Flag).help("Trim leading and trailing silence (the default behaviour)"))
+    .param(param("all", ParamKind::Flag).help("Also shorten long silences inside the audio"))
+    .param(
+        param("threshold", ParamKind::Gain).default("-60dB").help("Level (dBFS) below which audio counts as silence"),
+    )
+    .param(
+        param("keep", ParamKind::Time)
+            .default("10ms")
+            .help("Silence (duration) kept before the first and after the last sound"),
+    )
+    .param(
+        param("min", ParamKind::Time)
+            .default("1s")
+            .help("With --all: inner silences longer than this (duration) are shortened"),
+    )
+    .param(
+        param("max-gap", ParamKind::Time)
+            .default("500ms")
+            .help("With --all: length (duration) inner silences are shortened to"),
+    )
+    .no_mix()
+    .example("ferraus silence trim take.wav -o take_trimmed.wav", "Strip dead air from both ends, keeping 10 ms")
+    .example(
+        "ferraus silence trim podcast.wav --all --threshold -50dB --max-gap 700ms -o tight.wav",
+        "Also shorten every pause longer than 1 s to 700 ms",
+    )
 }
 
 fn silence_trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
@@ -243,10 +244,7 @@ fn silence_trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuff
     let (first, last) = match (first, last) {
         (Some(f), Some(l)) => (f, l),
         _ => {
-            ctx.warn(
-                "all_silent",
-                format!("nothing in the input is above {thr_db} dB; it was left unchanged"),
-            );
+            ctx.warn("all_silent", format!("nothing in the input is above {thr_db} dB; it was left unchanged"));
             return Ok(buf);
         }
     };

@@ -34,12 +34,9 @@ pub fn trim_spec() -> OpSpec {
         ))
         .param(param("pad-start", ParamKind::Time).help("Silence added before the result (duration, e.g. 1s)"))
         .param(param("pad-end", ParamKind::Time).help("Silence added after the result (duration, e.g. 2s)"))
-        .param(
-            param("snap", ParamKind::Choice)
-                .choices(&["zero", "off"])
-                .default("zero")
-                .help("zero: move cut points to the nearest zero crossing so the edges never click; off: cut at the exact sample"),
-        )
+        .param(param("snap", ParamKind::Choice).choices(&["zero", "off"]).default("zero").help(
+            "zero: move cut points to the nearest zero crossing so the edges never click; off: cut at the exact sample",
+        ))
         .param(
             param("snap-window", ParamKind::Time)
                 .default("5ms")
@@ -47,10 +44,7 @@ pub fn trim_spec() -> OpSpec {
                 .help("How far (duration) a cut point may move when snapping to a zero crossing"),
         )
         .no_mix()
-        .example(
-            "ferraus trim song.wav --range 0:30..1:15 -o chorus.wav",
-            "Keep 0:30 to 1:15, with click-free edges",
-        )
+        .example("ferraus trim song.wav --range 0:30..1:15 -o chorus.wav", "Keep 0:30 to 1:15, with click-free edges")
         .example(
             "ferraus trim take.wav --range 2.5s..end --pad 250ms -o take_clean.wav",
             "Drop the first 2.5 seconds and add a quarter second of silence at each end",
@@ -70,14 +64,8 @@ pub(crate) fn edge_needs_fade(buf: &AudioBuffer, at_start: bool) -> bool {
     }
     let win = ((0.002 * buf.sample_rate as f64) as usize).clamp(2, n);
     buf.data.iter().any(|c| {
-        let (edge, seg) = if at_start {
-            (c[0], &c[..win])
-        } else {
-            (c[n - 1], &c[n - win..])
-        };
-        let slope = seg
-            .windows(2)
-            .fold(0.0f32, |m, w| m.max((w[1] - w[0]).abs()));
+        let (edge, seg) = if at_start { (c[0], &c[..win]) } else { (c[n - 1], &c[n - win..]) };
+        let slope = seg.windows(2).fold(0.0f32, |m, w| m.max((w[1] - w[0]).abs()));
         edge.abs() > slope * 1.05 + 1e-5
     })
 }
@@ -106,16 +94,11 @@ pub(crate) fn pad(buf: &AudioBuffer, start: usize, end: usize) -> AudioBuffer {
             v
         })
         .collect();
-    AudioBuffer {
-        sample_rate: buf.sample_rate,
-        data,
-    }
+    AudioBuffer { sample_rate: buf.sample_rate, data }
 }
 
 fn trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
-    let range = a
-        .range("range")?
-        .ok_or_else(|| Error::usage("trim needs --range start..end"))?;
+    let range = a.range("range")?.ok_or_else(|| Error::usage("trim needs --range start..end"))?;
     let sr = buf.sample_rate;
     let bpm = ctx.bpm();
     let n = buf.frames();
@@ -130,10 +113,7 @@ fn trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
     if clamped {
         ctx.warn(
             "range_clamped",
-            format!(
-                "--range reaches past the end of the input; keeping up to {:.3} s",
-                n as f64 / sr as f64
-            ),
+            format!("--range reaches past the end of the input; keeping up to {:.3} s", n as f64 / sr as f64),
         );
     }
     let snap = a.choice("snap") != "off";
@@ -255,10 +235,7 @@ fn cut(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
         util::fade_out(&mut out, fade);
     }
     if joins.iter().any(|&j| j < xfade.saturating_sub(1)) {
-        ctx.warn(
-            "crossfade_shortened",
-            "a crossfade was shortened because a kept piece is shorter than the crossfade",
-        );
+        ctx.warn("crossfade_shortened", "a crossfade was shortened because a kept piece is shorter than the crossfade");
     }
     ctx.note(
         "removed",
@@ -279,47 +256,46 @@ fn cut(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
 // ---------------------------------------------------------------------------------------
 
 pub fn split_spec() -> OpSpec {
-    OpSpec::custom("split", Category::Edit, "Split a file into parts at times, at silences, or into equal chunks", split)
-        .inputs(Inputs::ONE_AUDIO)
-        .about(
-            "Writes one file per part, named <input>.001.<ext>, <input>.002.<ext>, ... (or from \
+    OpSpec::custom(
+        "split",
+        Category::Edit,
+        "Split a file into parts at times, at silences, or into equal chunks",
+        split,
+    )
+    .inputs(Inputs::ONE_AUDIO)
+    .about(
+        "Writes one file per part, named <input>.001.<ext>, <input>.002.<ext>, ... (or from \
              an -o template using {stem} for the part number). Split points come from --at \
              (repeatable), --every (equal chunks), and/or --on-silence (the middle of each \
              silent gap); several sources are combined. Points snap to zero crossings so no \
              part starts or ends with a click. Nothing is lost: the parts join back into the \
              input exactly.",
-        )
-        .param(param("at", ParamKind::Time).repeatable().help("Split point (time, repeatable), e.g. 1:30 or 64b"))
-        .param(param("every", ParamKind::Time).help("Split into equal chunks of this duration, e.g. 30s"))
-        .param(param("on-silence", ParamKind::Flag).help("Split in the middle of each silent gap"))
-        .param(
-            param("silence-threshold", ParamKind::Gain)
-                .default("-40dB")
-                .help("Level (dBFS) below which audio counts as silence for --on-silence"),
-        )
-        .param(
-            param("min-silence", ParamKind::Time)
-                .default("500ms")
-                .help("Shortest gap (duration) that counts as a split point for --on-silence"),
-        )
-        .param(
-            param("snap", ParamKind::Choice)
-                .choices(&["zero", "off"])
-                .default("zero")
-                .help("zero: move split points to the nearest zero crossing (within 5 ms); off: exact samples"),
-        )
-        .example(
-            "ferraus split podcast.wav --every 10:00 --outdir parts/",
-            "Cut a long recording into 10-minute files",
-        )
-        .example(
-            "ferraus split side_a.flac --on-silence --min-silence 2s -o 'track{stem}.flac'",
-            "Split a vinyl side into tracks at the gaps (track001.flac, track002.flac, ...)",
-        )
-        .example(
-            "ferraus split song.wav --at 0:45 --at 2:10 --json",
-            "Split at two times and report the parts as JSON",
-        )
+    )
+    .param(param("at", ParamKind::Time).repeatable().help("Split point (time, repeatable), e.g. 1:30 or 64b"))
+    .param(param("every", ParamKind::Time).help("Split into equal chunks of this duration, e.g. 30s"))
+    .param(param("on-silence", ParamKind::Flag).help("Split in the middle of each silent gap"))
+    .param(
+        param("silence-threshold", ParamKind::Gain)
+            .default("-40dB")
+            .help("Level (dBFS) below which audio counts as silence for --on-silence"),
+    )
+    .param(
+        param("min-silence", ParamKind::Time)
+            .default("500ms")
+            .help("Shortest gap (duration) that counts as a split point for --on-silence"),
+    )
+    .param(
+        param("snap", ParamKind::Choice)
+            .choices(&["zero", "off"])
+            .default("zero")
+            .help("zero: move split points to the nearest zero crossing (within 5 ms); off: exact samples"),
+    )
+    .example("ferraus split podcast.wav --every 10:00 --outdir parts/", "Cut a long recording into 10-minute files")
+    .example(
+        "ferraus split side_a.flac --on-silence --min-silence 2s -o 'track{stem}.flac'",
+        "Split a vinyl side into tracks at the gaps (track001.flac, track002.flac, ...)",
+    )
+    .example("ferraus split song.wav --at 0:45 --at 2:10 --json", "Split at two times and report the parts as JSON")
 }
 
 fn split(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -331,8 +307,9 @@ fn split(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let every = a.has("every");
     let on_silence = a.flag("on-silence");
     if at.is_empty() && !every && !on_silence {
-        return Err(Error::usage("split needs --at, --every, or --on-silence")
-            .with_hint("ferraus split <input> --every 30s"));
+        return Err(
+            Error::usage("split needs --at, --every, or --on-silence").with_hint("ferraus split <input> --every 30s")
+        );
     }
     let mut points: Vec<usize> = Vec::new();
     for s in &at {
@@ -413,7 +390,11 @@ pub fn concat_spec() -> OpSpec {
              --gap inserts silence instead. With --match on (the default) every input is \
              resampled and remixed to the first file's sample rate and channel count.",
         )
-        .param(param("crossfade", ParamKind::Time).default("0ms").help("Overlap (duration) between consecutive files, e.g. 2s"))
+        .param(
+            param("crossfade", ParamKind::Time)
+                .default("0ms")
+                .help("Overlap (duration) between consecutive files, e.g. 2s"),
+        )
         .param(
             param("crossfade-curve", ParamKind::Choice)
                 .choices(&["equal-power", "linear"])
@@ -422,14 +403,11 @@ pub fn concat_spec() -> OpSpec {
         )
         .param(param("gap", ParamKind::Time).default("0ms").help("Silence (duration) inserted between files"))
         .param(
-            param("match", ParamKind::Switch)
-                .default("on")
-                .help("Resample and remix inputs to the first file's sample rate and channels; off fails on a mismatch"),
+            param("match", ParamKind::Switch).default("on").help(
+                "Resample and remix inputs to the first file's sample rate and channels; off fails on a mismatch",
+            ),
         )
-        .example(
-            "ferraus concat intro.wav body.wav outro.wav -o episode.wav",
-            "Join three files back to back",
-        )
+        .example("ferraus concat intro.wav body.wav outro.wav -o episode.wav", "Join three files back to back")
         .example(
             "ferraus concat a.flac b.mp3 --crossfade 3s -o mix.flac",
             "DJ-style 3-second equal-power crossfade; b.mp3 is converted to a.flac's format",

@@ -33,7 +33,10 @@ pub fn mix_spec() -> OpSpec {
                 .help("peak: scale the sum so its sample peak sits at --ceiling"),
         )
         .param(param("ceiling", ParamKind::Gain).default("-1dB").help("Peak level (dBFS) used by --normalize peak"))
-        .example("ferraus mix vocal.wav beat.wav --gains 0dB,-4dB -o demo.wav", "Lay a vocal over a beat, beat 4 dB down")
+        .example(
+            "ferraus mix vocal.wav beat.wav --gains 0dB,-4dB -o demo.wav",
+            "Lay a vocal over a beat, beat 4 dB down",
+        )
         .example(
             "ferraus mix vox.wav gtr.wav keys.wav --gains 0dB,-3dB,-6dB --pans 0,-40,+40 -o rough.wav",
             "Rough mix: vocal centred, guitar left, keys right",
@@ -77,18 +80,10 @@ fn bad_pan(s: &str) -> Error {
     Error::usage(format!("--pans: '{s}' is not a pan from -100 (left) to +100 (right)"))
 }
 
-fn per_input<T>(
-    a: &Args,
-    name: &str,
-    count: usize,
-    parse: &dyn Fn(&str) -> Result<T>,
-) -> Result<Vec<Option<T>>> {
+fn per_input<T>(a: &Args, name: &str, count: usize, parse: &dyn Fn(&str) -> Result<T>) -> Result<Vec<Option<T>>> {
     let vals = a.list(name);
     if vals.len() > count {
-        return Err(Error::usage(format!(
-            "--{name} has {} values but there are only {count} inputs",
-            vals.len()
-        )));
+        return Err(Error::usage(format!("--{name} has {} values but there are only {count} inputs", vals.len())));
     }
     let mut out: Vec<Option<T>> = Vec::with_capacity(count);
     for v in &vals {

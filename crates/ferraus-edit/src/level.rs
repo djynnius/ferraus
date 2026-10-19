@@ -29,16 +29,19 @@ pub fn gain_spec() -> OpSpec {
         )
         .example("ferraus gain vocal.wav --by -6dB -o vocal_quiet.wav", "Turn the vocal down 6 dB")
         .example("ferraus gain mix.wav --by L=-1.5dB,R=0dB -o mix_balanced.wav", "Pull the left channel down 1.5 dB")
-        .example("ferraus fx in.wav -o out.wav --fx gain:by=2x --fx fade:out=3s", "Double the amplitude inside an effects chain")
+        .example(
+            "ferraus fx in.wav -o out.wav --fx gain:by=2x --fx fade:out=3s",
+            "Double the amplitude inside an effects chain",
+        )
 }
 
 fn gain_value(s: &str) -> Result<f64> {
     let g = Gain::parse(s).map_err(|e| Error::usage(format!("--by: {}", e.message)))?;
     match g {
-        Gain::Lufs(_) | Gain::DbTp(_) => Err(Error::usage(format!(
-            "--by takes a fixed gain such as -6dB or 0.5x, not a target ('{s}')"
-        ))
-        .with_hint("ferraus normalize <input> --lufs -14")),
+        Gain::Lufs(_) | Gain::DbTp(_) => {
+            Err(Error::usage(format!("--by takes a fixed gain such as -6dB or 0.5x, not a target ('{s}')"))
+                .with_hint("ferraus normalize <input> --lufs -14"))
+        }
         other => Ok(other.linear()),
     }
 }
@@ -61,9 +64,7 @@ pub fn channel_index(name: &str, channels: usize) -> Result<usize> {
         }
     };
     if idx >= channels {
-        return Err(Error::usage(format!(
-            "channel '{name}' does not exist: the input has {channels} channel(s)"
-        )));
+        return Err(Error::usage(format!("channel '{name}' does not exist: the input has {channels} channel(s)")));
     }
     Ok(idx)
 }
@@ -73,9 +74,8 @@ pub fn parse_gain_spec(s: &str, channels: usize) -> Result<Vec<f64>> {
     if s.contains('=') {
         let mut g = vec![1.0; channels];
         for part in units::split_list(s) {
-            let (k, v) = part
-                .split_once('=')
-                .ok_or_else(|| Error::usage(format!("--by: '{part}' is not CHANNEL=GAIN")))?;
+            let (k, v) =
+                part.split_once('=').ok_or_else(|| Error::usage(format!("--by: '{part}' is not CHANNEL=GAIN")))?;
             g[channel_index(k, channels)?] = gain_value(v)?;
         }
         Ok(g)
@@ -121,7 +121,11 @@ pub fn normalize_spec() -> OpSpec {
              Several inputs are normalized one by one to the same target (Match Loudness). \
              Before and after measurements are reported as metrics.",
         )
-        .param(param("lufs", ParamKind::Gain).default("-14").help("Integrated loudness target in LUFS (default mode), e.g. -14, -16, -23"))
+        .param(
+            param("lufs", ParamKind::Gain)
+                .default("-14")
+                .help("Integrated loudness target in LUFS (default mode), e.g. -14, -16, -23"),
+        )
         .param(param("peak", ParamKind::Gain).help("Peak target: -1dBTP for true peak, -1dB for sample peak"))
         .param(param("rms", ParamKind::Gain).help("RMS level target in dBFS, e.g. -20dB"))
         .param(
@@ -130,21 +134,31 @@ pub fn normalize_spec() -> OpSpec {
                 .help("With --lufs/--rms: limit inter-sample peaks to --ceiling after the gain"),
         )
         .param(param("ceiling", ParamKind::Gain).default("-1dBTP").help("True-peak ceiling in dBTP for the limiter"))
-        .param(param("lookahead", ParamKind::Time).default("3ms").advanced().help("Limiter lookahead (attack) duration"))
-        .param(param("release", ParamKind::Time).default("80ms").advanced().help("Limiter release time constant (duration)"))
-        .example("ferraus normalize song.wav -o song_streaming.wav", "Integrated loudness to -14 LUFS, true peak at most -1 dBTP")
+        .param(
+            param("lookahead", ParamKind::Time).default("3ms").advanced().help("Limiter lookahead (attack) duration"),
+        )
+        .param(
+            param("release", ParamKind::Time)
+                .default("80ms")
+                .advanced()
+                .help("Limiter release time constant (duration)"),
+        )
+        .example(
+            "ferraus normalize song.wav -o song_streaming.wav",
+            "Integrated loudness to -14 LUFS, true peak at most -1 dBTP",
+        )
         .example("ferraus normalize ep/*.wav --lufs -16 --outdir matched/", "Match a batch of tracks to -16 LUFS")
         .example("ferraus normalize sample.wav --peak -0.1dB -o sample_max.wav", "Sample peak to -0.1 dBFS")
-        .example("ferraus normalize vo.wav --lufs -23 --ceiling -2dBTP --json", "Broadcast loudness with a -2 dBTP ceiling and a JSON report")
+        .example(
+            "ferraus normalize vo.wav --lufs -23 --ceiling -2dBTP --json",
+            "Broadcast loudness with a -2 dBTP ceiling and a JSON report",
+        )
 }
 
 /// Which explicit mode the user picked. Explicit flags win over the default `--lufs`; two
 /// explicit modes are a usage error.
 fn pick_mode(a: &Args) -> Result<&'static str> {
-    let explicit: Vec<&'static str> = ["lufs", "peak", "rms"]
-        .into_iter()
-        .filter(|m| a.is_explicit(m))
-        .collect();
+    let explicit: Vec<&'static str> = ["lufs", "peak", "rms"].into_iter().filter(|m| a.is_explicit(m)).collect();
     match explicit.as_slice() {
         [] => {
             if a.has("peak") {
@@ -186,7 +200,7 @@ pub fn level_with_limiter(
     if loudness::true_peak_conservative(&out)? <= db_to_lin(opts.ceiling_db) as f32 {
         return Ok((out, gain_db, None));
     }
-    let max_gain = gain_db + 12.0;
+    let max_gain = gain_db + 6.0;
     let mut g = gain_db;
     let mut prev: Option<(f64, f64)> = None; // (gain, measured)
     let mut best: Option<(f64, AudioBuffer, f64, LimiterReport)> = None;
@@ -282,13 +296,9 @@ fn normalize(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
             ctx.note("peak_kind", kind);
             let t = target.db();
             let mut out = scaled(&buf, t - measured);
+            let check = if kind == "true_peak" { loudness::true_peak_conservative(&out)? } else { out.peak() };
             // guard against float rounding pushing the peak a hair over the target
-            let check = if kind == "true_peak" {
-                loudness::true_peak_conservative(&out)?
-            } else {
-                out.peak()
-            };
-            let tl = db_to_lin(t) as f32;
+            let tl = db_to_lin(t) as f32 * 0.99999;
             if check > tl {
                 out.scale(tl / check);
             }
@@ -332,22 +342,27 @@ fn normalize(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
 // ---------------------------------------------------------------------------------------
 
 pub fn resample_spec() -> OpSpec {
-    OpSpec::transform("resample", Category::Edit, "Change the sample rate with a high-quality sinc resampler", resample_op)
-        .about(
-            "Converts to a new sample rate with a windowed-sinc (Kaiser) resampler that keeps the \
+    OpSpec::transform(
+        "resample",
+        Category::Edit,
+        "Change the sample rate with a high-quality sinc resampler",
+        resample_op,
+    )
+    .about(
+        "Converts to a new sample rate with a windowed-sinc (Kaiser) resampler that keeps the \
              audible band intact and removes everything above the new Nyquist frequency. \
              Rates accept 48000, 48k, or 44.1kHz.",
-        )
-        .param(param("to", ParamKind::Freq).default("48000").help("Target sample rate in Hz: 48000, 48k, 44.1kHz"))
-        .param(
-            param("quality", ParamKind::Choice)
-                .choices(&["high", "medium", "fast"])
-                .default("high")
-                .help("Filter length: high (best, slowest), medium, fast"),
-        )
-        .no_mix()
-        .example("ferraus resample voice.wav --to 48k -o voice48.wav", "Convert to 48 kHz for video")
-        .example("ferraus resample master96.flac --to 44.1kHz -o master44.flac", "Down-convert a 96 kHz master for CD")
+    )
+    .param(param("to", ParamKind::Freq).default("48000").help("Target sample rate in Hz: 48000, 48k, 44.1kHz"))
+    .param(
+        param("quality", ParamKind::Choice)
+            .choices(&["high", "medium", "fast"])
+            .default("high")
+            .help("Filter length: high (best, slowest), medium, fast"),
+    )
+    .no_mix()
+    .example("ferraus resample voice.wav --to 48k -o voice48.wav", "Convert to 48 kHz for video")
+    .example("ferraus resample master96.flac --to 44.1kHz -o master44.flac", "Down-convert a 96 kHz master for CD")
 }
 
 fn resample_op(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {

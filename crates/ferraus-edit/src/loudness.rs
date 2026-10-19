@@ -83,11 +83,7 @@ pub fn integrated_lufs(buf: &AudioBuffer) -> Result<f64> {
 /// Full loudness report: integrated loudness, loudness range, true peak, sample peak.
 pub fn analyze(buf: &AudioBuffer) -> Result<LoudnessStats> {
     let integrated = integrated_lufs(buf)?;
-    let lra = if buf.duration_s() >= 3.0 {
-        meter(buf, Mode::LRA)?.loudness_range().map_err(ebu_err)?
-    } else {
-        0.0
-    };
+    let lra = if buf.duration_s() >= 3.0 { meter(buf, Mode::LRA)?.loudness_range().map_err(ebu_err)? } else { 0.0 };
     Ok(LoudnessStats {
         integrated_lufs: crate::util::round_db(integrated),
         loudness_range_lu: crate::util::round_db(lra),
@@ -152,11 +148,7 @@ fn tp_kernels() -> [[f32; TP_TAPS]; 3] {
             let px = std::f64::consts::PI * x;
             let sinc = if x.abs() < 1e-12 { 1.0 } else { px.sin() / px };
             let r = x / half;
-            let w = if r.abs() >= 1.0 {
-                0.0
-            } else {
-                bessel_i0(beta * (1.0 - r * r).sqrt()) / i0b
-            };
+            let w = if r.abs() >= 1.0 { 0.0 } else { bessel_i0(beta * (1.0 - r * r).sqrt()) / i0b };
             *t = sinc * w;
         }
         let sum: f64 = taps.iter().sum();
@@ -286,11 +278,7 @@ pub struct LimiterOptions {
 
 impl Default for LimiterOptions {
     fn default() -> Self {
-        LimiterOptions {
-            ceiling_db: -1.0,
-            lookahead_s: 0.003,
-            release_s: 0.08,
-        }
+        LimiterOptions { ceiling_db: -1.0, lookahead_s: 0.003, release_s: 0.08 }
     }
 }
 
@@ -314,10 +302,7 @@ fn limiter_pass(buf: &mut AudioBuffer, target: f32, lookahead: usize, release: u
         return 1.0;
     }
     let env = true_peak_envelope(buf);
-    let greq: Vec<f32> = env
-        .iter()
-        .map(|&e| if e > target { target / e } else { 1.0 })
-        .collect();
+    let greq: Vec<f32> = env.iter().map(|&e| if e > target { target / e } else { 1.0 }).collect();
     if greq.iter().all(|&g| g >= 1.0) {
         return 1.0;
     }
@@ -327,11 +312,7 @@ fn limiter_pass(buf: &mut AudioBuffer, target: f32, lookahead: usize, release: u
     // h[n] = min over [n, n + w - 1]
     let h = window_min(&spread, 0, w - 1);
     // instant attack, exponential release
-    let a = if release == 0 {
-        1.0
-    } else {
-        1.0 - (-1.0 / release as f64).exp() as f32
-    };
+    let a = if release == 0 { 1.0 } else { 1.0 - (-1.0 / release as f64).exp() as f32 };
     let mut r = vec![0f32; n];
     let mut prev = 1.0f32;
     for i in 0..n {
@@ -429,14 +410,9 @@ mod tests {
         let l = integrated_lufs(&segments(&[(-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0)])).unwrap();
         assert!((l + 23.0).abs() <= 0.1, "case 3: {l}");
         // case 4: -72 / -36 / -23 / -36 / -72 dBFS for 10 / 10 / 60 / 10 / 10 s → -23.0
-        let l = integrated_lufs(&segments(&[
-            (-72.0, 10.0),
-            (-36.0, 10.0),
-            (-23.0, 60.0),
-            (-36.0, 10.0),
-            (-72.0, 10.0),
-        ]))
-        .unwrap();
+        let l =
+            integrated_lufs(&segments(&[(-72.0, 10.0), (-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0), (-72.0, 10.0)]))
+                .unwrap();
         assert!((l + 23.0).abs() <= 0.1, "case 4: {l}");
         // case 5: -26 / -20 / -26 dBFS for 20 / 20.1 / 20 s → -23.0
         let l = integrated_lufs(&segments(&[(-26.0, 20.0), (-20.0, 20.1), (-26.0, 20.0)])).unwrap();
@@ -452,10 +428,7 @@ mod tests {
         // fs/4 sine at 45 degrees phase: samples at 0.707·A, true peak A (+3 dB)
         let n = 24000;
         let x: Vec<f32> = (0..n)
-            .map(|i| {
-                (0.5 * (std::f64::consts::FRAC_PI_2 * i as f64 + std::f64::consts::FRAC_PI_4).sin())
-                    as f32
-            })
+            .map(|i| (0.5 * (std::f64::consts::FRAC_PI_2 * i as f64 + std::f64::consts::FRAC_PI_4).sin()) as f32)
             .collect();
         let b = AudioBuffer::from_mono(48000, x);
         assert!((b.peak() - 0.3536).abs() < 1e-3);

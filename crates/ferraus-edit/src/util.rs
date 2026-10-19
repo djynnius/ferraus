@@ -36,12 +36,7 @@ pub fn unclamped_frames(t: &Time, sr: u32, total: usize, bpm: Option<f64>) -> Re
 /// * start after end → usage error (exit code 2)
 /// * start at or beyond the end of the input → usage error
 /// * end beyond the input → clamped, with `clamped = true`
-pub fn resolve_range(
-    r: &TimeRange,
-    sr: u32,
-    total: usize,
-    bpm: Option<f64>,
-) -> Result<(usize, usize, bool)> {
+pub fn resolve_range(r: &TimeRange, sr: u32, total: usize, bpm: Option<f64>) -> Result<(usize, usize, bool)> {
     let a = unclamped_frames(&r.start, sr, total, bpm)?;
     let b = unclamped_frames(&r.end, sr, total, bpm)?;
     if a > b + 0.5 {
@@ -69,12 +64,10 @@ pub fn resolve_range(
 pub fn duration_frames(a: &Args, name: &str, sr: u32, bpm: Option<f64>) -> Result<usize> {
     let t = a.time(name)?;
     match t {
-        Time::End | Time::FromEnd(_) => Err(Error::usage(format!(
-            "--{name} must be a duration such as 500ms or 2s, not an end-relative time"
-        ))),
-        other => other
-            .duration_frames(sr, bpm)
-            .map_err(|e| Error::usage(format!("--{name}: {}", e.message))),
+        Time::End | Time::FromEnd(_) => {
+            Err(Error::usage(format!("--{name} must be a duration such as 500ms or 2s, not an end-relative time")))
+        }
+        other => other.duration_frames(sr, bpm).map_err(|e| Error::usage(format!("--{name}: {}", e.message))),
     }
 }
 
@@ -82,12 +75,10 @@ pub fn duration_frames(a: &Args, name: &str, sr: u32, bpm: Option<f64>) -> Resul
 pub fn parse_duration_frames(s: &str, what: &str, sr: u32, bpm: Option<f64>) -> Result<usize> {
     let t = Time::parse(s).map_err(|e| Error::usage(format!("{what}: {}", e.message)))?;
     match t {
-        Time::End | Time::FromEnd(_) => Err(Error::usage(format!(
-            "{what}: '{s}' must be a duration such as 500ms or 2s"
-        ))),
-        other => other
-            .duration_frames(sr, bpm)
-            .map_err(|e| Error::usage(format!("{what}: {}", e.message))),
+        Time::End | Time::FromEnd(_) => {
+            Err(Error::usage(format!("{what}: '{s}' must be a duration such as 500ms or 2s")))
+        }
+        other => other.duration_frames(sr, bpm).map_err(|e| Error::usage(format!("{what}: {}", e.message))),
     }
 }
 
@@ -138,21 +129,14 @@ pub fn snap_to_zero(buf: &AudioBuffer, idx: usize, window: usize) -> usize {
     }
     if let Some((_, i)) = best {
         // only accept the crossing when it really is quiet on every channel
-        let quietest = (lo..hi)
-            .min_by(|a, b| cost(*a).partial_cmp(&cost(*b)).unwrap())
-            .unwrap_or(idx);
+        let quietest = (lo..hi).min_by(|a, b| cost(*a).partial_cmp(&cost(*b)).unwrap()).unwrap_or(idx);
         if cost(i) <= cost(quietest) * 4.0 + 1e-6 {
             return i;
         }
         return quietest;
     }
     (lo..hi)
-        .min_by(|a, b| {
-            cost(*a)
-                .partial_cmp(&cost(*b))
-                .unwrap()
-                .then(a.abs_diff(idx).cmp(&b.abs_diff(idx)))
-        })
+        .min_by(|a, b| cost(*a).partial_cmp(&cost(*b)).unwrap().then(a.abs_diff(idx).cmp(&b.abs_diff(idx))))
         .unwrap_or(idx)
 }
 
@@ -204,9 +188,7 @@ pub fn fade_out(buf: &mut AudioBuffer, len: usize) {
 
 /// Largest absolute sample at frame `i` across channels.
 pub fn frame_mag(buf: &AudioBuffer, i: usize) -> f32 {
-    buf.data
-        .iter()
-        .fold(0.0f32, |m, c| m.max(c.get(i).copied().unwrap_or(0.0).abs()))
+    buf.data.iter().fold(0.0f32, |m, c| m.max(c.get(i).copied().unwrap_or(0.0).abs()))
 }
 
 /// Default extension for an audio output: `--format`, else the input's extension when this
@@ -267,11 +249,7 @@ pub fn remove_ranges(
     for w in kept.windows(2) {
         let (s0, e0) = w[0];
         let (s1, e1) = w[1];
-        let h = half_target
-            .min((e0 - s0) / 2)
-            .min((e1 - s1) / 2)
-            .min(n - e0)
-            .min(s1);
+        let h = half_target.min((e0 - s0) / 2).min((e1 - s1) / 2).min(n - e0).min(s1);
         halves.push(h);
     }
     for (i, &(s, e)) in kept.iter().enumerate() {
@@ -293,10 +271,7 @@ pub fn remove_ranges(
             }
         }
     }
-    (
-        AudioBuffer::from_planar(buf.sample_rate, out),
-        halves.iter().map(|h| h * 2).collect(),
-    )
+    (AudioBuffer::from_planar(buf.sample_rate, out), halves.iter().map(|h| h * 2).collect())
 }
 
 /// Sort and merge overlapping or touching ranges.
@@ -344,10 +319,7 @@ mod tests {
 
     #[test]
     fn merge() {
-        assert_eq!(
-            merge_ranges(vec![(5, 10), (0, 3), (8, 12), (3, 4), (7, 7)]),
-            vec![(0, 4), (5, 12)]
-        );
+        assert_eq!(merge_ranges(vec![(5, 10), (0, 3), (8, 12), (3, 4), (7, 7)]), vec![(0, 4), (5, 12)]);
     }
 
     #[test]

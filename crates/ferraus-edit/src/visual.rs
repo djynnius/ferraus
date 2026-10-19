@@ -20,15 +20,16 @@ fn image_output(ctx: &OpCtx, allowed: &[&str], default: &str) -> Result<(PathBuf
     if path.as_os_str() == "-" {
         return Ok((path, ext));
     }
-    let real = path
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+    let real = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     if !allowed.contains(&real.as_str()) {
         return Err(Error::new(
             ErrorKind::Unsupported,
             "unsupported_output_format",
-            format!("'{}' must end in {}", path.display(), allowed.iter().map(|e| format!(".{e}")).collect::<Vec<_>>().join(", ")),
+            format!(
+                "'{}' must end in {}",
+                path.display(),
+                allowed.iter().map(|e| format!(".{e}")).collect::<Vec<_>>().join(", ")
+            ),
         ));
     }
     Ok((path, real))
@@ -66,11 +67,8 @@ pub fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>> {
         let mut enc = png::Encoder::new(&mut out, width, height);
         enc.set_color(png::ColorType::Rgba);
         enc.set_depth(png::BitDepth::Eight);
-        let mut w = enc
-            .write_header()
-            .map_err(|e| Error::processing(format!("PNG encoding failed: {e}")))?;
-        w.write_image_data(rgba)
-            .map_err(|e| Error::processing(format!("PNG encoding failed: {e}")))?;
+        let mut w = enc.write_header().map_err(|e| Error::processing(format!("PNG encoding failed: {e}")))?;
+        w.write_image_data(rgba).map_err(|e| Error::processing(format!("PNG encoding failed: {e}")))?;
     }
     Ok(out)
 }
@@ -98,13 +96,27 @@ pub fn waveform_spec() -> OpSpec {
         )
         .param(param("width", ParamKind::Int).default("1200").help("Image width in pixels"))
         .param(param("height", ParamKind::Int).default("200").help("Image height in pixels"))
-        .param(param("peaks-per-second", ParamKind::Float).default("50").help("JSON only: min/max buckets per second of audio"))
+        .param(
+            param("peaks-per-second", ParamKind::Float)
+                .default("50")
+                .help("JSON only: min/max buckets per second of audio"),
+        )
         .param(param("split", ParamKind::Flag).help("Draw each channel in its own lane instead of one mixed waveform"))
         .param(param("color", ParamKind::Str).default("#1f6feb").help("Waveform colour, #rrggbb"))
-        .param(param("background", ParamKind::Str).default("transparent").help("Background colour, #rrggbb or transparent"))
+        .param(
+            param("background", ParamKind::Str)
+                .default("transparent")
+                .help("Background colour, #rrggbb or transparent"),
+        )
         .example("ferraus waveform song.wav -o song.png", "1200x200 PNG thumbnail")
-        .example("ferraus waveform episode.mp3 -o peaks.json --peaks-per-second 20", "Peaks for a web player, 20 buckets per second")
-        .example("ferraus waveform stereo.wav --split --width 800 --height 300 -o wave.svg", "SVG with one lane per channel")
+        .example(
+            "ferraus waveform episode.mp3 -o peaks.json --peaks-per-second 20",
+            "Peaks for a web player, 20 buckets per second",
+        )
+        .example(
+            "ferraus waveform stereo.wav --split --width 800 --height 300 -o wave.svg",
+            "SVG with one lane per channel",
+        )
 }
 
 /// (min, max, rms) of `x[s..e]`.
@@ -239,9 +251,8 @@ fn svg_waveform(
     color: [u8; 4],
     bg: [u8; 4],
 ) -> String {
-    let mut s = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\n"
-    );
+    let mut s =
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\n");
     if bg[3] > 0 {
         s.push_str(&format!("<rect width=\"{w}\" height=\"{h}\" fill=\"{}\"/>\n", hex(bg)));
     }
@@ -285,9 +296,17 @@ pub fn spectrogram_spec() -> OpSpec {
         .param(param("fft", ParamKind::Int).default("2048").help("FFT size in samples (frequency resolution)"))
         .param(param("hop", ParamKind::Int).default("512").help("Hop between frames in samples (time resolution)"))
         .param(param("mel", ParamKind::Int).default("128").help("Number of mel bands; 0 for linear frequency bins"))
-        .param(param("db-range", ParamKind::Gain).default("80dB").help("Dynamic range shown, in dB below the loudest point"))
+        .param(
+            param("db-range", ParamKind::Gain)
+                .default("80dB")
+                .help("Dynamic range shown, in dB below the loudest point"),
+        )
         .param(param("fmin", ParamKind::Freq).default("0Hz").advanced().help("Lowest mel band edge (Hz)"))
-        .param(param("fmax", ParamKind::Freq).advanced().help("Highest mel band edge (Hz); defaults to half the sample rate"))
+        .param(
+            param("fmax", ParamKind::Freq)
+                .advanced()
+                .help("Highest mel band edge (Hz); defaults to half the sample rate"),
+        )
         .param(param("width", ParamKind::Int).default("0").help("PNG width in pixels; 0 = one column per frame"))
         .param(param("height", ParamKind::Int).default("0").help("PNG height in pixels; 0 = one row per band"))
         .example("ferraus spectrogram song.wav -o song_spec.png", "128-band mel spectrogram image")
@@ -295,7 +314,10 @@ pub fn spectrogram_spec() -> OpSpec {
             "ferraus spectrogram voice.wav --mel 0 --fft 4096 --hop 256 -o voice_spec.json",
             "Linear-frequency matrix in JSON for analysis",
         )
-        .example("ferraus spectrogram drums.wav --width 1200 --height 300 --db-range 60 -o drums.png", "Fixed-size image with 60 dB range")
+        .example(
+            "ferraus spectrogram drums.wav --width 1200 --height 300 --db-range 60 -o drums.png",
+            "Fixed-size image with 60 dB range",
+        )
 }
 
 fn hz_to_mel(f: f64) -> f64 {
@@ -307,18 +329,10 @@ fn mel_to_hz(m: f64) -> f64 {
 }
 
 /// Triangular mel filters as sparse (bin, weight) lists, and their centre frequencies.
-pub fn mel_filterbank(
-    n_mels: usize,
-    fft: usize,
-    sr: u32,
-    fmin: f64,
-    fmax: f64,
-) -> (Vec<Vec<(usize, f32)>>, Vec<f64>) {
+pub fn mel_filterbank(n_mels: usize, fft: usize, sr: u32, fmin: f64, fmax: f64) -> (Vec<Vec<(usize, f32)>>, Vec<f64>) {
     let bins = fft / 2 + 1;
     let (m0, m1) = (hz_to_mel(fmin), hz_to_mel(fmax));
-    let pts: Vec<f64> = (0..n_mels + 2)
-        .map(|i| mel_to_hz(m0 + (m1 - m0) * i as f64 / (n_mels + 1) as f64))
-        .collect();
+    let pts: Vec<f64> = (0..n_mels + 2).map(|i| mel_to_hz(m0 + (m1 - m0) * i as f64 / (n_mels + 1) as f64)).collect();
     let bin_hz = sr as f64 / fft as f64;
     let mut bank = Vec::with_capacity(n_mels);
     for m in 0..n_mels {
@@ -352,9 +366,8 @@ pub fn stft_power(x: &[f32], fft: usize, hop: usize) -> Vec<Vec<f32>> {
     let frames = 1 + n / hop;
     let mut planner = RealFftPlanner::<f32>::new();
     let plan = planner.plan_fft_forward(fft);
-    let window: Vec<f32> = (0..fft)
-        .map(|i| (0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / fft as f64).cos()) as f32)
-        .collect();
+    let window: Vec<f32> =
+        (0..fft).map(|i| (0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / fft as f64).cos()) as f32).collect();
     let mut input = plan.make_input_vec();
     let mut spec = plan.make_output_vec();
     let mut out = Vec::with_capacity(frames);
@@ -406,23 +419,22 @@ fn spectrogram(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let fmin = a.freq("fmin")?.min(fmax);
     let (rows, freqs): (Vec<Vec<f32>>, Vec<f64>) = if n_mels > 0 {
         if n_mels > fft / 2 {
-            ctx.warn("mel_bands_exceed_bins", format!("--mel {n_mels} is more than the {} FFT bins; bands repeat", fft / 2));
+            ctx.warn(
+                "mel_bands_exceed_bins",
+                format!("--mel {n_mels} is more than the {} FFT bins; bands repeat", fft / 2),
+            );
         }
         let (bank, centres) = mel_filterbank(n_mels, fft, sr, fmin, fmax);
-        let rows = power
-            .iter()
-            .map(|p| bank.iter().map(|f| f.iter().map(|&(k, w)| p[k] * w).sum()).collect())
-            .collect();
+        let rows =
+            power.iter().map(|p| bank.iter().map(|f| f.iter().map(|&(k, w)| p[k] * w).sum()).collect()).collect();
         (rows, centres)
     } else {
         let freqs = (0..fft / 2 + 1).map(|k| k as f64 * sr as f64 / fft as f64).collect();
         (power, freqs)
     };
     // dB relative to the loudest cell
-    let mut db: Vec<Vec<f32>> = rows
-        .iter()
-        .map(|r| r.iter().map(|p| (10.0 * (*p as f64 + 1e-20).log10()) as f32).collect())
-        .collect();
+    let mut db: Vec<Vec<f32>> =
+        rows.iter().map(|r| r.iter().map(|p| (10.0 * (*p as f64 + 1e-20).log10()) as f32).collect()).collect();
     let max = db.iter().flatten().fold(f32::MIN, |m, v| m.max(*v));
     for r in &mut db {
         for v in r.iter_mut() {

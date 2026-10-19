@@ -8,26 +8,34 @@ pub fn ops() -> Vec<OpSpec> {
 }
 
 pub fn channels_spec() -> OpSpec {
-    OpSpec::transform("channels", Category::Edit, "Mix down, up-mix, extract, swap, or mid/side-convert channels", channels)
-        .about(
-            "Does one channel operation per run. --to mono averages the channels; --to stereo \
+    OpSpec::transform(
+        "channels",
+        Category::Edit,
+        "Mix down, up-mix, extract, swap, or mid/side-convert channels",
+        channels,
+    )
+    .about(
+        "Does one channel operation per run. --to mono averages the channels; --to stereo \
              copies a mono signal to both sides (and folds 5.1 down with the ITU coefficients). \
              --extract keeps one channel as a mono file. --swap exchanges left and right. \
              --mid-side encode turns L/R into mid (L+R)/2 and side (L-R)/2; decode reverses it \
              exactly.",
-        )
-        .param(param("to", ParamKind::Choice).choices(&["mono", "stereo"]).help("Convert to mono or stereo"))
-        .param(param("extract", ParamKind::Str).help("Keep one channel: L, R, C, or a channel number from 1"))
-        .param(param("swap", ParamKind::Flag).help("Swap the left and right channels"))
-        .param(
-            param("mid-side", ParamKind::Choice)
-                .choices(&["encode", "decode"])
-                .help("encode: L/R to mid/side; decode: mid/side back to L/R"),
-        )
-        .no_mix()
-        .example("ferraus channels stereo.wav --to mono -o mono.wav", "Average left and right into one channel")
-        .example("ferraus channels interview.wav --extract R -o guest.wav", "Keep only the right channel (the guest's mic)")
-        .example("ferraus channels mix.wav --mid-side encode -o ms.wav", "Get mid in channel 1 and side in channel 2 for M/S processing")
+    )
+    .param(param("to", ParamKind::Choice).choices(&["mono", "stereo"]).help("Convert to mono or stereo"))
+    .param(param("extract", ParamKind::Str).help("Keep one channel: L, R, C, or a channel number from 1"))
+    .param(param("swap", ParamKind::Flag).help("Swap the left and right channels"))
+    .param(
+        param("mid-side", ParamKind::Choice)
+            .choices(&["encode", "decode"])
+            .help("encode: L/R to mid/side; decode: mid/side back to L/R"),
+    )
+    .no_mix()
+    .example("ferraus channels stereo.wav --to mono -o mono.wav", "Average left and right into one channel")
+    .example("ferraus channels interview.wav --extract R -o guest.wav", "Keep only the right channel (the guest's mic)")
+    .example(
+        "ferraus channels mix.wav --mid-side encode -o ms.wav",
+        "Get mid in channel 1 and side in channel 2 for M/S processing",
+    )
 }
 
 fn need_stereo(buf: &AudioBuffer, what: &str) -> Result<()> {
@@ -38,16 +46,12 @@ fn need_stereo(buf: &AudioBuffer, what: &str) -> Result<()> {
 }
 
 fn channels(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
-    let actions: Vec<&str> = [
-        ("to", a.has("to")),
-        ("extract", a.has("extract")),
-        ("swap", a.flag("swap")),
-        ("mid-side", a.has("mid-side")),
-    ]
-    .into_iter()
-    .filter(|(_, on)| *on)
-    .map(|(n, _)| n)
-    .collect();
+    let actions: Vec<&str> =
+        [("to", a.has("to")), ("extract", a.has("extract")), ("swap", a.flag("swap")), ("mid-side", a.has("mid-side"))]
+            .into_iter()
+            .filter(|(_, on)| *on)
+            .map(|(n, _)| n)
+            .collect();
     match actions.len() {
         0 => {
             return Err(Error::usage("channels needs one of --to, --extract, --swap, --mid-side")
