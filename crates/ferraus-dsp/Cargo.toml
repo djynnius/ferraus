@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-dsp"
+description = "Pure-Rust DSP for ferraus: filters, dynamics, reverbs, delays, modulation, panning, vocoder"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,6 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rustfft.workspace = true
+realfft.workspace = true
+midly = { version = "0.5", default-features = false, features = ["alloc", "std"] }
