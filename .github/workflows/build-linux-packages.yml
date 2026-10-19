@@ -1,0 +1,61 @@
+# dist global-artifacts job: .deb and .rpm packages for x86_64 and aarch64, built on GitHub
+# runners from the tagged commit. Artifacts named artifacts-* are attached to the release.
+name: Build Linux packages
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  packages:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: amd64
+            rpmarch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+            rpmarch: aarch64
+    runs-on: ${{ matrix.runner }}
+    env:
+      SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - name: Install packagers
+        run: cargo install cargo-deb cargo-generate-rpm --locked
+      - name: Build release binaries
+        run: cargo build --release --locked -p ferraus --bins
+      - name: Completions and man page
+        run: |
+          mkdir -p target/completions target/man
+          ./target/release/ferraus completions bash > target/completions/ferraus.bash
+          ./target/release/ferraus completions zsh > target/completions/_ferraus
+          ./target/release/ferraus completions fish > target/completions/ferraus.fish
+          ./target/release/ferraus man > target/man/ferraus.1
+      - name: Build .deb
+        run: cargo deb -p ferraus --no-build --no-strip -o target/pkg/
+      - name: Build .rpm
+        run: cargo generate-rpm -p crates/ferraus-cli -o target/pkg/
+      - name: Package smoke test
+        run: |
+          sudo apt-get install -y ./target/pkg/*.deb
+          ferraus --version
+          ferraus doctor --json > /dev/null
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: target/pkg/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-linux-packages-${{ matrix.arch }}
+          path: target/pkg/*

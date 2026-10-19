@@ -1,5 +1,5 @@
 [package]
-name = "ferraus-cli"
+name = "ferraus"
 description = "ferraus: a cross-platform music editing CLI for people and AI agents"
 version.workspace = true
 edition.workspace = true
@@ -10,6 +10,12 @@ authors.workspace = true
 readme = "../../README.md"
 keywords = ["audio", "music", "cli", "dsp", "mcp"]
 categories = ["multimedia::audio", "command-line-utilities"]
+
+[package.metadata.wix]
+upgrade-guid = "BB68E7D5-404C-4E7C-9EE9-8F0184FED605"
+path-guid = "706CEB50-1801-46E2-B817-16E2A70544C8"
+license = false
+eula = false
 
 [[bin]]
 name = "ferraus"
@@ -45,3 +51,42 @@ clap = { version = "4.5", features = ["string", "wrap_help"] }
 clap_complete = "4.5"
 
 [dev-dependencies]
+
+[package.metadata.deb]
+name = "ferraus"
+maintainer = "Sunday Ikpe <ikakke.ikpe@gmail.com>"
+copyright = "2026, Sunday Ikpe and the ferraus contributors"
+license-file = ["../../LICENSE-MIT", "0"]
+extended-description = """\
+ferraus is one binary that gives people and AI agents a complete music-editing toolkit \
+from the command line: conversion and editing, effects, restoration, noise reduction, stem \
+separation, pitch correction, MIDI, notation, plugin hosting, and mastering. Model weights \
+download on first use."""
+depends = "$auto"
+section = "sound"
+priority = "optional"
+assets = [
+  ["target/release/ferraus", "usr/bin/", "755"],
+  ["target/release/ferraus-plughost", "usr/lib/ferraus/", "755"],
+  ["../../README.md", "usr/share/doc/ferraus/README", "644"],
+  ["THIRD-PARTY-LICENSES.md", "usr/share/doc/ferraus/THIRD-PARTY-LICENSES.md", "644"],
+  ["../../target/completions/ferraus.bash", "usr/share/bash-completion/completions/ferraus", "644"],
+  ["../../target/completions/_ferraus", "usr/share/zsh/vendor-completions/_ferraus", "644"],
+  ["../../target/completions/ferraus.fish", "usr/share/fish/vendor_completions.d/ferraus.fish", "644"],
+  ["../../target/man/ferraus.1", "usr/share/man/man1/ferraus.1", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "ferraus"
+license = "Apache-2.0 OR MIT"
+summary = "Music editing CLI for people and AI agents"
+assets = [
+  { source = "target/release/ferraus", dest = "/usr/bin/ferraus", mode = "755" },
+  { source = "target/release/ferraus-plughost", dest = "/usr/lib/ferraus/ferraus-plughost", mode = "755" },
+  { source = "README.md", dest = "/usr/share/doc/ferraus/README", mode = "644", doc = true },
+  { source = "crates/ferraus-cli/THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/ferraus/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
+  { source = "target/completions/ferraus.bash", dest = "/usr/share/bash-completion/completions/ferraus", mode = "644" },
+  { source = "target/completions/_ferraus", dest = "/usr/share/zsh/site-functions/_ferraus", mode = "644" },
+  { source = "target/completions/ferraus.fish", dest = "/usr/share/fish/vendor_completions.d/ferraus.fish", mode = "644" },
+  { source = "target/man/ferraus.1", dest = "/usr/share/man/man1/ferraus.1", mode = "644", doc = true },
+]
