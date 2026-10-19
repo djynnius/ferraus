@@ -1,0 +1,49 @@
+# Album master: three tracks mastered to one delivery target, written as 24-bit WAV masters
+# and 16-bit / 44.1 kHz FLAC copies.
+#
+#   examples/make-samples.sh examples/pipelines/samples      # once
+#   ferraus pipeline run examples/pipelines/master-album.yaml --json
+#
+# Paths are relative to this file. The three master stages do not depend on each other, so
+# ferraus runs them in parallel. To move the whole album to another target, override each
+# stage (stages are addressed by id):
+#
+#   ferraus pipeline run examples/pipelines/master-album.yaml --overwrite --json \
+#     --set stages.m1.args.target=apple --set stages.m2.args.target=apple --set stages.m3.args.target=apple
+#
+# Then check every master against the spec:
+#
+#   ferraus master verify "examples/pipelines/out/album/*.wav" --target streaming --json
+version: 1
+inputs:
+  t1: samples/album/track1.wav # deliberately quiet
+  t2: samples/album/track2.wav # much quieter still
+  t3: samples/album/track3.wav # hot
+stages:
+  # Same target on every track, so they land at the same loudness (-14 LUFS)
+  # and play back evenly in sequence. --genre is detected per track. The true-peak ceiling is
+  # 0.5 dB below the streaming spec's -1 dBTP because the CD copies below are resampled to
+  # 44.1 kHz after the limiter, which moves inter-sample peaks up by a few tenths of a dB.
+  - id: m1
+    op: master
+    in: t1
+    args: { target: streaming, true_peak: -1.5dBTP, intensity: medium }
+  # Track 2 is mostly drums (a high crest factor): at intensity medium, master stops 0.9 LU
+  # short and warns target_not_reached, naming --intensity heavy as the fix.
+  - id: m2
+    op: master
+    in: t2
+    args: { target: streaming, true_peak: -1.5dBTP, intensity: heavy }
+  - id: m3
+    op: master
+    in: t3
+    args: { target: streaming, true_peak: -1.5dBTP, intensity: medium }
+outputs:
+  # Each output can set bit_depth, sample_rate, bitrate, channels, and format; without format
+  # the extension picks it.
+  - { from: m1, path: out/album/01-track1.wav, bit_depth: 24 }
+  - { from: m2, path: out/album/02-track2.wav, bit_depth: 24 }
+  - { from: m3, path: out/album/03-track3.wav, bit_depth: 24 }
+  - { from: m1, path: out/album/cd/01-track1.flac, bit_depth: 16, sample_rate: 44100 }
+  - { from: m2, path: out/album/cd/02-track2.flac, bit_depth: 16, sample_rate: 44100 }
+  - { from: m3, path: out/album/cd/03-track3.flac, bit_depth: 16, sample_rate: 44100, format: flac }

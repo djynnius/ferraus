@@ -73,6 +73,20 @@ jobs:
           mdbook-version: "0.4.40"
       - run: mdbook build target/docs-site
 
+  examples:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Install jq
+        run: command -v jq || (sudo apt-get update && sudo apt-get install -y jq)
+      - run: cargo build -p ferraus --locked
+      - name: Run every example (no model downloads)
+        run: examples/run-all.sh
+        env:
+          FERRAUS: target/debug/ferraus
+
   fuzz-build:
     runs-on: ubuntu-24.04
     steps:

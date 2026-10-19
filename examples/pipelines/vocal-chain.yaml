@@ -1,0 +1,55 @@
+# Vocal chain: clean a take, tune it, give it a produced sound with built-in presets, put it
+# over the beat, and master the bounce.
+#
+#   examples/make-samples.sh examples/pipelines/samples      # once
+#   ferraus pipeline run examples/pipelines/vocal-chain.yaml --json
+#
+# Paths are relative to this file. Every stage is cached by a hash of its op, its resolved
+# arguments, and its input audio, so a second identical run computes nothing ("cached": true on
+# every stage; it still needs --overwrite to rewrite the outputs). Change one stage and only it
+# and the stages after it run again:
+#
+#   ferraus pipeline run examples/pipelines/vocal-chain.yaml --overwrite --json \
+#     --set stages.tuned.args.strength=100%
+#
+# There "clean" reports cached: true, and "tuned", "vox", "mix", and "master" are recomputed.
+version: 1
+inputs:
+  vocal: samples/vocal.wav # mono take with a 1.5 s noise-only lead-in
+  beat: samples/beat.wav # stereo backing in G major, 100 BPM
+stages:
+  # denoise learns the noise from the quietest steady second (the lead-in here); the run's
+  # JSON reports where, under plan[].result.
+  - id: clean
+    op: denoise
+    in: vocal
+    args: { auto: true, reduction: 12dB }
+  # The key is known from the beat (ferraus analyze key samples/beat.wav says G major), and a
+  # fixed key keeps this stage's cache key stable; key: auto would also work.
+  - id: tuned
+    op: tune
+    in: clean
+    args: { key: G, scale: major, strength: 85%, retune_speed: 30ms }
+  # Presets fill in many parameters at once: compress:preset=vocal is -20 dB, 3:1, 5/80 ms, RMS
+  # (ferraus presets show compress/vocal). Explicit keys still override a preset's values.
+  - id: vox
+    op: fx
+    in: tuned
+    args:
+      chain:
+        - { op: highpass, freq: 90Hz }
+        - { op: compress, preset: vocal }
+        - { op: deess }
+        - { op: reverb, type: plate, mix: 15% }
+  # The take starts singing 1.5 s in, so the beat starts 1.5 s later to line up.
+  - id: mix
+    op: mix
+    in: [vox, beat]
+    args: { gains: [0dB, -5dB], offsets: [0s, 1.5s] }
+  - id: master
+    op: master
+    in: mix
+    args: { target: streaming }
+outputs:
+  - { from: master, path: out/vocal-chain/song.wav, bit_depth: 24 }
+  - { from: tuned, path: out/vocal-chain/vocal.tuned.wav }

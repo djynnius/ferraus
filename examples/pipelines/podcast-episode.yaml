@@ -1,0 +1,57 @@
+# Podcast episode: clean the recording, put the intro and outro chimes around it, and hit the
+# podcast loudness target.
+#
+#   examples/make-samples.sh examples/pipelines/samples      # once
+#   ferraus pipeline run examples/pipelines/podcast-episode.yaml --json
+#
+# Paths are relative to this file. To build another episode from the same file, override the
+# input and the output paths instead of copying the YAML:
+#
+#   ferraus pipeline run examples/pipelines/podcast-episode.yaml --json \
+#     --set inputs.recording=samples/podcast/ep02.wav \
+#     --set outputs.0.path=out/podcast/ep02.wav --set outputs.1.path=out/podcast/ep02.flac
+#
+# The intro and outro stages do not depend on the recording, so they stay cached across
+# episodes.
+version: 1
+inputs:
+  recording: samples/podcast/ep01.wav # mono "speech" with 60 Hz mains hum
+  intro: samples/podcast/intro.wav
+  outro: samples/podcast/outro.wav
+stages:
+  # Cleanup in one pass. dehum without freq detects 50 or 60 Hz; the leveler evens out
+  # phrases; enhance-voice adds the rumble filter, de-ess, compression, and presence of a
+  # voice chain. ferraus analyze problems <file> suggests the first stages of a chain like this.
+  - id: clean
+    op: fx
+    in: recording
+    args:
+      chain:
+        - { op: dehum }
+        - { op: highpass, freq: 70Hz }
+        - { op: leveler }
+        - { op: enhance-voice }
+  # The chimes are quiet and short; fade them so the joins are soft.
+  - id: intro_faded
+    op: fade
+    in: intro
+    args: { out: 300ms }
+  - id: outro_faded
+    op: fade
+    in: outro
+    args: { in: 300ms }
+  # concat matches every input to the first one's sample rate and channel count.
+  - id: episode
+    op: concat
+    in: [intro_faded, clean, outro_faded]
+    args: { crossfade: 200ms }
+  # The podcast target is -16 LUFS for stereo and -19 LUFS for mono (a mono file plays from
+  # both speakers and sounds about 3 dB louder). This episode is mono.
+  - id: loud
+    op: normalize
+    in: episode
+    args: { lufs: -19, ceiling: -1dBTP }
+outputs:
+  - { from: loud, path: out/podcast/episode.wav, bit_depth: 24 }
+  # A smaller archive copy: 16-bit, 44.1 kHz FLAC.
+  - { from: loud, path: out/podcast/episode.flac, bit_depth: 16, sample_rate: 44100 }
