@@ -1,3 +1,6 @@
 [env]
 # ONNX Runtime's prebuilt objects target macOS 13.4; match it (the PRD's floor is macOS 13).
 MACOSX_DEPLOYMENT_TARGET = "13.4"
+# Verovio's humlib.cpp exceeds MSVC's default object section limit (C1128); cc-rs reads these.
+CXXFLAGS_x86_64_pc_windows_msvc = "/bigobj"
+CXXFLAGS_aarch64_pc_windows_msvc = "/bigobj"
