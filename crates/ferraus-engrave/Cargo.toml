@@ -5,11 +5,19 @@ version.workspace = true
 edition.workspace = true
 license = "LGPL-3.0-or-later"
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
 
 [package.metadata.dist]
-# Shipped inside the ferraus archive beside the main binary, not as a separate app.
-dist = false
+# Released as its own LGPL app (archive + installers); ferraus finds it next to itself or
+# on PATH, and falls back to LilyPond or its native SVG renderer without it.
+dist = true
+
+[package.metadata.wix]
+upgrade-guid = "45CD5C5F-1E30-4851-A0BF-A18CB0F9F922"
+path-guid = "177D3505-3F9F-4A0C-A3F5-06AF7F873053"
+license = false
+eula = false
 
 [[bin]]
 name = "ferraus-engrave"

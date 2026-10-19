@@ -54,7 +54,11 @@ fn num_list(v: Option<&Value>) -> Vec<f64> {
     match v {
         Some(Value::Array(a)) => a
             .iter()
-            .filter_map(|x| x.as_f64().or_else(|| x.get("time").and_then(|t| t.as_f64())).or_else(|| x.get("t").and_then(|t| t.as_f64())))
+            .filter_map(|x| {
+                x.as_f64()
+                    .or_else(|| x.get("time").and_then(|t| t.as_f64()))
+                    .or_else(|| x.get("t").and_then(|t| t.as_f64()))
+            })
             .collect(),
         _ => Vec::new(),
     }
@@ -75,7 +79,9 @@ pub fn parse_tempo(v: &Value) -> BeatGrid {
     let downbeats = num_list(v.get("downbeats"));
     let ts = v.get("time_signature").or_else(|| v.get("meter")).or_else(|| v.get("time"));
     let time = match ts {
-        Some(Value::String(s)) => s.split_once('/').and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?))),
+        Some(Value::String(s)) => {
+            s.split_once('/').and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
+        }
         Some(Value::Object(o)) => {
             let n = o.get("numerator").or_else(|| o.get("beats")).and_then(|x| x.as_u64());
             let d = o.get("denominator").or_else(|| o.get("beat_type")).and_then(|x| x.as_u64());
@@ -227,7 +233,8 @@ impl Biquad {
 }
 
 fn band(x: &[f32], sr: f64, filters: &[(&str, f64)]) -> Vec<f64> {
-    let mut fs: Vec<Biquad> = filters.iter().map(|(k, f)| Biquad::new(k, *f, sr, std::f64::consts::FRAC_1_SQRT_2)).collect();
+    let mut fs: Vec<Biquad> =
+        filters.iter().map(|(k, f)| Biquad::new(k, *f, sr, std::f64::consts::FRAC_1_SQRT_2)).collect();
     x.iter()
         .map(|s| {
             let mut v = *s as f64;
@@ -270,7 +277,10 @@ fn onsets(env: &[f64], hop_s: f64, rel_floor_db: f64, min_gap_s: f64) -> Vec<(f6
     for i in 1..log.len() {
         let rise: f64 = (0..3).filter_map(|k| flux.get(i + k)).sum();
         let prev_rise: f64 = (0..3).filter_map(|k| flux.get(i - 1 + k)).sum();
-        let is_start = rise >= 6.0 && flux[i] > 0.5 && prev_rise < rise + 1e-9 && (i < 2 || flux[i - 1] < flux[i] || flux[i - 1] < 0.5);
+        let is_start = rise >= 6.0
+            && flux[i] > 0.5
+            && prev_rise < rise + 1e-9
+            && (i < 2 || flux[i - 1] < flux[i] || flux[i - 1] < 0.5);
         if !is_start {
             continue;
         }
@@ -439,12 +449,21 @@ fn front_inner(ctx: &mut OpCtx, audio: &Path, roles: &[String], tmp: &Path) -> R
             let hits = transcribe_drums(&buf);
             for (t, k, v) in &hits {
                 let s = to_tick(*t);
-                midi.notes.push(MidiNote { track: ti, channel: 9, key: *k, velocity: *v, start: s, end: s + PPQ as u64 / 8 });
+                midi.notes.push(MidiNote {
+                    track: ti,
+                    channel: 9,
+                    key: *k,
+                    velocity: *v,
+                    start: s,
+                    end: s + PPQ as u64 / 8,
+                });
                 confidences.push(0.8);
             }
             midi.tracks.push(MidiTrack { name: Some("Drums".into()), program: None });
             layouts.push((ti, Layout::Drums));
-            stem_info.push(serde_json::json!({"role": role, "notes": hits.len(), "method": "native onset drum transcription"}));
+            stem_info.push(
+                serde_json::json!({"role": role, "notes": hits.len(), "method": "native onset drum transcription"}),
+            );
             continue;
         }
         let mode = match role.as_str() {
@@ -453,7 +472,8 @@ fn front_inner(ctx: &mut OpCtx, audio: &Path, roles: &[String], tmp: &Path) -> R
         };
         let out = tmp.join(format!("{role}.mid"));
         let (tres, touts) = run_nested(ctx, "transcribe", &[("mode", mode)], vec![stem.path.clone()], Some(&out))?;
-        let mid_path = touts.iter().find(|o| o.path.ends_with(".mid")).map(|o| PathBuf::from(&o.path)).unwrap_or(out.clone());
+        let mid_path =
+            touts.iter().find(|o| o.path.ends_with(".mid")).map(|o| PathBuf::from(&o.path)).unwrap_or(out.clone());
         let bytes = std::fs::read(&mid_path)?;
         let m = crate::midi::read_midi(&bytes)?;
         let conf_list = transcribe_confidences(&tres);
@@ -479,11 +499,18 @@ fn front_inner(ctx: &mut OpCtx, audio: &Path, roles: &[String], tmp: &Path) -> R
     let confs: Vec<f32> = idx.iter().map(|i| confidences.get(*i).copied().unwrap_or(1.0)).collect();
     midi.notes = notes;
     // chords: seconds → ticks
-    let chords_t: Vec<(f64, f64, String)> = chords
-        .iter()
-        .map(|(s, e, l)| (to_tick(*s) as f64, to_tick(*e) as f64, l.clone()))
-        .collect();
-    Ok(AudioFront { midi, key, time, chords: chords_t, layouts, stems: stem_info, bpm: grid.bpm, note_confidence: confs })
+    let chords_t: Vec<(f64, f64, String)> =
+        chords.iter().map(|(s, e, l)| (to_tick(*s) as f64, to_tick(*e) as f64, l.clone())).collect();
+    Ok(AudioFront {
+        midi,
+        key,
+        time,
+        chords: chords_t,
+        layouts,
+        stems: stem_info,
+        bpm: grid.bpm,
+        note_confidence: confs,
+    })
 }
 
 fn role_name(role: &str) -> String {
@@ -499,7 +526,8 @@ fn transcribe_confidences(v: &Value) -> Vec<(f64, u8, f32)> {
     notes
         .iter()
         .filter_map(|n| {
-            let t = n.get("start").or_else(|| n.get("onset_s")).or_else(|| n.get("start_s")).and_then(|x| x.as_f64())?;
+            let t =
+                n.get("start").or_else(|| n.get("onset_s")).or_else(|| n.get("start_s")).and_then(|x| x.as_f64())?;
             let p = n.get("pitch").or_else(|| n.get("midi")).or_else(|| n.get("key")).and_then(|x| x.as_u64())? as u8;
             let c = n.get("confidence").and_then(|x| x.as_f64())? as f32;
             Some((t, p, c))
@@ -508,11 +536,7 @@ fn transcribe_confidences(v: &Value) -> Vec<(f64, u8, f32)> {
 }
 
 fn match_conf(list: &[(f64, u8, f32)], t: f64, key: u8) -> f32 {
-    list.iter()
-        .filter(|(lt, k, _)| *k == key && (lt - t).abs() < 0.05)
-        .map(|x| x.2)
-        .next()
-        .unwrap_or(1.0)
+    list.iter().filter(|(lt, k, _)| *k == key && (lt - t).abs() < 0.05).map(|x| x.2).next().unwrap_or(1.0)
 }
 
 #[cfg(test)]
@@ -546,7 +570,8 @@ mod tests {
                 38 => {
                     for i in 0..(sr as usize / 6) {
                         let tt = i as f64 / sr as f64;
-                        let v = (rnd() * 0.5 + 0.3 * (2.0 * std::f64::consts::PI * 200.0 * tt).sin()) * (-tt * 25.0).exp();
+                        let v =
+                            (rnd() * 0.5 + 0.3 * (2.0 * std::f64::consts::PI * 200.0 * tt).sin()) * (-tt * 25.0).exp();
                         if s0 + i < n {
                             x[s0 + i] += v as f32;
                         }
@@ -603,12 +628,16 @@ mod tests {
 
     #[test]
     fn beat_mapping_and_parsing() {
-        let g = parse_tempo(&serde_json::json!({"bpm": 120.0, "beats": [0.5, 1.0, 1.5, 2.0], "downbeats": [1.0], "time_signature": "3/4"}));
+        let g = parse_tempo(
+            &serde_json::json!({"bpm": 120.0, "beats": [0.5, 1.0, 1.5, 2.0], "downbeats": [1.0], "time_signature": "3/4"}),
+        );
         assert_eq!(g.time, Some((3, 4)));
         assert!((sec_to_beats(&g, 1.25) - 1.5).abs() < 1e-9);
         // downbeat at beat 1 → shift by 2 so it lands on a bar line in 3/4
         assert_eq!(downbeat_offset(&g, 3), 2.0);
-        let c = parse_chords(&serde_json::json!({"chords": [{"start": 0.0, "end": 2.0, "label": "A:min7"}, {"start": 2.0, "label": "G:maj/B"}, {"start": 4.0, "label": "N"}]}));
+        let c = parse_chords(
+            &serde_json::json!({"chords": [{"start": 0.0, "end": 2.0, "label": "A:min7"}, {"start": 2.0, "label": "G:maj/B"}, {"start": 4.0, "label": "N"}]}),
+        );
         assert_eq!(c[0].2, "Am7");
         assert_eq!(c[1].2, "G/B");
         assert_eq!(c.len(), 2);

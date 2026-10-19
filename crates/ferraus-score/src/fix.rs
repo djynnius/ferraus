@@ -65,7 +65,8 @@ fn parse_duration(v: &Value, div: u32) -> Result<u32> {
         "64" => "64th",
         other => other,
     };
-    duration_of(base, dots, div, None).ok_or_else(|| Error::usage(format!("'{s}' is not a duration the score's divisions ({div}) can express")))
+    duration_of(base, dots, div, None)
+        .ok_or_else(|| Error::usage(format!("'{s}' is not a duration the score's divisions ({div}) can express")))
 }
 
 fn apply_one(score: &mut Score, e: &Value) -> Result<String> {
@@ -78,22 +79,23 @@ fn apply_one(score: &mut Score, e: &Value) -> Result<String> {
     let empty = json!({});
     let set = e.get("set").unwrap_or(&empty);
     let pi = match &part_id {
-        Some(id) => score.parts.iter().position(|p| &p.id == id).ok_or_else(|| Error::usage(format!("no part '{id}'")))?,
+        Some(id) => {
+            score.parts.iter().position(|p| &p.id == id).ok_or_else(|| Error::usage(format!("no part '{id}'")))?
+        }
         None => 0,
     };
     let part = score.parts.get_mut(pi).ok_or_else(|| Error::usage("the score has no parts"))?;
     let perc = part.percussion;
     let staves_count = part.staves.len();
-    let st = part
-        .staves
-        .iter_mut()
-        .find(|s| s.number == staff_n)
-        .ok_or_else(|| Error::usage(format!("part {} has {} staff/staves, not {staff_n}", part_id.clone().unwrap_or_else(|| "P1".into()), staves_count)))?;
-    let mi = st
-        .measures
-        .iter()
-        .position(|m| m.number == mnum)
-        .ok_or_else(|| Error::usage(format!("no measure {mnum}")))?;
+    let st = part.staves.iter_mut().find(|s| s.number == staff_n).ok_or_else(|| {
+        Error::usage(format!(
+            "part {} has {} staff/staves, not {staff_n}",
+            part_id.clone().unwrap_or_else(|| "P1".into()),
+            staves_count
+        ))
+    })?;
+    let mi =
+        st.measures.iter().position(|m| m.number == mnum).ok_or_else(|| Error::usage(format!("no measure {mnum}")))?;
     let key = Score::key_at(st, mi);
     // measure-level edits
     if note_i.is_none() {
@@ -101,7 +103,10 @@ fn apply_one(score: &mut Score, e: &Value) -> Result<String> {
         let mut done = Vec::new();
         if let Some(t) = set.get("time").and_then(|t| t.as_str()) {
             let (a, b) = t.split_once('/').ok_or_else(|| Error::usage("time must look like 3/4"))?;
-            m.time = Some(TimeSig::new(a.trim().parse().map_err(|_| Error::usage("bad time"))?, b.trim().parse().map_err(|_| Error::usage("bad time"))?));
+            m.time = Some(TimeSig::new(
+                a.trim().parse().map_err(|_| Error::usage("bad time"))?,
+                b.trim().parse().map_err(|_| Error::usage("bad time"))?,
+            ));
             done.push(format!("time {t}"));
         }
         if let Some(k) = set.get("key").and_then(|t| t.as_str()) {
@@ -117,15 +122,24 @@ fn apply_one(score: &mut Score, e: &Value) -> Result<String> {
             done.push("repeat end".into());
         }
         if done.is_empty() {
-            return Err(Error::usage("a measure edit needs 'note' or a measure-level 'set' (time, key, repeat_start, repeat_end)"));
+            return Err(Error::usage(
+                "a measure edit needs 'note' or a measure-level 'set' (time, key, repeat_start, repeat_end)",
+            ));
         }
         return Ok(format!("measure {mnum}: {}", done.join(", ")));
     }
     let ni = note_i.unwrap() as usize;
     let m = &mut st.measures[mi];
-    let v = m.voices.iter_mut().find(|v| v.number == voice_n).ok_or_else(|| Error::usage(format!("measure {mnum} has no voice {voice_n}")))?;
+    let v = m
+        .voices
+        .iter_mut()
+        .find(|v| v.number == voice_n)
+        .ok_or_else(|| Error::usage(format!("measure {mnum} has no voice {voice_n}")))?;
     if ni == 0 || ni > v.events.len() {
-        return Err(Error::usage(format!("measure {mnum} voice {voice_n} has {} event(s); note {ni} does not exist", v.events.len())));
+        return Err(Error::usage(format!(
+            "measure {mnum} voice {voice_n} has {} event(s); note {ni} does not exist",
+            v.events.len()
+        )));
     }
     let idx = ni - 1;
     if e.get("delete").and_then(|d| d.as_bool()) == Some(true) {
@@ -217,7 +231,8 @@ fn pitches(p: &Value, key: KeySig, perc: bool) -> Result<Vec<Note>> {
         let note = if let Some(m) = n.strip_prefix("midi:").and_then(|x| x.parse::<i32>().ok()) {
             Note::new(spell_midi(m, key))
         } else if perc {
-            let k = crate::drums::key_for_name(&n).ok_or_else(|| Error::usage(format!("'{n}' is not a drum name (kick, snare, hh, ride, crash...)")))?;
+            let k = crate::drums::key_for_name(&n)
+                .ok_or_else(|| Error::usage(format!("'{n}' is not a drum name (kick, snare, hh, ride, crash...)")))?;
             let sp = crate::drums::spec(k);
             let mut nt = Note::new(crate::drums::display_pitch(k));
             nt.midi = k as i32;
@@ -226,7 +241,10 @@ fn pitches(p: &Value, key: KeySig, perc: bool) -> Result<Vec<Note>> {
             nt.instrument = Some(sp.name.to_string());
             nt
         } else {
-            Note::new(Pitch::parse(&n).ok_or_else(|| Error::usage(format!("'{n}' is not a pitch (use names like E5, F#4, Bb3)")))?)
+            Note::new(
+                Pitch::parse(&n)
+                    .ok_or_else(|| Error::usage(format!("'{n}' is not a pitch (use names like E5, F#4, Bb3)")))?,
+            )
         };
         out.push(note);
     }

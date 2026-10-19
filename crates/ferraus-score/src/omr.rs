@@ -18,8 +18,13 @@ pub fn parse_pages(s: &str) -> Result<Vec<(u32, u32)>> {
             Some((a, b)) => (a.trim(), b.trim()),
             None => (part, part),
         };
-        let a: u32 = a.parse().map_err(|_| Error::usage(format!("--pages: '{part}' is not a page or range like 1-4")))?;
-        let b: u32 = if b.is_empty() || b == "end" { u32::MAX } else { b.parse().map_err(|_| Error::usage(format!("--pages: '{part}' is not a page or range like 1-4")))? };
+        let a: u32 =
+            a.parse().map_err(|_| Error::usage(format!("--pages: '{part}' is not a page or range like 1-4")))?;
+        let b: u32 = if b.is_empty() || b == "end" {
+            u32::MAX
+        } else {
+            b.parse().map_err(|_| Error::usage(format!("--pages: '{part}' is not a page or range like 1-4")))?
+        };
         if a == 0 || b < a {
             return Err(Error::usage(format!("--pages: '{part}' is not a valid range (pages start at 1)")));
         }
@@ -39,7 +44,12 @@ pub fn builtin_model_dir() -> PathBuf {
 
 fn builtin_models_present() -> bool {
     let d = builtin_model_dir();
-    d.is_dir() && std::fs::read_dir(&d).map(|mut r| r.any(|e| e.map(|e| e.path().extension().map(|x| x == "onnx").unwrap_or(false)).unwrap_or(false))).unwrap_or(false)
+    d.is_dir()
+        && std::fs::read_dir(&d)
+            .map(|mut r| {
+                r.any(|e| e.map(|e| e.path().extension().map(|x| x == "onnx").unwrap_or(false)).unwrap_or(false))
+            })
+            .unwrap_or(false)
 }
 
 /// A rasterized page: width, height, 8-bit grayscale pixels.
@@ -62,9 +72,8 @@ pub fn rasterize_pdf(bytes: &[u8], ranges: &[(u32, u32)], dpi: u32) -> Result<Ve
                 .with_hint(format!("put the pdfium shared library in {} or on the system library path, pass page images instead, or use --engine audiveris", local.display()))
         })?;
     let pdfium = Pdfium::new(bindings);
-    let doc = pdfium
-        .load_pdf_from_byte_slice(bytes, None)
-        .map_err(|e| Error::input(format!("cannot open the PDF: {e}")))?;
+    let doc =
+        pdfium.load_pdf_from_byte_slice(bytes, None).map_err(|e| Error::input(format!("cannot open the PDF: {e}")))?;
     let mut out = Vec::new();
     for (i, page) in doc.pages().iter().enumerate() {
         let n = i as u32 + 1;
@@ -72,10 +81,14 @@ pub fn rasterize_pdf(bytes: &[u8], ranges: &[(u32, u32)], dpi: u32) -> Result<Ve
             continue;
         }
         let cfg = PdfRenderConfig::new().scale_page_by_factor(dpi as f32 / 72.0);
-        let bmp = page.render_with_config(&cfg).map_err(|e| Error::processing(format!("cannot render page {n}: {e}")))?;
+        let bmp =
+            page.render_with_config(&cfg).map_err(|e| Error::processing(format!("cannot render page {n}: {e}")))?;
         let (w, h) = (bmp.width() as u32, bmp.height() as u32);
         let raw = bmp.as_rgba_bytes();
-        let gray = raw.chunks_exact(4).map(|p| ((p[0] as u32 * 299 + p[1] as u32 * 587 + p[2] as u32 * 114) / 1000) as u8).collect();
+        let gray = raw
+            .chunks_exact(4)
+            .map(|p| ((p[0] as u32 * 299 + p[1] as u32 * 587 + p[2] as u32 * 114) / 1000) as u8)
+            .collect();
         out.push(Page { number: n, width: w, height: h, gray });
     }
     Ok(out)

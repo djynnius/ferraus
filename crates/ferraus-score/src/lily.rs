@@ -163,13 +163,15 @@ pub fn write(score: &Score) -> String {
             s.push_str("\n    }\n");
         }
         if p.percussion {
-            let _ = writeln!(s, "    \\new DrumStaff \\with {{ instrumentName = \"{}\" }} <<", p.name.replace('"', "'"));
+            let _ =
+                writeln!(s, "    \\new DrumStaff \\with {{ instrumentName = \"{}\" }} <<", p.name.replace('"', "'"));
             write_voices(&mut s, score, st0, true, "      ");
             s.push_str("    >>\n");
             continue;
         }
         if p.staves.len() > 1 {
-            let _ = writeln!(s, "    \\new PianoStaff \\with {{ instrumentName = \"{}\" }} <<", p.name.replace('"', "'"));
+            let _ =
+                writeln!(s, "    \\new PianoStaff \\with {{ instrumentName = \"{}\" }} <<", p.name.replace('"', "'"));
             for st in &p.staves {
                 let _ = writeln!(s, "      \\new Staff = \"{}{}\" <<", p.id, st.number);
                 write_voices(&mut s, score, st, false, "        ");
@@ -191,7 +193,11 @@ pub fn write(score: &Score) -> String {
                     }
                     match e.lyrics.first() {
                         Some(l) => {
-                            let t = if l.text.chars().all(|c| c.is_alphanumeric()) { l.text.clone() } else { format!("\"{}\"", l.text.replace('"', "'")) };
+                            let t = if l.text.chars().all(|c| c.is_alphanumeric()) {
+                                l.text.clone()
+                            } else {
+                                format!("\"{}\"", l.text.replace('"', "'"))
+                            };
                             syl.push(t);
                             if l.syllabic == "begin" || l.syllabic == "middle" {
                                 syl.push("--".into());
@@ -350,12 +356,7 @@ fn voice_music(score: &Score, st: &Staff, vn: u32, drums: bool, with_meta: bool)
             }
         }
         let voice = m.voices.iter().find(|v| v.number == vn);
-        let len: u32 = m
-            .voices
-            .iter()
-            .map(|v| v.events.iter().map(|e| e.duration).sum::<u32>())
-            .max()
-            .unwrap_or(0);
+        let len: u32 = m.voices.iter().map(|v| v.events.iter().map(|e| e.duration).sum::<u32>()).max().unwrap_or(0);
         if mi == 0 && m.implicit {
             toks.push(format!("\\partial {}", dur_for(len, div, None)));
         }
@@ -384,11 +385,7 @@ fn voice_music(score: &Score, st: &Staff, vn: u32, drums: bool, with_meta: bool)
                         }
                     }
                     let tup = e.tuplet.map(|t| (t.actual, t.normal));
-                    let d = if e.measure_rest {
-                        dur_for(e.duration, div, None)
-                    } else {
-                        dur_for(e.duration, div, tup)
-                    };
+                    let d = if e.measure_rest { dur_for(e.duration, div, None) } else { dur_for(e.duration, div, tup) };
                     let mut tok = String::new();
                     if let Some(dy) = &e.dynamic {
                         let _ = dy;
@@ -598,12 +595,32 @@ fn tokenize(src: &str) -> Vec<Tok> {
                 out.push(Tok::Word(s));
                 i = j;
             }
-            c if c.is_alphanumeric() || c == '\'' || c == ',' || c == '.' || c == '~' || c == '*' || c == '/' || c == '-' || c == '_' || c == '(' || c == ')' || c == '^' || c == '!' || c == ':' || c == '=' => {
+            c if c.is_alphanumeric()
+                || c == '\''
+                || c == ','
+                || c == '.'
+                || c == '~'
+                || c == '*'
+                || c == '/'
+                || c == '-'
+                || c == '_'
+                || c == '('
+                || c == ')'
+                || c == '^'
+                || c == '!'
+                || c == ':'
+                || c == '=' =>
+            {
                 let mut j = i;
                 let mut s = String::new();
                 while j < chars.len() {
                     let d = chars[j];
-                    if d.is_alphanumeric() || matches!(d, '\'' | ',' | '.' | '~' | '*' | '/' | '-' | '_' | '(' | ')' | '^' | '!' | ':' | '=') {
+                    if d.is_alphanumeric()
+                        || matches!(
+                            d,
+                            '\'' | ',' | '.' | '~' | '*' | '/' | '-' | '_' | '(' | ')' | '^' | '!' | ':' | '='
+                        )
+                    {
                         s.push(d);
                         j += 1;
                     } else {
@@ -744,7 +761,9 @@ pub fn read(src: &str) -> Result<Score> {
         }
     }
     if toks.iter().any(|t| matches!(t, Tok::Cmd(c) if c == "relative")) {
-        return Err(Error::unsupported("LilyPond \\relative mode is not supported by the reader; write absolute pitches"));
+        return Err(Error::unsupported(
+            "LilyPond \\relative mode is not supported by the reader; write absolute pitches",
+        ));
     }
     // staves: \new Staff / DrumStaff, voices: \new Voice / DrumVoice
     struct StaffIn {
@@ -828,7 +847,12 @@ pub fn read(src: &str) -> Result<Score> {
                         let (v, end) = parse_music(&toks, j)?;
                         if staves.is_empty() {
                             group += 1;
-                            staves.push(StaffIn { drums: kind == "DrumVoice", name: String::new(), voices: Vec::new(), group });
+                            staves.push(StaffIn {
+                                drums: kind == "DrumVoice",
+                                name: String::new(),
+                                voices: Vec::new(),
+                                group,
+                            });
                         }
                         staves.last_mut().unwrap().voices.push(v);
                         i = end;
@@ -877,7 +901,12 @@ pub fn read(src: &str) -> Result<Score> {
     // a bare music block { ... } with no \new Staff
     if staves.is_empty() {
         if let Some(j) = toks.iter().position(|t| *t == Tok::Open) {
-            let start = toks.iter().enumerate().skip(j).find(|(_, t)| matches!(t, Tok::Word(w) if parse_ly_pitch(w).is_some() || w.starts_with('r'))).map(|_| j);
+            let start = toks
+                .iter()
+                .enumerate()
+                .skip(j)
+                .find(|(_, t)| matches!(t, Tok::Word(w) if parse_ly_pitch(w).is_some() || w.starts_with('r')))
+                .map(|_| j);
             if let Some(j) = start {
                 let (v, _) = parse_music(&toks, j)?;
                 staves.push(StaffIn { drums: false, name: String::new(), voices: vec![v], group: 1 });
@@ -905,7 +934,13 @@ pub fn read(src: &str) -> Result<Score> {
         let drums = members.iter().any(|s| s.drums);
         let mut part = Part {
             id: format!("P{}", pi + 1),
-            name: members.iter().map(|s| s.name.clone()).find(|n| !n.is_empty()).unwrap_or_else(|| if drums { "Drums".into() } else { format!("Part {}", pi + 1) }),
+            name: members.iter().map(|s| s.name.clone()).find(|n| !n.is_empty()).unwrap_or_else(|| {
+                if drums {
+                    "Drums".into()
+                } else {
+                    format!("Part {}", pi + 1)
+                }
+            }),
             abbreviation: None,
             program: if drums { None } else { Some(0) },
             channel: if drums { Some(10) } else { None },
@@ -1231,7 +1266,8 @@ fn parse_music(toks: &[Tok], start: usize) -> Result<(LyVoice, usize)> {
                         if let (Some(Tok::Word(w)), Some(Tok::Cmd(m))) = (toks.get(i + 1), toks.get(i + 2)) {
                             let (p, _) = parse_ly_pitch(w).unwrap_or((Pitch { step: 'C', alter: 0, octave: 3 }, 0));
                             let name = Spelled { step: p.step, alter: p.alter }.name();
-                            v.events.push((v.notes.len(), format!("key {name}{}", if m == "minor" { "m" } else { "" })));
+                            v.events
+                                .push((v.notes.len(), format!("key {name}{}", if m == "minor" { "m" } else { "" })));
                         }
                         i += 3;
                     }
@@ -1380,7 +1416,16 @@ fn parse_music(toks: &[Tok], start: usize) -> Result<(LyVoice, usize)> {
                     Some((a, b)) => mulq(len, b as u64, a as u64),
                     None => len,
                 };
-                v.notes.push(LyNote { pitches: ps, rest: false, visible: true, measure_rest: false, len, tuplet: tup, articulations: arts, dynamic: None });
+                v.notes.push(LyNote {
+                    pitches: ps,
+                    rest: false,
+                    visible: true,
+                    measure_rest: false,
+                    len,
+                    tuplet: tup,
+                    articulations: arts,
+                    dynamic: None,
+                });
                 i = j;
             }
             Tok::Word(w) => {
@@ -1430,7 +1475,16 @@ fn parse_music(toks: &[Tok], start: usize) -> Result<(LyVoice, usize)> {
                         Some((a, b)) => mulq(len, b as u64, a as u64),
                         None => len,
                     };
-                    v.notes.push(LyNote { pitches: vec![(p, tie, dk)], rest: false, visible: true, measure_rest: false, len: l, tuplet: tup, articulations: arts, dynamic: None });
+                    v.notes.push(LyNote {
+                        pitches: vec![(p, tie, dk)],
+                        rest: false,
+                        visible: true,
+                        measure_rest: false,
+                        len: l,
+                        tuplet: tup,
+                        articulations: arts,
+                        dynamic: None,
+                    });
                 } else if w.starts_with('~') {
                     if let Some(n) = v.notes.last_mut() {
                         for p in n.pitches.iter_mut() {

@@ -9,6 +9,11 @@ allow = [
 confidence-threshold = 0.9
 exceptions = [
   { allow = ["GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later"], crate = "ferraus-plughost-vst3" },
+  # Verovio (engraving) is LGPL and isolated in the separate ferraus-engrave executable
+  { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later"], crate = "ferraus-engrave" },
+  { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later", "OFL-1.1"], crate = "verovio" },
+  { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later", "OFL-1.1"], crate = "verovio-sys" },
+  { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later", "OFL-1.1"], crate = "verovio-data" },
 ]
 
 [bans]

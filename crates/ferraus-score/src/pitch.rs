@@ -19,10 +19,7 @@ pub fn step_pc(step: char) -> i32 {
 pub const STEPS: [char; 7] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 pub fn step_index(step: char) -> i32 {
-    STEPS
-        .iter()
-        .position(|s| *s == step.to_ascii_uppercase())
-        .unwrap_or(0) as i32
+    STEPS.iter().position(|s| *s == step.to_ascii_uppercase()).unwrap_or(0) as i32
 }
 
 /// Line-of-fifths position → spelled pitch class. 0 = C, 1 = G, -1 = F, 7 = C#.
@@ -31,10 +28,7 @@ pub fn lof_spelled(q: i32) -> Spelled {
     const ORDER: [char; 7] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
     let idx = (q + 1).rem_euclid(7) as usize;
     let alter = (q + 1).div_euclid(7) as i8;
-    Spelled {
-        step: ORDER[idx],
-        alter,
-    }
+    Spelled { step: ORDER[idx], alter }
 }
 
 /// Line-of-fifths position of a spelled pitch class.
@@ -85,11 +79,7 @@ pub fn spell_midi(midi: i32, key: KeySig) -> Pitch {
     // octave from the letter: B#3 sounds as C4 etc.
     let letter_pc = step_pc(s.step);
     let octave = (midi - letter_pc - s.alter as i32).div_euclid(12) - 1;
-    Pitch {
-        step: s.step,
-        alter: s.alter,
-        octave: octave as i8,
-    }
+    Pitch { step: s.step, alter: s.alter, octave: octave as i8 }
 }
 
 /// Tonic of a key, spelled.
@@ -100,11 +90,7 @@ pub fn key_tonic(key: KeySig) -> Spelled {
 
 /// `G major`, `E minor`.
 pub fn key_name(key: KeySig) -> String {
-    format!(
-        "{} {}",
-        key_tonic(key).name(),
-        if key.mode == Mode::Minor { "minor" } else { "major" }
-    )
+    format!("{} {}", key_tonic(key).name(), if key.mode == Mode::Minor { "minor" } else { "major" })
 }
 
 /// Parse `G`, `Gmaj`, `G major`, `Em`, `E minor`, `Bb`, `F#m`.
@@ -152,10 +138,7 @@ pub fn parse_key(s: &str) -> Option<KeySig> {
     if !(-7..=7).contains(&fifths) {
         return None;
     }
-    Some(KeySig {
-        fifths: fifths as i8,
-        mode: if minor { Mode::Minor } else { Mode::Major },
-    })
+    Some(KeySig { fifths: fifths as i8, mode: if minor { Mode::Minor } else { Mode::Major } })
 }
 
 /// Key signature with tonic pitch class `pc` and mode, choosing the spelling with the
@@ -198,10 +181,7 @@ pub fn key_from_pc(pc: i32, mode: Mode, prefer_sharps: Option<bool>) -> KeySig {
         };
         (f.abs(), tie)
     });
-    KeySig {
-        fifths: cands.first().copied().unwrap_or(0) as i8,
-        mode,
-    }
+    KeySig { fifths: cands.first().copied().unwrap_or(0) as i8, mode }
 }
 
 pub fn key_tonic_pc(key: KeySig) -> i32 {
@@ -218,12 +198,8 @@ pub fn transpose_key(key: KeySig, semis: i32) -> KeySig {
 }
 
 /// Krumhansl-Kessler key profiles.
-const KK_MAJOR: [f64; 12] = [
-    6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
-];
-const KK_MINOR: [f64; 12] = [
-    6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
-];
+const KK_MAJOR: [f64; 12] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const KK_MINOR: [f64; 12] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 
 fn pearson(a: &[f64; 12], b: &[f64]) -> f64 {
     let ma = a.iter().sum::<f64>() / 12.0;
@@ -267,9 +243,7 @@ pub fn estimate_key(hist: &[f64; 12]) -> (KeySig, f64) {
 // ------------------------------------------------------------------------------------
 
 /// MusicXML note type names from whole (index 0) to 256th.
-pub const TYPES: [&str; 9] = [
-    "whole", "half", "quarter", "eighth", "16th", "32nd", "64th", "128th", "256th",
-];
+pub const TYPES: [&str; 9] = ["whole", "half", "quarter", "eighth", "16th", "32nd", "64th", "128th", "256th"];
 
 /// Written type and dots for a duration (in divisions) under a tuplet ratio. Returns
 /// `None` when the value is not expressible as a single (dotted) note.
@@ -345,10 +319,7 @@ mod tests {
         // Bb major: Bb Eb
         assert_eq!(names(KeySig::major(-2), &[10, 3]), vec!["Bb", "Eb"]);
         // Db major: Db Eb Gb Ab Bb
-        assert_eq!(
-            names(KeySig::major(-5), &[1, 3, 6, 8, 10]),
-            vec!["Db", "Eb", "Gb", "Ab", "Bb"]
-        );
+        assert_eq!(names(KeySig::major(-5), &[1, 3, 6, 8, 10]), vec!["Db", "Eb", "Gb", "Ab", "Bb"]);
         // E minor: F#, raised leading tone D#
         assert_eq!(names(KeySig::minor(1), &[6, 3]), vec!["F#", "D#"]);
         // A minor: G#

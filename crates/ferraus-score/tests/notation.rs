@@ -14,7 +14,10 @@ use ferraus_score::{check, fix, musicxml};
 fn midi_of(notes: &[(u64, u64, u8)], ch: u8, key: Option<(i8, bool)>, time: (u32, u32)) -> MidiData {
     MidiData {
         ppq: 480,
-        notes: notes.iter().map(|(s, d, k)| MidiNote { track: 1, channel: ch, key: *k, velocity: 90, start: *s, end: s + d }).collect(),
+        notes: notes
+            .iter()
+            .map(|(s, d, k)| MidiNote { track: 1, channel: ch, key: *k, velocity: 90, start: *s, end: s + d })
+            .collect(),
         tracks: vec![MidiTrack::default(), MidiTrack { name: Some("Part".into()), program: None }],
         tempos: vec![(0, 500_000)],
         time_sigs: vec![(0, time.0, time.1)],
@@ -27,7 +30,9 @@ fn spelled(s: &Score) -> Vec<String> {
     s.parts[0].staves[0]
         .measures
         .iter()
-        .flat_map(|m| m.voices.iter().flat_map(|v| v.events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name()))))
+        .flat_map(|m| {
+            m.voices.iter().flat_map(|v| v.events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name())))
+        })
         .collect()
 }
 
@@ -109,7 +114,9 @@ fn drum_score_uses_the_standard_map() {
     assert_eq!(seen[&43].0, "A4", "floor tom: second space");
     let xml = musicxml::write(&s);
     assert!(xml.contains("<sign>percussion</sign>"));
-    assert!(xml.contains("<unpitched>\n          <display-step>F</display-step>\n          <display-octave>4</display-octave>"));
+    assert!(xml.contains(
+        "<unpitched>\n          <display-step>F</display-step>\n          <display-octave>4</display-octave>"
+    ));
     assert!(xml.contains("<instrument id=\"P1-I37\"/>"));
     assert!(xml.contains("<midi-unpitched>43</midi-unpitched>"));
     assert!(xml.contains("<notehead>x</notehead>"));
@@ -124,7 +131,15 @@ fn drum_score_uses_the_standard_map() {
 #[test]
 fn chord_symbols_on_synthesized_progressions() {
     // seeded random progressions of triads and sevenths, some inverted (slash chords)
-    let quals: &[(&str, &[i32])] = &[("maj", &[0, 4, 7]), ("min", &[0, 3, 7]), ("7", &[0, 4, 7, 10]), ("maj7", &[0, 4, 7, 11]), ("m7", &[0, 3, 7, 10]), ("dim", &[0, 3, 6]), ("sus4", &[0, 5, 7])];
+    let quals: &[(&str, &[i32])] = &[
+        ("maj", &[0, 4, 7]),
+        ("min", &[0, 3, 7]),
+        ("7", &[0, 4, 7, 10]),
+        ("maj7", &[0, 4, 7, 11]),
+        ("m7", &[0, 3, 7, 10]),
+        ("dim", &[0, 3, 6]),
+        ("sus4", &[0, 5, 7]),
+    ];
     let mut seed = 7u64;
     let mut rnd = |n: u64| {
         seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -209,10 +224,15 @@ fn scale_melody(key: KeySig, minor_raised: bool) -> (Vec<(u64, u64, u8)>, Vec<&'
     let tonic = ferraus_score::pitch::key_tonic_pc(key);
     let base = 60 + tonic;
     let (ivs, want): (Vec<i32>, Vec<&str>) = match key.mode {
-        Mode::Major => (vec![0, 2, 4, 5, 7, 9, 11, 12, 7, 4, 0], vec!["d", "r", "m", "f", "s", "l", "t", "d'", "s", "m", "d"]),
+        Mode::Major => {
+            (vec![0, 2, 4, 5, 7, 9, 11, 12, 7, 4, 0], vec!["d", "r", "m", "f", "s", "l", "t", "d'", "s", "m", "d"])
+        }
         Mode::Minor => {
             if minor_raised {
-                (vec![0, 2, 3, 5, 7, 8, 11, 12, 7, 3, 0], vec!["l,", "t,", "d", "r", "m", "f", "se", "l", "m", "d", "l,"])
+                (
+                    vec![0, 2, 3, 5, 7, 8, 11, 12, 7, 3, 0],
+                    vec!["l,", "t,", "d", "r", "m", "f", "se", "l", "m", "d", "l,"],
+                )
             } else {
                 (vec![0, 2, 3, 5, 7, 8, 10, 12], vec!["l,", "t,", "d", "r", "m", "f", "s", "l"])
             }
@@ -237,10 +257,15 @@ fn solfa_syllables_in_every_key() {
                 opts.chords = ChordMode::Off;
                 let (mut s, _) = notate(&midi_of(&notes, 0, None, (4, 4)), &opts);
                 solfa::annotate(&mut s, SolfaKind::Movable);
-                let got: Vec<String> = s.parts[0].staves[0].measures.iter().flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone())).collect();
+                let got: Vec<String> = s.parts[0].staves[0]
+                    .measures
+                    .iter()
+                    .flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone()))
+                    .collect();
                 // octave marks are relative to the doh at or below the median, so compare
                 // relative to the first syllable's register
-                let strip = |v: &[String]| v.iter().map(|x| x.trim_end_matches(['\'', ',']).to_string()).collect::<Vec<_>>();
+                let strip =
+                    |v: &[String]| v.iter().map(|x| x.trim_end_matches(['\'', ',']).to_string()).collect::<Vec<_>>();
                 let w: Vec<String> = want.iter().map(|x| x.to_string()).collect();
                 assert_eq!(strip(&got), strip(&w), "{} {:?}", ferraus_score::pitch::key_name(key), mode);
                 // the octave mark pattern is consistent: the highest note carries more ' than the lowest
@@ -256,7 +281,11 @@ fn solfa_syllables_in_every_key() {
     opts.key = Some(KeySig::major(0));
     let (mut s, _) = notate(&midi_of(&notes, 0, None, (4, 4)), &opts);
     solfa::annotate(&mut s, SolfaKind::Movable);
-    let got: Vec<String> = s.parts[0].staves[0].measures.iter().flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone())).collect();
+    let got: Vec<String> = s.parts[0].staves[0]
+        .measures
+        .iter()
+        .flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone()))
+        .collect();
     assert_eq!(got, want.iter().map(|x| x.to_string()).collect::<Vec<_>>());
     let text = solfa::write_text(&s, SolfaKind::Movable);
     assert!(text.contains("|d :r :m :f |s :l :t :d' |s :m :d"), "{text}");
@@ -265,7 +294,12 @@ fn solfa_syllables_in_every_key() {
 #[test]
 fn solfa_rhythm_punctuation() {
     // 4/4: half-beat pairs, quarter-beats, a held note, and a rest
-    let s = score(KeySig::major(0), TimeSig::new(4, 4), false, &[&["C4:e", "D4:e", "E4:s", "F4:s", "G4:e", "A4:h"], &["r:q", "G4:q.", "E4:e", "C4:q"]]);
+    let s = score(
+        KeySig::major(0),
+        TimeSig::new(4, 4),
+        false,
+        &[&["C4:e", "D4:e", "E4:s", "F4:s", "G4:e", "A4:h"], &["r:q", "G4:q.", "E4:e", "C4:q"]],
+    );
     let text = solfa::write_text(&s, SolfaKind::Movable);
     let line = text.lines().find(|l| l.starts_with('|')).unwrap();
     assert_eq!(line, "|d.r :m,f.s :l :- | :s :-.m :d ||");
@@ -274,12 +308,18 @@ fn solfa_rhythm_punctuation() {
 #[test]
 fn fixed_do_syllables() {
     let g = KeySig::major(1);
-    let notes: Vec<(u64, u64, u8)> = [67u8, 69, 71, 72, 74, 76, 78, 79].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
+    let notes: Vec<(u64, u64, u8)> =
+        [67u8, 69, 71, 72, 74, 76, 78, 79].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
     let mut opts = NotateOptions::default();
     opts.key = Some(g);
     let (mut s, _) = notate(&midi_of(&notes, 0, None, (4, 4)), &opts);
     solfa::annotate(&mut s, SolfaKind::Fixed);
-    let got: Vec<String> = s.parts[0].staves[0].measures.iter().flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone())).map(|x| x.trim_end_matches(['\'', ',']).to_string()).collect();
+    let got: Vec<String> = s.parts[0].staves[0]
+        .measures
+        .iter()
+        .flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.solfa.clone()))
+        .map(|x| x.trim_end_matches(['\'', ',']).to_string())
+        .collect();
     assert_eq!(got, vec!["sol", "la", "si", "do", "re", "mi", "fa#", "sol"]);
 }
 
@@ -355,7 +395,12 @@ fn swing_and_humanize_are_seeded() {
 #[test]
 fn review_flags_wrong_durations_and_fix_repairs_them() {
     // measure 2 is a quarter short
-    let s = score(KeySig::major(0), TimeSig::new(4, 4), false, &[&["C4:q", "D4:q", "E4:q", "F4:q"], &["G4:q", "A4:q", "B4:q"], &["C5:w"]]);
+    let s = score(
+        KeySig::major(0),
+        TimeSig::new(4, 4),
+        false,
+        &[&["C4:q", "D4:q", "E4:q", "F4:q"], &["G4:q", "A4:q", "B4:q"], &["C5:w"]],
+    );
     let r = check::check(&s, &[]);
     assert!(!r.ok);
     assert_eq!(r.failing_measures, vec![2]);
@@ -385,11 +430,18 @@ fn review_flags_wrong_durations_and_fix_repairs_them() {
 
 #[test]
 fn lyrics_one_syllable_per_note() {
-    let notes: Vec<(u64, u64, u8)> = [60u8, 62, 64, 65, 67].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
+    let notes: Vec<(u64, u64, u8)> =
+        [60u8, 62, 64, 65, 67].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
     let mut opts = NotateOptions::default();
     opts.lyrics = Some("Hap-py birth-day to".into());
     let (s, _) = notate(&midi_of(&notes, 0, None, (4, 4)), &opts);
-    let lyr: Vec<(String, String)> = s.parts[0].staves[0].measures.iter().flat_map(|m| m.voices[0].events.iter().filter_map(|e| e.lyrics.first().map(|l| (l.text.clone(), l.syllabic.clone())))).collect();
+    let lyr: Vec<(String, String)> = s.parts[0].staves[0]
+        .measures
+        .iter()
+        .flat_map(|m| {
+            m.voices[0].events.iter().filter_map(|e| e.lyrics.first().map(|l| (l.text.clone(), l.syllabic.clone())))
+        })
+        .collect();
     assert_eq!(lyr[0], ("Hap".to_string(), "begin".to_string()));
     assert_eq!(lyr[1], ("py".to_string(), "end".to_string()));
     assert_eq!(lyr.len(), 5);
@@ -413,7 +465,8 @@ fn layout_auto_picks_grand_for_wide_piano_parts() {
     assert_eq!(info.parts[0]["layout"], "grand");
     assert_eq!(s.parts[0].staves.len(), 2);
     // a low monophonic part becomes a bass-clef lead sheet
-    let bass: Vec<(u64, u64, u8)> = [36u8, 38, 40, 41].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
+    let bass: Vec<(u64, u64, u8)> =
+        [36u8, 38, 40, 41].iter().enumerate().map(|(i, m)| (i as u64 * 480, 480, *m)).collect();
     let (s, _) = notate(&midi_of(&bass, 0, None, (4, 4)), &NotateOptions::default());
     assert_eq!(s.parts[0].staves[0].measures[0].clef, Some(Clef::bass()));
     let _ = Layout::Auto;

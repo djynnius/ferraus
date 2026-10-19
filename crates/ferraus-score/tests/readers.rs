@@ -148,7 +148,11 @@ fn reads_hand_written_lilypond() {
     assert!(st.measures[0].implicit);
     assert_eq!(Score::key_at(st, 0), KeySig::major(1));
     assert_eq!(Score::time_at(st, 0), TimeSig::new(3, 4));
-    let names: Vec<String> = st.measures.iter().flat_map(|m| m.voices[0].events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name()))).collect();
+    let names: Vec<String> = st
+        .measures
+        .iter()
+        .flat_map(|m| m.voices[0].events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name())))
+        .collect();
     assert_eq!(names, vec!["D4", "G4", "B4", "A4", "G4", "F#4", "F#4", "G4", "A4", "B4", "C5"]);
     assert!(st.measures[2].voices[0].events[0].notes[0].tie_start);
     assert!(st.measures[3].voices[0].events[0].notes[0].tie_stop);

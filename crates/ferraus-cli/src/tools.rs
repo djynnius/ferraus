@@ -196,6 +196,7 @@ fn doctor(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         .filter(|p| p.exists())
         .map(|p| p.display().to_string());
     report.insert("plughost".into(), json!({ "clap_host": plughost }));
+    report.insert("engraver".into(), ferraus_score::engrave::status());
     report.insert("java".into(), json!(find_on_path("java").map(|p| p.display().to_string())));
     let mut hints = Vec::new();
     if report["ffmpeg"]["found"] != json!(true) {

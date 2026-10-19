@@ -92,7 +92,11 @@ pub fn write(score: &Score) -> String {
     let mut voices: Vec<(String, &Part, &Staff)> = Vec::new();
     for p in &score.parts {
         for st in &p.staves {
-            voices.push((format!("{}{}", p.id, if p.staves.len() > 1 { format!("S{}", st.number) } else { String::new() }), p, st));
+            voices.push((
+                format!("{}{}", p.id, if p.staves.len() > 1 { format!("S{}", st.number) } else { String::new() }),
+                p,
+                st,
+            ));
         }
     }
     if voices.len() > 1 {
@@ -318,7 +322,17 @@ fn parse_key_field(v: &str) -> Option<KeySig> {
         return Some(k);
     }
     let lower = v.to_ascii_lowercase();
-    let modes = [("ion", 0), ("dor", -2), ("phr", -4), ("lyd", 1), ("mix", -1), ("aeo", -3), ("loc", -5), ("maj", 0), ("min", -3)];
+    let modes = [
+        ("ion", 0),
+        ("dor", -2),
+        ("phr", -4),
+        ("lyd", 1),
+        ("mix", -1),
+        ("aeo", -3),
+        ("loc", -5),
+        ("maj", 0),
+        ("min", -3),
+    ];
     for (m, off) in modes {
         if let Some(pos) = lower.find(m) {
             let root = &v[..pos];
@@ -361,7 +375,16 @@ pub fn read(text: &str) -> Result<Score> {
     let mut voices: HashMap<String, (Clef, String, Vec<RMeasure>, Vec<String>, bool)> = HashMap::new();
     let mut cur_voice = String::from("1");
     let mut seen_x = false;
-    let new_measure = || RMeasure { notes: Vec::new(), repeat_start: false, repeat_end: false, ending: None, final_bar: false, time: None, key: None, lyrics_start: 0 };
+    let new_measure = || RMeasure {
+        notes: Vec::new(),
+        repeat_start: false,
+        repeat_end: false,
+        ending: None,
+        final_bar: false,
+        time: None,
+        key: None,
+        lyrics_start: 0,
+    };
     for raw_line in text.lines() {
         let line = match raw_line.find('%') {
             Some(i) if !raw_line.starts_with("%%") => &raw_line[..i],
@@ -384,7 +407,7 @@ pub fn read(text: &str) -> Result<Score> {
             continue;
         }
         let bytes = line.as_bytes();
-        if bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() && !(in_body && (bytes[0] == b'|' )) {
+        if bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() && !(in_body && (bytes[0] == b'|')) {
             let field = bytes[0] as char;
             let val = line[2..].trim();
             match field {
@@ -445,7 +468,10 @@ pub fn read(text: &str) -> Result<Score> {
                         in_body = true;
                         if voice_order.is_empty() {
                             voice_order.push(cur_voice.clone());
-                            voices.insert(cur_voice.clone(), (Clef::treble(), String::new(), vec![new_measure()], Vec::new(), false));
+                            voices.insert(
+                                cur_voice.clone(),
+                                (Clef::treble(), String::new(), vec![new_measure()], Vec::new(), false),
+                            );
                         }
                     } else if let Some(v) = voices.get_mut(&cur_voice) {
                         if let Some(m) = v.2.last_mut() {
@@ -480,7 +506,10 @@ pub fn read(text: &str) -> Result<Score> {
                             }
                         }
                         voice_order.push(id.clone());
-                        voices.insert(id.clone(), (Clef::treble(), String::new(), vec![new_measure()], Vec::new(), false));
+                        voices.insert(
+                            id.clone(),
+                            (Clef::treble(), String::new(), vec![new_measure()], Vec::new(), false),
+                        );
                     }
                     let v = voices.get_mut(&id).unwrap();
                     if let Some(c) = clef {
@@ -590,7 +619,11 @@ pub fn read(text: &str) -> Result<Score> {
                                     } else {
                                         (s.clone(), "single")
                                     };
-                                    ev.lyrics.push(Lyric { text: txt.replace('~', " "), syllabic: syllabic.into(), verse: 1 });
+                                    ev.lyrics.push(Lyric {
+                                        text: txt.replace('~', " "),
+                                        syllabic: syllabic.into(),
+                                        verse: 1,
+                                    });
                                     break;
                                 }
                                 None => break,
@@ -625,7 +658,15 @@ pub fn read(text: &str) -> Result<Score> {
             for (ni, n) in rm.notes.iter().enumerate() {
                 if let Some(cs) = &n.chord_symbol {
                     if let Some((root, q, bass)) = chords::parse_symbol(cs) {
-                        harmonies.push(Harmony { offset: pos, text: chords::chord_text(root, &q, bass), root, quality: q, bass, frame: None, confidence: None });
+                        harmonies.push(Harmony {
+                            offset: pos,
+                            text: chords::chord_text(root, &q, bass),
+                            root,
+                            quality: q,
+                            bass,
+                            frame: None,
+                            confidence: None,
+                        });
                     }
                 }
                 pos += events[ni].duration;
@@ -645,7 +686,9 @@ pub fn read(text: &str) -> Result<Score> {
             };
             let mut ending = ending;
             if let Some(e) = ending.as_mut() {
-                let closes = rm.repeat_end || rm.final_bar || ms.get(mi + 1).map(|n| n.ending.is_some() || n.repeat_start).unwrap_or(true);
+                let closes = rm.repeat_end
+                    || rm.final_bar
+                    || ms.get(mi + 1).map(|n| n.ending.is_some() || n.repeat_start).unwrap_or(true);
                 if closes {
                     let ty = if rm.repeat_end { "stop" } else { "discontinue" };
                     e.kind = if e.kind == "start" { format!("start-{ty}") } else { ty.to_string() };
@@ -656,9 +699,19 @@ pub fn read(text: &str) -> Result<Score> {
                 number: if implicit { 0 } else { number },
                 implicit,
                 key: if mi == 0 { Some(key_at_start(&ms, key)) } else { rm.key },
-                time: if mi == 0 { first_time } else if rm.time.is_some() && rm.time != Some(ctime) { rm.time } else { None },
+                time: if mi == 0 {
+                    first_time
+                } else if rm.time.is_some() && rm.time != Some(ctime) {
+                    rm.time
+                } else {
+                    None
+                },
                 clef: if mi == 0 { Some(clef.clone()) } else { None },
-                tempo: if mi == 0 && vi == 0 { tempo.map(|b| vec![TempoMark { offset: 0, bpm: b, text: None }]).unwrap_or_default() } else { vec![] },
+                tempo: if mi == 0 && vi == 0 {
+                    tempo.map(|b| vec![TempoMark { offset: 0, bpm: b, text: None }]).unwrap_or_default()
+                } else {
+                    vec![]
+                },
                 harmonies,
                 voices: vec![Voice { number: 1, events }],
                 repeat_start: rm.repeat_start,
@@ -678,7 +731,15 @@ pub fn read(text: &str) -> Result<Score> {
         let _ = rm_lyrics_unused(&ms);
         score.parts.push(Part {
             id: format!("P{}", vi + 1),
-            name: if name.is_empty() { if perc { "Drums".into() } else { format!("Voice {}", vi + 1) } } else { name },
+            name: if name.is_empty() {
+                if perc {
+                    "Drums".into()
+                } else {
+                    format!("Voice {}", vi + 1)
+                }
+            } else {
+                name
+            },
             abbreviation: None,
             program: if perc { None } else { Some(0) },
             channel: if perc { Some(10) } else { None },
@@ -697,7 +758,13 @@ fn key_at_start(ms: &[RMeasure], key: KeySig) -> KeySig {
     ms.first().and_then(|m| m.key).unwrap_or(key)
 }
 
-fn parse_body_line(line: &str, measures: &mut Vec<RMeasure>, unit: (u64, u64), key: KeySig, time: &mut TimeSig) -> Result<()> {
+fn parse_body_line(
+    line: &str,
+    measures: &mut Vec<RMeasure>,
+    unit: (u64, u64),
+    key: KeySig,
+    time: &mut TimeSig,
+) -> Result<()> {
     let chars: Vec<char> = line.chars().collect();
     let mut i = 0;
     let mut acc: HashMap<(char, i8), i8> = HashMap::new();
@@ -707,7 +774,16 @@ fn parse_body_line(line: &str, measures: &mut Vec<RMeasure>, unit: (u64, u64), k
     let mut tuplet: Option<(u32, u32, u32)> = None; // (p, q, remaining)
     let mut broken: Option<(u64, u64)> = None; // multiplier for the next note
     let mut cur_key = key;
-    let new_m = |_: ()| RMeasure { notes: Vec::new(), repeat_start: false, repeat_end: false, ending: None, final_bar: false, time: None, key: None, lyrics_start: 0 };
+    let new_m = |_: ()| RMeasure {
+        notes: Vec::new(),
+        repeat_start: false,
+        repeat_end: false,
+        ending: None,
+        final_bar: false,
+        time: None,
+        key: None,
+        lyrics_start: 0,
+    };
     let unit_q = Q(unit.0 * 4, unit.1);
     while i < chars.len() {
         let c = chars[i];
@@ -992,7 +1068,9 @@ fn parse_body_line(line: &str, measures: &mut Vec<RMeasure>, unit: (u64, u64), k
                 i = j.max(i + 1);
             }
             '&' => {
-                return Err(Error::unsupported("ABC voice overlay (&) is not supported by the ABC reader; use separate V: voices"));
+                return Err(Error::unsupported(
+                    "ABC voice overlay (&) is not supported by the ABC reader; use separate V: voices",
+                ));
             }
             '\\' => {
                 i += 1;

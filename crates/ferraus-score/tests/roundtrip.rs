@@ -16,64 +16,74 @@ fn fixtures() -> Vec<(&'static str, Score)> {
     vec![
         (
             "melody",
-            score(c, TimeSig::new(4, 4), false, &[
-                &["E4:q", "E4:q", "F4:q", "G4:q"],
-                &["G4:q", "F4:q", "E4:q", "D4:q"],
-                &["C4:q", "C4:q", "D4:q", "E4:q"],
-                &["E4:q.", "D4:e", "D4:h"],
-            ]),
+            score(
+                c,
+                TimeSig::new(4, 4),
+                false,
+                &[
+                    &["E4:q", "E4:q", "F4:q", "G4:q"],
+                    &["G4:q", "F4:q", "E4:q", "D4:q"],
+                    &["C4:q", "C4:q", "D4:q", "E4:q"],
+                    &["E4:q.", "D4:e", "D4:h"],
+                ],
+            ),
         ),
         (
             "chords",
-            score(c, TimeSig::new(4, 4), false, &[
-                &["C4+E4+G4:h", "F4+A4+C5:h"],
-                &["G3+B3+D4+F4:h", "C4+E4+G4:h"],
-            ]),
+            score(c, TimeSig::new(4, 4), false, &[&["C4+E4+G4:h", "F4+A4+C5:h"], &["G3+B3+D4+F4:h", "C4+E4+G4:h"]]),
         ),
         (
             "triplets",
-            score(c, TimeSig::new(4, 4), false, &[
-                &["C5:q", "D5:e3", "E5:e3", "F5:e3", "G5:q", "A5:e3", "G5:e3", "F5:e3"],
-                &["E5:h", "r:q", "C5:q"],
-            ]),
+            score(
+                c,
+                TimeSig::new(4, 4),
+                false,
+                &[&["C5:q", "D5:e3", "E5:e3", "F5:e3", "G5:q", "A5:e3", "G5:e3", "F5:e3"], &["E5:h", "r:q", "C5:q"]],
+            ),
         ),
         (
             "ties-across-bars",
-            score(c, TimeSig::new(4, 4), false, &[
-                &["C4:q", "D4:q", "E4:h~"],
-                &["E4:q", "F4:q", "G4:h"],
-            ]),
+            score(c, TimeSig::new(4, 4), false, &[&["C4:q", "D4:q", "E4:h~"], &["E4:q", "F4:q", "G4:h"]]),
         ),
         (
             "pickup-3-4",
-            score(KeySig::major(-1), TimeSig::new(3, 4), true, &[
-                &["C4:q"],
-                &["F4:q", "F4:q", "G4:q"],
-                &["A4:h", "Bb4:q"],
-                &["C5:h."],
-            ]),
+            score(
+                KeySig::major(-1),
+                TimeSig::new(3, 4),
+                true,
+                &[&["C4:q"], &["F4:q", "F4:q", "G4:q"], &["A4:h", "Bb4:q"], &["C5:h."]],
+            ),
         ),
         (
             "six-eight",
-            score(KeySig::major(2), TimeSig::new(6, 8), false, &[
-                &["D4:q.", "F#4:e", "G4:e", "A4:e"],
-                &["B4:q", "A4:e", "F#4:q."],
-                &["E4:e", "F#4:e", "G4:e", "A4:q."],
-            ]),
+            score(
+                KeySig::major(2),
+                TimeSig::new(6, 8),
+                false,
+                &[
+                    &["D4:q.", "F#4:e", "G4:e", "A4:e"],
+                    &["B4:q", "A4:e", "F#4:q."],
+                    &["E4:e", "F#4:e", "G4:e", "A4:q."],
+                ],
+            ),
         ),
         (
             "sixteenths-dotted",
-            score(KeySig::major(1), TimeSig::new(2, 4), false, &[
-                &["G4:s", "A4:s", "B4:s", "C5:s", "D5:e.", "B4:s"],
-                &["C5:e", "r:e", "A4:q"],
-            ]),
+            score(
+                KeySig::major(1),
+                TimeSig::new(2, 4),
+                false,
+                &[&["G4:s", "A4:s", "B4:s", "C5:s", "D5:e.", "B4:s"], &["C5:e", "r:e", "A4:q"]],
+            ),
         ),
         (
             "rests",
-            score(KeySig::minor(1), TimeSig::new(4, 4), false, &[
-                &["r:q", "E4:q", "r:e", "F#4:e", "G4:q"],
-                &["D#4:h", "E4:h"],
-            ]),
+            score(
+                KeySig::minor(1),
+                TimeSig::new(4, 4),
+                false,
+                &[&["r:q", "E4:q", "r:e", "F#4:e", "G4:q"], &["D#4:h", "E4:h"]],
+            ),
         ),
     ]
 }
@@ -99,7 +109,13 @@ fn midi_round_trip_reproduces_pitches_and_durations() {
         assert_eq!(st.measures.len(), src.measures.len(), "{name}: measure count");
         // spelled pitches are identical too
         let names = |sc: &Score| -> Vec<String> {
-            sc.parts[0].staves[0].measures.iter().flat_map(|m| m.voices.iter().flat_map(|v| v.events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name())))).collect()
+            sc.parts[0].staves[0]
+                .measures
+                .iter()
+                .flat_map(|m| {
+                    m.voices.iter().flat_map(|v| v.events.iter().flat_map(|e| e.notes.iter().map(|n| n.pitch.name())))
+                })
+                .collect()
         };
         let mut a = names(&out);
         let mut b = names(&s);
@@ -244,12 +260,42 @@ fn dump_outputs_for_schema_validation() {
         std::fs::write(dir.join(format!("{name}.svg")), ferraus_score::svg::render(&n)).unwrap();
     }
     // a drum score and a grand staff
-    let mut d = ferraus_score::midi::MidiData { ppq: 480, tempos: vec![(0, 500_000)], time_sigs: vec![(0, 4, 4)], ..Default::default() };
+    let mut d = ferraus_score::midi::MidiData {
+        ppq: 480,
+        tempos: vec![(0, 500_000)],
+        time_sigs: vec![(0, 4, 4)],
+        ..Default::default()
+    };
     for k in 0..16u64 {
-        d.notes.push(ferraus_score::midi::MidiNote { track: 0, channel: 9, key: 42, velocity: 80, start: k * 240, end: k * 240 + 100 });
+        d.notes.push(ferraus_score::midi::MidiNote {
+            track: 0,
+            channel: 9,
+            key: 42,
+            velocity: 80,
+            start: k * 240,
+            end: k * 240 + 100,
+        });
     }
-    for (t, key) in [(0u64, 36u8), (480, 38), (960, 36), (1440, 38), (1920, 49), (1920, 36), (2400, 38), (2880, 36), (3120, 36), (3360, 38)] {
-        d.notes.push(ferraus_score::midi::MidiNote { track: 0, channel: 9, key, velocity: 100, start: t, end: t + 100 });
+    for (t, key) in [
+        (0u64, 36u8),
+        (480, 38),
+        (960, 36),
+        (1440, 38),
+        (1920, 49),
+        (1920, 36),
+        (2400, 38),
+        (2880, 36),
+        (3120, 36),
+        (3360, 38),
+    ] {
+        d.notes.push(ferraus_score::midi::MidiNote {
+            track: 0,
+            channel: 9,
+            key,
+            velocity: 100,
+            start: t,
+            end: t + 100,
+        });
     }
     d.notes.sort_by_key(|n| n.start);
     let (drums, _) = notate(&d, &NotateOptions::default());

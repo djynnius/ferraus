@@ -409,16 +409,13 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
         q.dedup_by(|a, b| a.start == b.start && a.midi == b.midi);
         let tr = mid.tracks.get(*track);
         let program = tr.and_then(|t| t.program.map(|p| p.1));
-        let name = tr
-            .and_then(|t| t.name.clone())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| {
-                if drums {
-                    "Drums".into()
-                } else {
-                    program.map(|p| drums::GM_PROGRAMS[p as usize].to_string()).unwrap_or_else(|| "Piano".into())
-                }
-            });
+        let name = tr.and_then(|t| t.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| {
+            if drums {
+                "Drums".into()
+            } else {
+                program.map(|p| drums::GM_PROGRAMS[p as usize].to_string()).unwrap_or_else(|| "Piano".into())
+            }
+        });
         if !drums {
             pitched_q.extend(q.iter().cloned());
         }
@@ -461,7 +458,11 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
     info.key = pitch::key_name(key);
     info.key_source = key_source;
     info.key_confidence = (key_conf * 100.0).round() / 100.0;
-    info.time = format!("{}/{}", spans.get(1).unwrap_or(&spans[0]).time.beats, spans.get(1).unwrap_or(&spans[0]).time.beat_type);
+    info.time = format!(
+        "{}/{}",
+        spans.get(1).unwrap_or(&spans[0]).time.beats,
+        spans.get(1).unwrap_or(&spans[0]).time.beat_type
+    );
     let bpm = opts.tempo.or_else(|| mid.first_bpm()).unwrap_or(120.0);
     info.tempo_bpm = (bpm * 100.0).round() / 100.0;
 
@@ -498,14 +499,15 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
         let staves: Vec<Staff> = match layout {
             Layout::Grand => {
                 let (rh, lh) = split_hands(&p.notes, opts.split);
-                vec![
-                    notate_staff(&ctx, &rh, 1, Clef::treble(), key),
-                    notate_staff(&ctx, &lh, 2, Clef::bass(), key),
-                ]
+                vec![notate_staff(&ctx, &rh, 1, Clef::treble(), key), notate_staff(&ctx, &lh, 2, Clef::bass(), key)]
             }
             Layout::Bass => vec![notate_staff(&ctx, &p.notes, 1, Clef::bass(), key)],
             _ => {
-                let clef = if layout == Layout::LeadSheet && median_pitch(&p.notes) < 55 { Clef::bass() } else { Clef::treble() };
+                let clef = if layout == Layout::LeadSheet && median_pitch(&p.notes) < 55 {
+                    Clef::bass()
+                } else {
+                    Clef::treble()
+                };
                 vec![notate_staff(&ctx, &p.notes, 1, clef, key)]
             }
         };
@@ -554,7 +556,11 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
         for (t, b) in &tempos {
             let t = (*t).max(spans[0].start);
             if let Some(mi) = spans.iter().position(|s| t >= s.start && t < s.end()) {
-                st.measures[mi].tempo.push(TempoMark { offset: (t - spans[mi].start) as u32, bpm: (*b * 1000.0).round() / 1000.0, text: None });
+                st.measures[mi].tempo.push(TempoMark {
+                    offset: (t - spans[mi].start) as u32,
+                    bpm: (*b * 1000.0).round() / 1000.0,
+                    text: None,
+                });
             }
         }
     }
@@ -631,7 +637,12 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
                 }
             }
             if let (ChordMode::Diagrams, Some((c, _))) = (opts.chords, capo) {
-                st.measures[0].directions.push(Direction { offset: 0, kind: "words".into(), value: format!("Capo {c}"), placement: Some("above".into()) });
+                st.measures[0].directions.push(Direction {
+                    offset: 0,
+                    kind: "words".into(),
+                    value: format!("Capo {c}"),
+                    placement: Some("above".into()),
+                });
             }
         }
     }
@@ -673,7 +684,11 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
 }
 
 /// Chord spans from external labels (ticks) snapped to the grid.
-fn external_spans(ext: &[(f64, f64, String)], quant: &dyn Fn(f64) -> (u64, f64), to_div: &dyn Fn(u64) -> f64) -> Vec<chords::ChordSpan> {
+fn external_spans(
+    ext: &[(f64, f64, String)],
+    quant: &dyn Fn(f64) -> (u64, f64),
+    to_div: &dyn Fn(u64) -> f64,
+) -> Vec<chords::ChordSpan> {
     let mut out: Vec<chords::ChordSpan> = Vec::new();
     for (s, e, label) in ext {
         let Some((root, quality, bass)) = chords::parse_symbol(label) else { continue };
@@ -685,7 +700,14 @@ fn external_spans(ext: &[(f64, f64, String)], quant: &dyn Fn(f64) -> (u64, f64),
         if out.last().map(|l: &chords::ChordSpan| l.start == qs).unwrap_or(false) {
             out.pop();
         }
-        out.push(chords::ChordSpan { start: qs, end: qe, root_pc: root.pc(), quality, bass_pc: bass.map(|b| b.pc()), confidence: 0.7 });
+        out.push(chords::ChordSpan {
+            start: qs,
+            end: qe,
+            root_pc: root.pc(),
+            quality,
+            bass_pc: bass.map(|b| b.pc()),
+            confidence: 0.7,
+        });
     }
     out
 }
@@ -776,7 +798,8 @@ fn split_hands(notes: &[QNote], split: Split) -> (Vec<QNote>, Vec<QNote>) {
                     let l = &c[..cut];
                     let r = &c[cut..];
                     let mut cost = 0.0;
-                    let span = |s: &[QNote]| s.last().map(|x| x.midi).unwrap_or(0) - s.first().map(|x| x.midi).unwrap_or(0);
+                    let span =
+                        |s: &[QNote]| s.last().map(|x| x.midi).unwrap_or(0) - s.first().map(|x| x.midi).unwrap_or(0);
                     if span(l) > 14 {
                         cost += 50.0 + span(l) as f64;
                     }
@@ -1011,7 +1034,14 @@ fn decompose(ctx: &Ctx, s: &MSpan, a: u64, b: u64) -> Vec<(u32, Option<(u64, u64
 }
 
 /// Turn voice items into measures of events.
-fn build_measures(ctx: &Ctx, items: &[Item], voice_no: u32, key: KeySig, drums: bool, keep_empty: bool) -> Vec<Option<Voice>> {
+fn build_measures(
+    ctx: &Ctx,
+    items: &[Item],
+    voice_no: u32,
+    key: KeySig,
+    drums: bool,
+    keep_empty: bool,
+) -> Vec<Option<Voice>> {
     let mut out = Vec::new();
     for s in ctx.spans {
         let ms = s.start;
@@ -1154,12 +1184,7 @@ fn notate_staff(ctx: &Ctx, notes: &[QNote], number: u32, clef: Clef, key: KeySig
         if let Some(v) = v2[mi].clone() {
             vs.push(v);
         }
-        let mut m = Measure {
-            number: s.number,
-            implicit: s.implicit,
-            voices: vs,
-            ..Measure::default()
-        };
+        let mut m = Measure { number: s.number, implicit: s.implicit, voices: vs, ..Measure::default() };
         if mi == 0 {
             m.clef = Some(clef.clone());
         }
@@ -1223,7 +1248,8 @@ fn notate_drums(ctx: &Ctx, notes: &[QNote]) -> Staff {
         for (i, (s, ns)) in by_onset.into_iter().enumerate() {
             let next = onsets.get(i + 1).copied().unwrap_or(u64::MAX);
             // measure end
-            let mend = ctx.spans.iter().find(|sp| s >= sp.start && s < sp.end()).map(|sp| sp.end()).unwrap_or(s + ctx.dq);
+            let mend =
+                ctx.spans.iter().find(|sp| s >= sp.start && s < sp.end()).map(|sp| sp.end()).unwrap_or(s + ctx.dq);
             // a hit lasts until the next hit or the end of its beat
             let beat_end = ctx.wins.iter().find(|w| s >= w.start && s < w.end).map(|w| w.end).unwrap_or(s + ctx.dq);
             let end = beat_end.min(next).min(mend).max(s + 1);

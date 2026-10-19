@@ -83,13 +83,7 @@ impl MidiData {
     }
 
     pub fn duration_seconds(&self) -> f64 {
-        let end = self
-            .notes
-            .iter()
-            .map(|n| n.end)
-            .max()
-            .unwrap_or(0)
-            .max(self.end_tick);
+        let end = self.notes.iter().map(|n| n.end).max().unwrap_or(0).max(self.end_tick);
         self.tick_to_seconds(end)
     }
 
@@ -114,10 +108,7 @@ pub fn read_midi(bytes: &[u8]) -> Result<MidiData> {
             (fps.as_f32() * sub as f32 / 2.0).round().max(1.0) as u32
         }
     };
-    let mut d = MidiData {
-        ppq,
-        ..MidiData::default()
-    };
+    let mut d = MidiData { ppq, ..MidiData::default() };
     for (ti, track) in smf.tracks.iter().enumerate() {
         let mut tick = 0u64;
         let mut open: std::collections::HashMap<(u8, u8), Vec<(u64, u8)>> = Default::default();
@@ -174,14 +165,7 @@ pub fn read_midi(bytes: &[u8]) -> Result<MidiData> {
         // close hanging notes at the track end
         for ((ch, key), v) in open {
             for (s, vel) in v {
-                d.notes.push(MidiNote {
-                    track: ti,
-                    channel: ch,
-                    key,
-                    velocity: vel,
-                    start: s,
-                    end: tick.max(s + 1),
-                });
+                d.notes.push(MidiNote { track: ti, channel: ch, key, velocity: vel, start: s, end: tick.max(s + 1) });
             }
         }
         d.end_tick = d.end_tick.max(tick);
@@ -198,10 +182,7 @@ pub fn read_midi(bytes: &[u8]) -> Result<MidiData> {
 /// Write a format-1 SMF: track 0 holds tempo/time/key meta events; one track per
 /// `MidiData::tracks` entry holds its notes.
 pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
-    let ntracks = d
-        .tracks
-        .len()
-        .max(d.notes.iter().map(|n| n.track + 1).max().unwrap_or(1));
+    let ntracks = d.tracks.len().max(d.notes.iter().map(|n| n.track + 1).max().unwrap_or(1));
     // (tick, order, kind)
     let mut conductor: Vec<(u64, u8, TrackEventKind<'_>)> = Vec::new();
     if let Some(t) = &d.title {
@@ -209,11 +190,7 @@ pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
     }
     for (t, n, den) in &d.time_sigs {
         let dpow = (*den as f64).log2().round() as u8;
-        conductor.push((
-            *t,
-            1,
-            TrackEventKind::Meta(MetaMessage::TimeSignature(*n as u8, dpow, 24, 8)),
-        ));
+        conductor.push((*t, 1, TrackEventKind::Meta(MetaMessage::TimeSignature(*n as u8, dpow, 24, 8))));
     }
     for (t, sf, minor) in &d.key_sigs {
         conductor.push((*t, 2, TrackEventKind::Meta(MetaMessage::KeySignature(*sf, *minor))));
@@ -235,9 +212,7 @@ pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
                     1,
                     TrackEventKind::Midi {
                         channel: u4::new(ch & 15),
-                        message: MidiMessage::ProgramChange {
-                            program: u7::new(prog & 127),
-                        },
+                        message: MidiMessage::ProgramChange { program: u7::new(prog & 127) },
                     },
                 ));
             }
@@ -249,9 +224,7 @@ pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
                     1,
                     TrackEventKind::Midi {
                         channel: u4::new(ch & 15),
-                        message: MidiMessage::ProgramChange {
-                            program: u7::new(prog & 127),
-                        },
+                        message: MidiMessage::ProgramChange { program: u7::new(prog & 127) },
                     },
                 ));
             }
@@ -268,10 +241,7 @@ pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
                 2,
                 TrackEventKind::Midi {
                     channel: u4::new(n.channel & 15),
-                    message: MidiMessage::NoteOff {
-                        key: u7::new(n.key & 127),
-                        vel: u7::new(0),
-                    },
+                    message: MidiMessage::NoteOff { key: u7::new(n.key & 127), vel: u7::new(0) },
                 },
             ));
             evs.push((
@@ -279,22 +249,16 @@ pub fn write_midi(d: &MidiData) -> Result<Vec<u8>> {
                 3,
                 TrackEventKind::Midi {
                     channel: u4::new(n.channel & 15),
-                    message: MidiMessage::NoteOn {
-                        key: u7::new(n.key & 127),
-                        vel: u7::new(n.velocity.clamp(1, 127)),
-                    },
+                    message: MidiMessage::NoteOn { key: u7::new(n.key & 127), vel: u7::new(n.velocity.clamp(1, 127)) },
                 },
             ));
         }
         tracks.push(finish(evs, d.end_tick));
     }
-    let smf = Smf {
-        header: Header::new(Format::Parallel, Timing::Metrical(u15::new(d.ppq.min(32767) as u16))),
-        tracks,
-    };
+    let smf =
+        Smf { header: Header::new(Format::Parallel, Timing::Metrical(u15::new(d.ppq.min(32767) as u16))), tracks };
     let mut out = Vec::new();
-    smf.write_std(&mut out)
-        .map_err(|e| Error::processing(format!("cannot write MIDI: {e}")))?;
+    smf.write_std(&mut out).map_err(|e| Error::processing(format!("cannot write MIDI: {e}")))?;
     Ok(out)
 }
 
@@ -303,17 +267,11 @@ fn finish(mut evs: Vec<(u64, u8, TrackEventKind<'_>)>, end: u64) -> Vec<TrackEve
     let mut out = Vec::with_capacity(evs.len() + 1);
     let mut last = 0u64;
     for (t, _, kind) in evs {
-        out.push(TrackEvent {
-            delta: u28::new((t - last) as u32),
-            kind,
-        });
+        out.push(TrackEvent { delta: u28::new((t - last) as u32), kind });
         last = t;
     }
     let end = end.max(last);
-    out.push(TrackEvent {
-        delta: u28::new((end - last) as u32),
-        kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
-    });
+    out.push(TrackEvent { delta: u28::new((end - last) as u32), kind: TrackEventKind::Meta(MetaMessage::EndOfTrack) });
     out
 }
 

@@ -28,10 +28,7 @@ pub const QUALITIES: &[(&str, &[i32], &str, &str)] = &[
 const RECOGNIZED: &[&str] = &["maj", "min", "7", "maj7", "m7", "dim", "sus4", "sus2", "add9", "m7b5", "dim7", "aug"];
 
 pub fn quality_info(q: &str) -> Option<(&'static [i32], &'static str, &'static str)> {
-    QUALITIES
-        .iter()
-        .find(|x| x.0 == q)
-        .map(|x| (x.1, x.2, x.3))
+    QUALITIES.iter().find(|x| x.0 == q).map(|x| (x.1, x.2, x.3))
 }
 
 pub fn suffix(q: &str) -> &'static str {
@@ -167,9 +164,7 @@ pub fn spell_chord_root(pc: i32, _quality: &str, key: KeySig) -> Spelled {
 /// cheaper).
 pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[bool]) -> Vec<ChordSpan> {
     // candidate labels: (root, quality index into RECOGNIZED)
-    let labels: Vec<(i32, &str)> = (0..12)
-        .flat_map(|r| RECOGNIZED.iter().map(move |q| (r, *q)))
-        .collect();
+    let labels: Vec<(i32, &str)> = (0..12).flat_map(|r| RECOGNIZED.iter().map(move |q| (r, *q))).collect();
     let nl = labels.len();
     let mut emis: Vec<Vec<f64>> = Vec::with_capacity(beats.len());
     let mut basses: Vec<Option<i32>> = Vec::with_capacity(beats.len());
@@ -233,10 +228,8 @@ pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[
     let mut back: Vec<Vec<usize>> = Vec::with_capacity(beats.len());
     for (t, row) in emis.iter().enumerate() {
         let pen = if bar_starts.get(t).copied().unwrap_or(false) { 0.06 } else { 0.14 };
-        let (best_prev, best_val) = score
-            .iter()
-            .enumerate()
-            .fold((0usize, f64::MIN), |acc, (i, v)| if *v > acc.1 { (i, *v) } else { acc });
+        let (best_prev, best_val) =
+            score.iter().enumerate().fold((0usize, f64::MIN), |acc, (i, v)| if *v > acc.1 { (i, *v) } else { acc });
         let mut ns = vec![0.0; nl];
         let mut bk = vec![0usize; nl];
         for j in 0..nl {
@@ -251,11 +244,8 @@ pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[
         back.push(bk);
     }
     let mut path = vec![0usize; beats.len()];
-    let mut cur = score
-        .iter()
-        .enumerate()
-        .fold((0usize, f64::MIN), |acc, (i, v)| if *v > acc.1 { (i, *v) } else { acc })
-        .0;
+    let mut cur =
+        score.iter().enumerate().fold((0usize, f64::MIN), |acc, (i, v)| if *v > acc.1 { (i, *v) } else { acc }).0;
     for t in (0..beats.len()).rev() {
         path[t] = cur;
         cur = back[t][cur];
@@ -274,7 +264,12 @@ pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[
         let bass = basses[t].filter(|b| *b != r && ivs.iter().any(|iv| (r + iv).rem_euclid(12) == *b));
         let conf = emis[t][li].clamp(0.0, 1.0) as f32;
         match out.last_mut() {
-            Some(last) if last.root_pc == r && last.quality == q && last.end == beats[t].0 && (last.bass_pc == bass || bass.is_none()) => {
+            Some(last)
+                if last.root_pc == r
+                    && last.quality == q
+                    && last.end == beats[t].0
+                    && (last.bass_pc == bass || bass.is_none()) =>
+            {
                 last.end = beats[t].1;
                 last.confidence = last.confidence.min(conf);
             }
@@ -430,14 +425,7 @@ pub fn frame_for(shape: Shape) -> GuitarFrame {
     let min = fretted.iter().copied().min().unwrap_or(1);
     let first_fret = if max > 4 { min } else { 1 };
     let frets = if max.saturating_sub(first_fret) >= 4 { 5 } else { 4 };
-    GuitarFrame {
-        strings: 6,
-        frets,
-        first_fret,
-        fret_by_string: shape.to_vec(),
-        shape: None,
-        capo: None,
-    }
+    GuitarFrame { strings: 6, frets, first_fret, fret_by_string: shape.to_vec(), shape: None, capo: None }
 }
 
 /// Keys that are comfortable on guitar in open position.

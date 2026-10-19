@@ -130,7 +130,9 @@ fn engrave(input: &str, o: &Opts) -> Result<Vec<u8>, (i32, String)> {
     if pages == 0 {
         return Err((1, "the score has no pages".into()));
     }
-    let svg = |tk: &mut verovio::Toolkit, p: u32| tk.render_to_svg(p).map_err(|e| (1, format!("SVG rendering failed: {e:?}")));
+    let svg = |tk: &mut verovio::Toolkit, p: u32| {
+        tk.render_to_svg(p).map_err(|e| (1, format!("SVG rendering failed: {e:?}")))
+    };
     match o.to.as_deref() {
         Some("pdf") => {
             let mut svgs = Vec::new();
@@ -145,7 +147,8 @@ fn engrave(input: &str, o: &Opts) -> Result<Vec<u8>, (i32, String)> {
             }
             let page = svg(&mut tk, o.page)?;
             if to == "png" {
-                verovio::raster::svg_to_png(&rasterizable(&page), o.scale).map_err(|e| (1, format!("PNG rendering failed: {e:?}")))
+                verovio::raster::svg_to_png(&rasterizable(&page), o.scale)
+                    .map_err(|e| (1, format!("PNG rendering failed: {e:?}")))
             } else {
                 Ok(page.into_bytes())
             }
@@ -216,5 +219,8 @@ fn rasterizable(svg: &str) -> String {
 
 #[cfg(not(feature = "verovio"))]
 fn engrave(_input: &str, _o: &Opts) -> Result<Vec<u8>, (i32, String)> {
-    Err((4, "this ferraus-engrave was built without Verovio (cargo build -p ferraus-engrave --features verovio)".into()))
+    Err((
+        4,
+        "this ferraus-engrave was built without Verovio (cargo build -p ferraus-engrave --features verovio)".into(),
+    ))
 }

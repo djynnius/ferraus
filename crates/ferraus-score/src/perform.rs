@@ -175,11 +175,7 @@ pub fn perform(score: &Score, opts: &PlayOptions) -> (MidiData, PlayInfo) {
             let len = lens[mi];
             let full = t.measure_divisions(div as u32) as u64;
             // pickup or other short measure: write its real length as a signature
-            let shown = if len != full && len > 0 {
-                short_sig(len, div, t)
-            } else {
-                t
-            };
+            let shown = if len != full && len > 0 { short_sig(len, div, t) } else { t };
             if last_time != Some(shown) {
                 out.time_sigs.push((tk(starts[oi] as f64), shown.beats, shown.beat_type));
                 last_time = Some(shown);

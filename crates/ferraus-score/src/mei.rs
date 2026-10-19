@@ -74,7 +74,11 @@ pub fn write(score: &Score) -> String {
     x.push_str("  <meiHead>\n    <fileDesc>\n      <titleStmt>\n");
     let _ = writeln!(x, "        <title>{}</title>", esc(score.title.as_deref().unwrap_or("Untitled")));
     if let Some(c) = &score.composer {
-        let _ = writeln!(x, "        <respStmt>\n          <persName role=\"composer\">{}</persName>\n        </respStmt>", esc(c));
+        let _ = writeln!(
+            x,
+            "        <respStmt>\n          <persName role=\"composer\">{}</persName>\n        </respStmt>",
+            esc(c)
+        );
     }
     x.push_str("      </titleStmt>\n      <pubStmt/>\n    </fileDesc>\n  </meiHead>\n");
     x.push_str("  <music>\n    <body>\n      <mdiv>\n        <score>\n");
@@ -89,15 +93,30 @@ pub fn write(score: &Score) -> String {
     }
     let first = score.parts.first().and_then(|p| p.staves.first());
     let time = first.map(|s| Score::time_at(s, 0)).unwrap_or(TimeSig::new(4, 4));
-    let key = score.parts.iter().find(|p| !p.percussion).and_then(|p| p.staves.first()).map(|s| Score::key_at(s, 0)).unwrap_or(KeySig::major(0));
+    let key = score
+        .parts
+        .iter()
+        .find(|p| !p.percussion)
+        .and_then(|p| p.staves.first())
+        .map(|s| Score::key_at(s, 0))
+        .unwrap_or(KeySig::major(0));
     let _ = writeln!(x, "          <scoreDef ppq=\"{div}\">");
-    let _ = writeln!(x, "            <keySig sig=\"{}\" mode=\"{}\"/>", key_sig(key.fifths), if key.mode == Mode::Minor { "minor" } else { "major" });
+    let _ = writeln!(
+        x,
+        "            <keySig sig=\"{}\" mode=\"{}\"/>",
+        key_sig(key.fifths),
+        if key.mode == Mode::Minor { "minor" } else { "major" }
+    );
     let _ = writeln!(x, "            <meterSig count=\"{}\" unit=\"{}\"/>", time.beats, time.beat_type);
     x.push_str("            <staffGrp>\n");
     for (pi, p) in score.parts.iter().enumerate() {
         let grouped = p.staves.len() > 1;
         if grouped {
-            let _ = writeln!(x, "              <staffGrp symbol=\"brace\" bar.thru=\"true\">\n                <label>{}</label>", esc(&p.name));
+            let _ = writeln!(
+                x,
+                "              <staffGrp symbol=\"brace\" bar.thru=\"true\">\n                <label>{}</label>",
+                esc(&p.name)
+            );
         }
         for (si, st) in p.staves.iter().enumerate() {
             let gn = staff_map.iter().find(|m| m.0 == pi && m.1 == si).unwrap().2;
@@ -110,7 +129,11 @@ pub fn write(score: &Score) -> String {
             let _ = writeln!(x, "              <staffDef n=\"{gn}\" lines=\"5\"{label}>");
             let _ = writeln!(x, "                <clef shape=\"{shape}\" line=\"{line}\"/>");
             if let Some(pr) = p.program {
-                let _ = writeln!(x, "                <instrDef midi.instrnum=\"{pr}\"{}/>", if p.percussion { " midi.channel=\"9\"" } else { "" });
+                let _ = writeln!(
+                    x,
+                    "                <instrDef midi.instrnum=\"{pr}\"{}/>",
+                    if p.percussion { " midi.channel=\"9\"" } else { "" }
+                );
             } else if p.percussion {
                 x.push_str("                <instrDef midi.channel=\"9\"/>\n");
             }
@@ -135,11 +158,22 @@ pub fn write(score: &Score) -> String {
         }
         // meter/key changes
         let t = first.map(|s| Score::time_at(s, mi)).unwrap_or(time);
-        let k = score.parts.iter().find(|p| !p.percussion).and_then(|p| p.staves.first()).map(|s| Score::key_at(s, mi)).unwrap_or(key);
+        let k = score
+            .parts
+            .iter()
+            .find(|p| !p.percussion)
+            .and_then(|p| p.staves.first())
+            .map(|s| Score::key_at(s, mi))
+            .unwrap_or(key);
         if mi > 0 && (t != cur_time || k != cur_key) {
             let _ = writeln!(x, "            <scoreDef>");
             if k != cur_key {
-                let _ = writeln!(x, "              <keySig sig=\"{}\" mode=\"{}\"/>", key_sig(k.fifths), if k.mode == Mode::Minor { "minor" } else { "major" });
+                let _ = writeln!(
+                    x,
+                    "              <keySig sig=\"{}\" mode=\"{}\"/>",
+                    key_sig(k.fifths),
+                    if k.mode == Mode::Minor { "minor" } else { "major" }
+                );
             }
             if t != cur_time {
                 let _ = writeln!(x, "              <meterSig count=\"{}\" unit=\"{}\"/>", t.beats, t.beat_type);
@@ -179,13 +213,22 @@ pub fn write(score: &Score) -> String {
                     for e in &v.events {
                         if let Some(t) = e.tuplet {
                             if t.start && !in_tuplet {
-                                let _ = writeln!(x, "                  <tuplet num=\"{}\" numbase=\"{}\">", t.actual, t.normal);
+                                let _ = writeln!(
+                                    x,
+                                    "                  <tuplet num=\"{}\" numbase=\"{}\">",
+                                    t.actual, t.normal
+                                );
                                 in_tuplet = true;
                             }
                         }
                         let tstamp = pos as f64 / beat_div + 1.0;
                         if let Some(d) = &e.dynamic {
-                            let _ = writeln!(control, "              <dynam staff=\"{gn}\" tstamp=\"{}\">{}</dynam>", fmt(tstamp), esc(d));
+                            let _ = writeln!(
+                                control,
+                                "              <dynam staff=\"{gn}\" tstamp=\"{}\">{}</dynam>",
+                                fmt(tstamp),
+                                esc(d)
+                            );
                         }
                         let ind = if in_tuplet { "                    " } else { "                  " };
                         if e.is_rest() {
@@ -210,8 +253,10 @@ pub fn write(score: &Score) -> String {
                                     _ => None,
                                 })
                                 .collect();
-                            let artic = if arts.is_empty() { String::new() } else { format!(" artic=\"{}\"", arts.join(" ")) };
-                            let fermata = if e.articulations.iter().any(|a| a == "fermata") { " fermata=\"above\"" } else { "" };
+                            let artic =
+                                if arts.is_empty() { String::new() } else { format!(" artic=\"{}\"", arts.join(" ")) };
+                            let fermata =
+                                if e.articulations.iter().any(|a| a == "fermata") { " fermata=\"above\"" } else { "" };
                             let ind2 = if chord {
                                 let _ = writeln!(x, "{ind}<chord{}{artic}{fermata}>", dur_attrs(e, div));
                                 format!("{ind}  ")
@@ -263,7 +308,11 @@ pub fn write(score: &Score) -> String {
                                 if nt.unpitched {
                                     let _ = write!(a, " pnum=\"{}\"", nt.midi);
                                 }
-                                let lyr = if !chord && (!e.lyrics.is_empty() || e.solfa.is_some()) { lyrics_xml(e, &format!("{ind2}  ")) } else { String::new() };
+                                let lyr = if !chord && (!e.lyrics.is_empty() || e.solfa.is_some()) {
+                                    lyrics_xml(e, &format!("{ind2}  "))
+                                } else {
+                                    String::new()
+                                };
                                 if lyr.is_empty() {
                                     let _ = writeln!(x, "{ind2}<note{a}/>");
                                 } else {
@@ -291,23 +340,42 @@ pub fn write(score: &Score) -> String {
                 }
                 x.push_str("              </staff>\n");
                 for h in &m.harmonies {
-                    let _ = writeln!(control, "              <harm staff=\"{gn}\" tstamp=\"{}\">{}</harm>", fmt(h.offset as f64 / beat_div + 1.0), esc(&h.text));
+                    let _ = writeln!(
+                        control,
+                        "              <harm staff=\"{gn}\" tstamp=\"{}\">{}</harm>",
+                        fmt(h.offset as f64 / beat_div + 1.0),
+                        esc(&h.text)
+                    );
                 }
                 for d in &m.directions {
                     let ts = fmt(d.offset as f64 / beat_div + 1.0);
                     match d.kind.as_str() {
                         "dynamic" => {
-                            let _ = writeln!(control, "              <dynam staff=\"{gn}\" tstamp=\"{ts}\">{}</dynam>", esc(&d.value));
+                            let _ = writeln!(
+                                control,
+                                "              <dynam staff=\"{gn}\" tstamp=\"{ts}\">{}</dynam>",
+                                esc(&d.value)
+                            );
                         }
                         "words" => {
-                            let _ = writeln!(control, "              <dir staff=\"{gn}\" tstamp=\"{ts}\">{}</dir>", esc(&d.value));
+                            let _ = writeln!(
+                                control,
+                                "              <dir staff=\"{gn}\" tstamp=\"{ts}\">{}</dir>",
+                                esc(&d.value)
+                            );
                         }
                         _ => {}
                     }
                 }
                 if pi == 0 && si == 0 {
                     for t in &m.tempo {
-                        let _ = writeln!(control, "              <tempo staff=\"{gn}\" tstamp=\"{}\" mm=\"{}\" mm.unit=\"4\">♩ = {}</tempo>", fmt(t.offset as f64 / beat_div + 1.0), fmt(t.bpm), fmt(t.bpm));
+                        let _ = writeln!(
+                            control,
+                            "              <tempo staff=\"{gn}\" tstamp=\"{}\" mm=\"{}\" mm.unit=\"4\">♩ = {}</tempo>",
+                            fmt(t.offset as f64 / beat_div + 1.0),
+                            fmt(t.bpm),
+                            fmt(t.bpm)
+                        );
                     }
                 }
             }
@@ -341,10 +409,16 @@ fn lyrics_xml(e: &Event, ind: &str) -> String {
             "end" => " wordpos=\"t\"",
             _ => "",
         };
-        let _ = writeln!(s, "{ind}<verse n=\"{}\">\n{ind}  <syl{wordpos}>{}</syl>\n{ind}</verse>", l.verse, esc(&l.text));
+        let _ =
+            writeln!(s, "{ind}<verse n=\"{}\">\n{ind}  <syl{wordpos}>{}</syl>\n{ind}</verse>", l.verse, esc(&l.text));
     }
     if let Some(so) = &e.solfa {
-        let _ = writeln!(s, "{ind}<verse n=\"{}\" type=\"solfa\">\n{ind}  <syl>{}</syl>\n{ind}</verse>", e.lyrics.len() + 1, esc(so));
+        let _ = writeln!(
+            s,
+            "{ind}<verse n=\"{}\" type=\"solfa\">\n{ind}  <syl>{}</syl>\n{ind}</verse>",
+            e.lyrics.len() + 1,
+            esc(so)
+        );
     }
     s
 }
@@ -387,19 +461,25 @@ fn alter_of(s: &str) -> i8 {
 /// Read MEI (as written by [`write`], and simple MEI 4/5 files).
 pub fn read(text: &str) -> Result<Score> {
     let opts = roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() };
-    let doc = roxmltree::Document::parse_with_options(text, opts).map_err(|e| Error::input(format!("not valid MEI: {e}")))?;
+    let doc =
+        roxmltree::Document::parse_with_options(text, opts).map_err(|e| Error::input(format!("not valid MEI: {e}")))?;
     let root = doc.root_element();
     if root.tag_name().name() != "mei" {
         return Err(Error::input("not an MEI document"));
     }
-    let title = root.descendants().find(|n| n.has_tag_name("title")).and_then(|n| n.text()).map(|s| s.trim().to_string());
+    let title =
+        root.descendants().find(|n| n.has_tag_name("title")).and_then(|n| n.text()).map(|s| s.trim().to_string());
     let composer = root
         .descendants()
         .find(|n| n.has_tag_name("persName") && n.attribute("role") == Some("composer"))
         .and_then(|n| n.text())
         .map(|s| s.trim().to_string());
-    let score_el = root.descendants().find(|n| n.has_tag_name("score")).ok_or_else(|| Error::input("MEI has no <score>"))?;
-    let sd = score_el.descendants().find(|n| n.has_tag_name("scoreDef")).ok_or_else(|| Error::input("MEI has no <scoreDef>"))?;
+    let score_el =
+        root.descendants().find(|n| n.has_tag_name("score")).ok_or_else(|| Error::input("MEI has no <score>"))?;
+    let sd = score_el
+        .descendants()
+        .find(|n| n.has_tag_name("scoreDef"))
+        .ok_or_else(|| Error::input("MEI has no <scoreDef>"))?;
     let ppq: Option<u32> = sd.attribute("ppq").and_then(|v| v.parse().ok());
     let div = ppq.unwrap_or(48);
     let mut key = KeySig::major(0);
@@ -416,7 +496,10 @@ pub fn read(text: &str) -> Result<Score> {
         }
     }
     if let Some(m) = sd.children().find(|n| n.has_tag_name("meterSig")) {
-        time = TimeSig::new(m.attribute("count").and_then(|v| v.parse().ok()).unwrap_or(4), m.attribute("unit").and_then(|v| v.parse().ok()).unwrap_or(4));
+        time = TimeSig::new(
+            m.attribute("count").and_then(|v| v.parse().ok()).unwrap_or(4),
+            m.attribute("unit").and_then(|v| v.parse().ok()).unwrap_or(4),
+        );
     } else if let (Some(c), Some(u)) = (sd.attribute("meter.count"), sd.attribute("meter.unit")) {
         time = TimeSig::new(c.parse().unwrap_or(4), u.parse().unwrap_or(4));
     }
@@ -434,7 +517,10 @@ pub fn read(text: &str) -> Result<Score> {
     if let Some(top) = sd.children().find(|n| n.has_tag_name("staffGrp")) {
         for c in top.children().filter(|c| c.is_element()) {
             let (members, label): (Vec<roxmltree::Node>, String) = if c.has_tag_name("staffGrp") {
-                (c.children().filter(|x| x.has_tag_name("staffDef")).collect(), c.children().find(|x| x.has_tag_name("label")).and_then(|l| l.text()).unwrap_or("").to_string())
+                (
+                    c.children().filter(|x| x.has_tag_name("staffDef")).collect(),
+                    c.children().find(|x| x.has_tag_name("label")).and_then(|l| l.text()).unwrap_or("").to_string(),
+                )
             } else if c.has_tag_name("staffDef") {
                 (vec![c], c.attribute("label").unwrap_or("").to_string())
             } else {
@@ -443,14 +529,23 @@ pub fn read(text: &str) -> Result<Score> {
             for s in members {
                 let clef_el = s.children().find(|x| x.has_tag_name("clef"));
                 let shape = clef_el.and_then(|c| c.attribute("shape")).or(s.attribute("clef.shape")).unwrap_or("G");
-                let line: u8 = clef_el.and_then(|c| c.attribute("line")).or(s.attribute("clef.line")).and_then(|v| v.parse().ok()).unwrap_or(2);
+                let line: u8 = clef_el
+                    .and_then(|c| c.attribute("line"))
+                    .or(s.attribute("clef.line"))
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(2);
                 let perc = shape == "perc";
-                let clef = if perc { Clef::percussion() } else { Clef { sign: shape.to_string(), line, octave_change: 0 } };
+                let clef =
+                    if perc { Clef::percussion() } else { Clef { sign: shape.to_string(), line, octave_change: 0 } };
                 let instr = s.children().find(|x| x.has_tag_name("instrDef"));
                 defs.push(SDef {
                     n: s.attribute("n").unwrap_or("1").to_string(),
                     clef,
-                    label: if label.is_empty() { s.attribute("label").unwrap_or("").to_string() } else { label.clone() },
+                    label: if label.is_empty() {
+                        s.attribute("label").unwrap_or("").to_string()
+                    } else {
+                        label.clone()
+                    },
                     part: part_idx,
                     program: instr.and_then(|i| i.attribute("midi.instrnum")).and_then(|v| v.parse().ok()),
                     perc: perc || instr.and_then(|i| i.attribute("midi.channel")) == Some("9"),
@@ -469,18 +564,34 @@ pub fn read(text: &str) -> Result<Score> {
         let perc = members.iter().any(|d| d.perc);
         score.parts.push(Part {
             id: format!("P{}", pi + 1),
-            name: members.first().map(|d| d.label.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| format!("Part {}", pi + 1)),
+            name: members
+                .first()
+                .map(|d| d.label.clone())
+                .filter(|l| !l.is_empty())
+                .unwrap_or_else(|| format!("Part {}", pi + 1)),
             abbreviation: None,
             program: members.first().and_then(|d| d.program),
             channel: if perc { Some(10) } else { None },
             percussion: perc,
-            staves: members.iter().enumerate().map(|(i, _)| Staff { number: i as u32 + 1, measures: Vec::new() }).collect(),
+            staves: members
+                .iter()
+                .enumerate()
+                .map(|(i, _)| Staff { number: i as u32 + 1, measures: Vec::new() })
+                .collect(),
         });
     }
-    let section = score_el.descendants().find(|n| n.has_tag_name("section")).ok_or_else(|| Error::input("MEI has no <section>"))?;
+    let section = score_el
+        .descendants()
+        .find(|n| n.has_tag_name("section"))
+        .ok_or_else(|| Error::input("MEI has no <section>"))?;
     let mut measures: Vec<(roxmltree::Node, Option<String>)> = Vec::new();
     let mut changes: HashMap<usize, (Option<KeySig>, Option<TimeSig>)> = HashMap::new();
-    fn collect<'a, 'i>(n: roxmltree::Node<'a, 'i>, ending: Option<String>, out: &mut Vec<(roxmltree::Node<'a, 'i>, Option<String>)>, changes: &mut HashMap<usize, (Option<KeySig>, Option<TimeSig>)>) {
+    fn collect<'a, 'i>(
+        n: roxmltree::Node<'a, 'i>,
+        ending: Option<String>,
+        out: &mut Vec<(roxmltree::Node<'a, 'i>, Option<String>)>,
+        changes: &mut HashMap<usize, (Option<KeySig>, Option<TimeSig>)>,
+    ) {
         for c in n.children().filter(|c| c.is_element()) {
             match c.tag_name().name() {
                 "measure" => out.push((c, ending.clone())),
@@ -491,7 +602,12 @@ pub fn read(text: &str) -> Result<Score> {
                         fifths: parse_key_sig(k.attribute("sig").unwrap_or("0")),
                         mode: if k.attribute("mode") == Some("minor") { Mode::Minor } else { Mode::Major },
                     });
-                    let t = c.children().find(|x| x.has_tag_name("meterSig")).map(|m| TimeSig::new(m.attribute("count").and_then(|v| v.parse().ok()).unwrap_or(4), m.attribute("unit").and_then(|v| v.parse().ok()).unwrap_or(4)));
+                    let t = c.children().find(|x| x.has_tag_name("meterSig")).map(|m| {
+                        TimeSig::new(
+                            m.attribute("count").and_then(|v| v.parse().ok()).unwrap_or(4),
+                            m.attribute("unit").and_then(|v| v.parse().ok()).unwrap_or(4),
+                        )
+                    });
                     changes.insert(out.len(), (k, t));
                 }
                 _ => {}
@@ -526,7 +642,8 @@ pub fn read(text: &str) -> Result<Score> {
             let part = &mut score.parts[d.part];
             let si = part.staves.iter().position(|_| true).unwrap_or(0);
             let staff_index = defs.iter().filter(|x| x.part == d.part).position(|x| x.n == d.n).unwrap_or(si);
-            let staff_node = mnode.children().find(|c| c.has_tag_name("staff") && c.attribute("n") == Some(d.n.as_str()));
+            let staff_node =
+                mnode.children().find(|c| c.has_tag_name("staff") && c.attribute("n") == Some(d.n.as_str()));
             let mut m = Measure { number, implicit, ending: ending.clone(), ..Measure::default() };
             if mi == 0 {
                 m.clef = Some(d.clef.clone());
@@ -563,11 +680,20 @@ pub fn read(text: &str) -> Result<Score> {
             for c in mnode.children().filter(|c| c.is_element() && c.attribute("staff") == Some(d.n.as_str())) {
                 let ts: f64 = c.attribute("tstamp").and_then(|v| v.parse().ok()).unwrap_or(1.0);
                 let off = ((ts - 1.0) * beat_div).round().max(0.0) as u32;
-                let text: String = c.descendants().filter_map(|t| t.text()).collect::<Vec<_>>().join("").trim().to_string();
+                let text: String =
+                    c.descendants().filter_map(|t| t.text()).collect::<Vec<_>>().join("").trim().to_string();
                 match c.tag_name().name() {
                     "harm" => {
                         if let Some((root, q, bass)) = chords::parse_symbol(&text) {
-                            m.harmonies.push(Harmony { offset: off, text: chords::chord_text(root, &q, bass), root, quality: q, bass, frame: None, confidence: None });
+                            m.harmonies.push(Harmony {
+                                offset: off,
+                                text: chords::chord_text(root, &q, bass),
+                                root,
+                                quality: q,
+                                bass,
+                                frame: None,
+                                confidence: None,
+                            });
                         }
                     }
                     "dynam" => {
@@ -585,10 +711,17 @@ pub fn read(text: &str) -> Result<Score> {
                             }
                         }
                         if !placed {
-                            m.directions.push(Direction { offset: off, kind: "dynamic".into(), value: text, placement: None });
+                            m.directions.push(Direction {
+                                offset: off,
+                                kind: "dynamic".into(),
+                                value: text,
+                                placement: None,
+                            });
                         }
                     }
-                    "dir" => m.directions.push(Direction { offset: off, kind: "words".into(), value: text, placement: None }),
+                    "dir" => {
+                        m.directions.push(Direction { offset: off, kind: "words".into(), value: text, placement: None })
+                    }
                     "tempo" => {
                         if let Some(mm) = c.attribute("mm").and_then(|v| v.parse::<f64>().ok()) {
                             m.tempo.push(TempoMark { offset: off, bpm: mm, text: None });
@@ -603,7 +736,14 @@ pub fn read(text: &str) -> Result<Score> {
     Ok(score)
 }
 
-fn read_layer(n: roxmltree::Node, div: u32, time: TimeSig, tuplet: Option<(u32, u32)>, perc: bool, out: &mut Vec<Event>) {
+fn read_layer(
+    n: roxmltree::Node,
+    div: u32,
+    time: TimeSig,
+    tuplet: Option<(u32, u32)>,
+    perc: bool,
+    out: &mut Vec<Event>,
+) {
     for c in n.children().filter(|c| c.is_element()) {
         match c.tag_name().name() {
             "tuplet" => {
@@ -626,7 +766,11 @@ fn read_layer(n: roxmltree::Node, div: u32, time: TimeSig, tuplet: Option<(u32, 
             }
             "note" | "chord" => {
                 let d = dur_of(c, div, tuplet).unwrap_or(div);
-                let note_nodes: Vec<roxmltree::Node> = if c.tag_name().name() == "chord" { c.children().filter(|x| x.has_tag_name("note")).collect() } else { vec![c] };
+                let note_nodes: Vec<roxmltree::Node> = if c.tag_name().name() == "chord" {
+                    c.children().filter(|x| x.has_tag_name("note")).collect()
+                } else {
+                    vec![c]
+                };
                 let mut notes = Vec::new();
                 let mut lyrics = Vec::new();
                 let mut solfa = None;
@@ -653,7 +797,10 @@ fn read_layer(n: roxmltree::Node, div: u32, time: TimeSig, tuplet: Option<(u32, 
                     }
                     if perc {
                         nt.unpitched = true;
-                        nt.midi = nn.attribute("pnum").and_then(|v| v.parse().ok()).unwrap_or_else(|| crate::drums::key_for_display(nt.pitch, nt.notehead.as_deref()) as i32);
+                        nt.midi = nn
+                            .attribute("pnum")
+                            .and_then(|v| v.parse().ok())
+                            .unwrap_or_else(|| crate::drums::key_for_display(nt.pitch, nt.notehead.as_deref()) as i32);
                         nt.instrument = Some(crate::drums::gm_drum_name(nt.midi as u8).to_string());
                     }
                     for v in nn.children().filter(|x| x.has_tag_name("verse")) {
@@ -669,7 +816,11 @@ fn read_layer(n: roxmltree::Node, div: u32, time: TimeSig, tuplet: Option<(u32, 
                             Some("t") => "end",
                             _ => "single",
                         };
-                        lyrics.push(Lyric { text, syllabic: syllabic.into(), verse: v.attribute("n").and_then(|x| x.parse().ok()).unwrap_or(1) });
+                        lyrics.push(Lyric {
+                            text,
+                            syllabic: syllabic.into(),
+                            verse: v.attribute("n").and_then(|x| x.parse().ok()).unwrap_or(1),
+                        });
                     }
                     notes.push(nt);
                 }

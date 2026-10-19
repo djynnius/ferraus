@@ -9,10 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
 pub fn esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
 /// Voice number written for a staff-local voice (MuseScore convention: 1-4 on staff 1,
@@ -218,7 +215,11 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
         for t in &first.tempo {
             x.push_str("      <direction placement=\"above\">\n");
             if let Some(txt) = &t.text {
-                let _ = writeln!(x, "        <direction-type>\n          <words>{}</words>\n        </direction-type>", esc(txt));
+                let _ = writeln!(
+                    x,
+                    "        <direction-type>\n          <words>{}</words>\n        </direction-type>",
+                    esc(txt)
+                );
             }
             let _ = writeln!(
                 x,
@@ -243,11 +244,7 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
         let nblocks = blocks.len();
         for (bi, (sn, m, v)) in blocks.iter().enumerate() {
             let two_voices = m.voices.len() > 1;
-            let stem = if two_voices {
-                Some(if v.number % 2 == 1 { "up" } else { "down" })
-            } else {
-                None
-            };
+            let stem = if two_voices { Some(if v.number % 2 == 1 { "up" } else { "down" }) } else { None };
             // harmonies and directions go with the first voice of each staff
             let first_voice = m.voices.first().map(|fv| fv.number) == Some(v.number);
             let mut harm: Vec<&Harmony> = if first_voice { m.harmonies.iter().collect() } else { vec![] };
@@ -256,14 +253,14 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
             dirs.sort_by_key(|d| d.offset);
             let mut hi = 0;
             let mut di = 0;
-            let fifths = Score::key_at(
-                p.staves.iter().find(|s| s.number == *sn).unwrap_or(&p.staves[0]),
-                mi,
-            )
-            .fifths;
+            let fifths = Score::key_at(p.staves.iter().find(|s| s.number == *sn).unwrap_or(&p.staves[0]), mi).fifths;
             let mut acc_state: HashMap<(char, i8), i8> = HashMap::new();
             let staff_ref = p.staves.iter().find(|s| s.number == *sn).unwrap_or(&p.staves[0]);
-            let beams = if p.percussion && v.number == 2 { vec![Vec::new(); v.events.len()] } else { beam_states(&v.events, score.divisions, Score::time_at(staff_ref, mi), m.implicit) };
+            let beams = if p.percussion && v.number == 2 {
+                vec![Vec::new(); v.events.len()]
+            } else {
+                beam_states(&v.events, score.divisions, Score::time_at(staff_ref, mi), m.implicit)
+            };
             let mut pos = 0u32;
             for (ei, e) in v.events.iter().enumerate() {
                 // emit harmonies/directions whose offset falls before the end of this event
@@ -273,16 +270,17 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
                     hi += 1;
                 }
                 while di < dirs.len() && (dirs[di].offset < end || (e.duration == 0 && dirs[di].offset <= pos)) {
-                    write_direction(x, dirs[di], dirs[di].offset.saturating_sub(pos), multi.then_some(*sn), xml_voice(*sn, v.number));
+                    write_direction(
+                        x,
+                        dirs[di],
+                        dirs[di].offset.saturating_sub(pos),
+                        multi.then_some(*sn),
+                        xml_voice(*sn, v.number),
+                    );
                     di += 1;
                 }
                 if let Some(dy) = &e.dynamic {
-                    let d = Direction {
-                        offset: 0,
-                        kind: "dynamic".into(),
-                        value: dy.clone(),
-                        placement: None,
-                    };
+                    let d = Direction { offset: 0, kind: "dynamic".into(), value: dy.clone(), placement: None };
                     write_direction(x, &d, 0, multi.then_some(*sn), xml_voice(*sn, v.number));
                 }
                 write_event(x, score, p, e, *sn, v.number, multi, stem, fifths, &mut acc_state, &beams[ei]);
@@ -293,7 +291,13 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
                 hi += 1;
             }
             while di < dirs.len() {
-                write_direction(x, dirs[di], dirs[di].offset.saturating_sub(pos), multi.then_some(*sn), xml_voice(*sn, v.number));
+                write_direction(
+                    x,
+                    dirs[di],
+                    dirs[di].offset.saturating_sub(pos),
+                    multi.then_some(*sn),
+                    xml_voice(*sn, v.number),
+                );
                 di += 1;
             }
             if bi + 1 < nblocks && pos > 0 {
@@ -304,10 +308,7 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
         let ending_stop = first.ending.as_ref().filter(|e| e.stops());
         if first.repeat_end.is_some() || ending_stop.is_some() || first.barline.is_some() {
             x.push_str("      <barline location=\"right\">\n");
-            let style = first
-                .barline
-                .clone()
-                .or_else(|| first.repeat_end.map(|_| "light-heavy".to_string()));
+            let style = first.barline.clone().or_else(|| first.repeat_end.map(|_| "light-heavy".to_string()));
             if let Some(s) = style {
                 let _ = writeln!(x, "        <bar-style>{}</bar-style>", esc(&s));
             }
@@ -385,7 +386,13 @@ fn beam_states(events: &[Event], div: u32, time: TimeSig, implicit: bool) -> Vec
     for g in groups {
         let k = g.len();
         for (j, &i) in g.iter().enumerate() {
-            let kind = if j == 0 { "begin" } else if j + 1 == k { "end" } else { "continue" };
+            let kind = if j == 0 {
+                "begin"
+            } else if j + 1 == k {
+                "end"
+            } else {
+                "continue"
+            };
             out[i].push((1, kind));
         }
         // deeper levels
@@ -403,7 +410,13 @@ fn beam_states(events: &[Event], div: u32, time: TimeSig, implicit: bool) -> Vec
                         out[run[0]].push((level, hook));
                     } else {
                         for (r, &i) in run.iter().enumerate() {
-                            let kind = if r == 0 { "begin" } else if r + 1 == run.len() { "end" } else { "continue" };
+                            let kind = if r == 0 {
+                                "begin"
+                            } else if r + 1 == run.len() {
+                                "end"
+                            } else {
+                                "continue"
+                            };
                             out[i].push((level, kind));
                         }
                     }
@@ -479,15 +492,19 @@ fn write_harmony(x: &mut String, h: &Harmony, offset: u32, staff: Option<u32>) {
 }
 
 fn write_direction(x: &mut String, d: &Direction, offset: u32, staff: Option<u32>, voice: u32) {
-    let placement = d
-        .placement
-        .clone()
-        .unwrap_or_else(|| if d.kind == "dynamic" || d.kind == "wedge" { "below".into() } else { "above".into() });
+    let placement = d.placement.clone().unwrap_or_else(|| {
+        if d.kind == "dynamic" || d.kind == "wedge" {
+            "below".into()
+        } else {
+            "above".into()
+        }
+    });
     let _ = writeln!(x, "      <direction placement=\"{placement}\">");
     x.push_str("        <direction-type>\n");
     match d.kind.as_str() {
         "dynamic" => {
-            let _ = writeln!(x, "          <dynamics>\n            <{}/>\n          </dynamics>", dynamic_tag(&d.value));
+            let _ =
+                writeln!(x, "          <dynamics>\n            <{}/>\n          </dynamics>", dynamic_tag(&d.value));
         }
         "wedge" => {
             let _ = writeln!(x, "          <wedge type=\"{}\"/>", esc(&d.value));
@@ -515,8 +532,8 @@ fn write_direction(x: &mut String, d: &Direction, offset: u32, staff: Option<u32
 
 fn dynamic_tag(v: &str) -> String {
     const KNOWN: &[&str] = &[
-        "pppppp", "ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "ffff", "fffff", "ffffff", "sf", "sfz",
-        "sffz", "sfp", "fp", "rf", "rfz", "fz", "pf", "sfpp", "n",
+        "pppppp", "ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "ffff", "fffff", "ffffff", "sf",
+        "sfz", "sffz", "sfp", "fp", "rf", "rfz", "fz", "pf", "sfpp", "n",
     ];
     if KNOWN.contains(&v) {
         v.to_string()
@@ -566,11 +583,7 @@ fn write_event(
             None => (None, 0),
         },
     };
-    let notes: Vec<Option<&Note>> = if e.is_rest() {
-        vec![None]
-    } else {
-        e.notes.iter().map(Some).collect()
-    };
+    let notes: Vec<Option<&Note>> = if e.is_rest() { vec![None] } else { e.notes.iter().map(Some).collect() };
     for (ni, n) in notes.iter().enumerate() {
         let print = if e.visible { "" } else { " print-object=\"no\"" };
         let _ = writeln!(x, "      <note{print}>");
@@ -769,9 +782,7 @@ pub fn read_mxl(bytes: &[u8]) -> Result<String> {
             .find(|n| (n.ends_with(".xml") || n.ends_with(".musicxml")) && !n.starts_with("META-INF"))
             .ok_or_else(|| Error::input("the .mxl container has no MusicXML document"))?,
     };
-    let mut f = zip
-        .by_name(&name)
-        .map_err(|e| Error::input(format!("cannot open {name} in .mxl: {e}")))?;
+    let mut f = zip.by_name(&name).map_err(|e| Error::input(format!("cannot open {name} in .mxl: {e}")))?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
     Ok(s)
@@ -823,10 +834,7 @@ struct RawEvent {
 
 /// Parse MusicXML text. Returns the score and a list of unsupported constructs seen.
 pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
-    let opts = roxmltree::ParsingOptions {
-        allow_dtd: true,
-        ..Default::default()
-    };
+    let opts = roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() };
     let doc = roxmltree::Document::parse_with_options(text, opts)
         .map_err(|e| Error::input(format!("not valid MusicXML: {e}")))?;
     let root = doc.root_element();
@@ -834,10 +842,7 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
         return Err(Error::unsupported("timewise MusicXML is not supported; convert it to partwise first"));
     }
     if !root.has_tag_name("score-partwise") {
-        return Err(Error::input(format!(
-            "not a MusicXML score (root element <{}>)",
-            root.tag_name().name()
-        )));
+        return Err(Error::input(format!("not a MusicXML score (root element <{}>)", root.tag_name().name())));
     }
     let mut unsupported: Vec<String> = Vec::new();
     // global divisions = lcm of all divisions values
@@ -852,10 +857,7 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
     if g > 1_000_000 {
         g = 960;
     }
-    let mut score = Score {
-        divisions: g as u32,
-        ..Score::default()
-    };
+    let mut score = Score { divisions: g as u32, ..Score::default() };
     score.title = root
         .descendants()
         .find(|n| n.has_tag_name("work-title"))
@@ -938,18 +940,10 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
         let mut time = TimeSig::new(4, 4);
         let mut open_ending: Option<String> = None;
         for (mi, mnode) in part_node.children().filter(|c| c.has_tag_name("measure")).enumerate() {
-            let number = mnode
-                .attribute("number")
-                .and_then(|s| s.trim().parse::<u32>().ok())
-                .unwrap_or(mi as u32 + 1);
+            let number = mnode.attribute("number").and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(mi as u32 + 1);
             let implicit = mnode.attribute("implicit") == Some("yes");
-            let mut ms: Vec<Measure> = (0..nstaves)
-                .map(|_| Measure {
-                    number,
-                    implicit,
-                    ..Measure::default()
-                })
-                .collect();
+            let mut ms: Vec<Measure> =
+                (0..nstaves).map(|_| Measure { number, implicit, ..Measure::default() }).collect();
             let mut cursor: i64 = 0;
             let mut raw: Vec<RawEvent> = Vec::new();
             let mut last_start: i64 = 0;
@@ -963,7 +957,8 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                         }
                         for k in c.children().filter(|k| k.has_tag_name("key")) {
                             if let Some(f) = num::<i8>(child_text(k, "fifths")) {
-                                let mode = if child_text(k, "mode") == Some("minor") { Mode::Minor } else { Mode::Major };
+                                let mode =
+                                    if child_text(k, "mode") == Some("minor") { Mode::Minor } else { Mode::Major };
                                 let ks = KeySig { fifths: f.clamp(-7, 7), mode };
                                 match k.attribute("number").and_then(|n| n.parse::<usize>().ok()) {
                                     Some(n) if n >= 1 && n <= ms.len() => ms[n - 1].key = Some(ks),
@@ -974,9 +969,8 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                             }
                         }
                         for t in c.children().filter(|k| k.has_tag_name("time")) {
-                            let beats: Option<u32> = child_text(t, "beats").and_then(|b| {
-                                b.split('+').map(|x| x.trim().parse::<u32>().ok()).sum::<Option<u32>>()
-                            });
+                            let beats: Option<u32> = child_text(t, "beats")
+                                .and_then(|b| b.split('+').map(|x| x.trim().parse::<u32>().ok()).sum::<Option<u32>>());
                             let bt = num::<u32>(child_text(t, "beat-type"));
                             if let (Some(b), Some(bt)) = (beats, bt) {
                                 time = TimeSig::new(b, bt);
@@ -1019,14 +1013,18 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                     }
                     "harmony" => {
                         let staff = num::<u32>(child_text(c, "staff")).unwrap_or(1).clamp(1, nstaves);
-                        let off = num::<i64>(child_text(c, "offset")).map(|o| scale(o.max(0) as u64, cur_div) as i64).unwrap_or(0);
+                        let off = num::<i64>(child_text(c, "offset"))
+                            .map(|o| scale(o.max(0) as u64, cur_div) as i64)
+                            .unwrap_or(0);
                         if let Some(h) = read_harmony(c, (cursor + off).max(0) as u32) {
                             ms[(staff - 1) as usize].harmonies.push(h);
                         }
                     }
                     "direction" => {
                         let staff = num::<u32>(child_text(c, "staff")).unwrap_or(1).clamp(1, nstaves);
-                        let off = num::<i64>(child_text(c, "offset")).map(|o| scale(o.max(0) as u64, cur_div) as i64).unwrap_or(0);
+                        let off = num::<i64>(child_text(c, "offset"))
+                            .map(|o| scale(o.max(0) as u64, cur_div) as i64)
+                            .unwrap_or(0);
                         let at = (cursor + off).max(0) as u32;
                         let placement = c.attribute("placement").map(|s| s.to_string());
                         let mut tempo_words: Option<String> = None;
@@ -1037,7 +1035,11 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                                     "dynamics" => {
                                         for dy in item.children().filter(|k| k.is_element()) {
                                             let v = dy.tag_name().name();
-                                            let v = if v == "other-dynamics" { dy.text().unwrap_or("mf").trim() } else { v };
+                                            let v = if v == "other-dynamics" {
+                                                dy.text().unwrap_or("mf").trim()
+                                            } else {
+                                                v
+                                            };
                                             dyn_dirs.push((staff, at as u64, v.to_string()));
                                         }
                                     }
@@ -1045,7 +1047,9 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                                         let unit = child_text(item, "beat-unit").unwrap_or("quarter");
                                         let dotted = child(item, "beat-unit-dot").is_some();
                                         if let Some(pm) = num_f(child_text(item, "per-minute")) {
-                                            let q = crate::pitch::duration_of(unit, dotted as u8, 2, None).unwrap_or(2) as f64 / 2.0;
+                                            let q = crate::pitch::duration_of(unit, dotted as u8, 2, None).unwrap_or(2)
+                                                as f64
+                                                / 2.0;
                                             tempo = Some(pm * q);
                                         }
                                     }
@@ -1067,7 +1071,16 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                                         });
                                     }
                                     other => {
-                                        if !matches!(other, "segno" | "coda" | "rehearsal" | "pedal" | "octave-shift" | "dashes" | "bracket") {
+                                        if !matches!(
+                                            other,
+                                            "segno"
+                                                | "coda"
+                                                | "rehearsal"
+                                                | "pedal"
+                                                | "octave-shift"
+                                                | "dashes"
+                                                | "bracket"
+                                        ) {
                                             unsupported.push(format!("measure {number}: direction <{other}> ignored"));
                                         }
                                     }
@@ -1096,11 +1109,15 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                         let grace = child(c, "grace").is_some();
                         let staff = num::<u32>(child_text(c, "staff")).unwrap_or(1).clamp(1, nstaves);
                         let voice = num::<u32>(child_text(c, "voice")).unwrap_or(1);
-                        let dur = if grace { 0 } else { scale(num::<u64>(child_text(c, "duration")).unwrap_or(0), cur_div) };
-                        let (ev, note) = read_note(c, g as u32, &unpitched_map, &inst_names, dur as u32, &mut part.percussion);
+                        let dur =
+                            if grace { 0 } else { scale(num::<u64>(child_text(c, "duration")).unwrap_or(0), cur_div) };
+                        let (ev, note) =
+                            read_note(c, g as u32, &unpitched_map, &inst_names, dur as u32, &mut part.percussion);
                         if is_chord {
                             if let Some(n) = note {
-                                if let Some(last) = raw.iter_mut().rev().find(|r| r.staff == staff && r.start as i64 == last_start) {
+                                if let Some(last) =
+                                    raw.iter_mut().rev().find(|r| r.staff == staff && r.start as i64 == last_start)
+                                {
                                     last.event.notes.push(n);
                                     last.event.rest = false;
                                     continue;
@@ -1219,7 +1236,12 @@ pub fn read(text: &str) -> Result<(Score, Vec<String>)> {
                         }
                     }
                     if !placed {
-                        m.directions.push(Direction { offset: *at as u32, kind: "dynamic".into(), value: v.clone(), placement: None });
+                        m.directions.push(Direction {
+                            offset: *at as u32,
+                            kind: "dynamic".into(),
+                            value: v.clone(),
+                            placement: None,
+                        });
                     }
                 }
             }
@@ -1243,9 +1265,10 @@ fn read_harmony(c: roxmltree::Node, offset: u32) -> Option<Harmony> {
     let alter = num::<f64>(child_text(root, "root-alter")).unwrap_or(0.0).round() as i8;
     let kind_node = child(c, "kind");
     let kind = kind_node.and_then(|k| k.text()).unwrap_or("major").trim();
-    let add9 = c.children().filter(|d| d.has_tag_name("degree")).any(|d| {
-        child_text(d, "degree-value") == Some("9") && child_text(d, "degree-type") == Some("add")
-    });
+    let add9 = c
+        .children()
+        .filter(|d| d.has_tag_name("degree"))
+        .any(|d| child_text(d, "degree-value") == Some("9") && child_text(d, "degree-type") == Some("add"));
     let quality = chords::quality_from_kind(kind, add9);
     let bass = child(c, "bass").and_then(|b| {
         Some(Spelled {
@@ -1260,7 +1283,9 @@ fn read_harmony(c: roxmltree::Node, offset: u32) -> Option<Harmony> {
         let first_fret = num::<u8>(child_text(f, "first-fret")).unwrap_or(1);
         let mut fret_by_string = vec![None; strings as usize];
         for fnode in f.children().filter(|k| k.has_tag_name("frame-note")) {
-            if let (Some(s), Some(fr)) = (num::<usize>(child_text(fnode, "string")), num::<u8>(child_text(fnode, "fret"))) {
+            if let (Some(s), Some(fr)) =
+                (num::<usize>(child_text(fnode, "string")), num::<u8>(child_text(fnode, "fret")))
+            {
                 if s >= 1 && s <= strings as usize {
                     fret_by_string[strings as usize - s] = Some(fr);
                 }
@@ -1322,9 +1347,8 @@ fn read_note(
         let mut n = Note::new(pitch);
         n.midi = key;
         n.unpitched = true;
-        n.instrument = inst
-            .and_then(|i| inst_names.get(i).cloned())
-            .or_else(|| Some(drums::gm_drum_name(key as u8).to_string()));
+        n.instrument =
+            inst.and_then(|i| inst_names.get(i).cloned()).or_else(|| Some(drums::gm_drum_name(key as u8).to_string()));
         note = Some(n);
     }
     if let Some(n) = note.as_mut() {
@@ -1397,11 +1421,7 @@ fn read_note(
             continue;
         }
         let verse = l.attribute("number").and_then(|n| n.parse::<u32>().ok()).unwrap_or(1);
-        ev.lyrics.push(Lyric {
-            text,
-            syllabic: child_text(l, "syllabic").unwrap_or("single").to_string(),
-            verse,
-        });
+        ev.lyrics.push(Lyric { text, syllabic: child_text(l, "syllabic").unwrap_or("single").to_string(), verse });
     }
     // drop types that disagree with the duration (keeps written values only when exact)
     if let Some(t) = &ev.note_type {
@@ -1412,7 +1432,9 @@ fn read_note(
                 ev.note_type = None;
                 ev.dots = 0;
             }
-        } else if !ev.grace && type_for(ev.duration, divisions, tup).map(|(tt, d)| tt == t && d == ev.dots).unwrap_or(false) {
+        } else if !ev.grace
+            && type_for(ev.duration, divisions, tup).map(|(tt, d)| tt == t && d == ev.dots).unwrap_or(false)
+        {
             // derivable from the duration: store compactly
             ev.note_type = None;
             ev.dots = 0;

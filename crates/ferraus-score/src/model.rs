@@ -153,16 +153,10 @@ pub struct KeySig {
 
 impl KeySig {
     pub fn major(fifths: i8) -> KeySig {
-        KeySig {
-            fifths,
-            mode: Mode::Major,
-        }
+        KeySig { fifths, mode: Mode::Major }
     }
     pub fn minor(fifths: i8) -> KeySig {
-        KeySig {
-            fifths,
-            mode: Mode::Minor,
-        }
+        KeySig { fifths, mode: Mode::Minor }
     }
 }
 
@@ -206,25 +200,13 @@ pub struct Clef {
 
 impl Clef {
     pub fn treble() -> Clef {
-        Clef {
-            sign: "G".into(),
-            line: 2,
-            octave_change: 0,
-        }
+        Clef { sign: "G".into(), line: 2, octave_change: 0 }
     }
     pub fn bass() -> Clef {
-        Clef {
-            sign: "F".into(),
-            line: 4,
-            octave_change: 0,
-        }
+        Clef { sign: "F".into(), line: 4, octave_change: 0 }
     }
     pub fn percussion() -> Clef {
-        Clef {
-            sign: "percussion".into(),
-            line: 3,
-            octave_change: 0,
-        }
+        Clef { sign: "percussion".into(), line: 3, octave_change: 0 }
     }
 }
 
@@ -322,10 +304,7 @@ pub struct Ending {
 
 impl Ending {
     pub fn numbers(&self) -> Vec<u32> {
-        self.number
-            .split([',', ' '])
-            .filter_map(|s| s.trim().parse().ok())
-            .collect()
+        self.number.split([',', ' ']).filter_map(|s| s.trim().parse().ok()).collect()
     }
     pub fn starts(&self) -> bool {
         self.kind.starts_with("start")
@@ -426,18 +405,10 @@ pub struct Event {
 
 impl Event {
     pub fn rest(duration: u32) -> Event {
-        Event {
-            duration,
-            rest: true,
-            ..Event::empty()
-        }
+        Event { duration, rest: true, ..Event::empty() }
     }
     pub fn notes(duration: u32, notes: Vec<Note>) -> Event {
-        Event {
-            duration,
-            notes,
-            ..Event::empty()
-        }
+        Event { duration, notes, ..Event::empty() }
     }
     pub fn empty() -> Event {
         Event {
@@ -478,15 +449,7 @@ impl Pitch {
         (self.octave as i32 + 1) * 12 + crate::pitch::step_pc(self.step) + self.alter as i32
     }
     pub fn name(&self) -> String {
-        format!(
-            "{}{}",
-            Spelled {
-                step: self.step,
-                alter: self.alter
-            }
-            .name(),
-            self.octave
-        )
+        format!("{}{}", Spelled { step: self.step, alter: self.alter }.name(), self.octave)
     }
     pub fn parse(s: &str) -> Option<Pitch> {
         let s = s.trim();
@@ -496,10 +459,7 @@ impl Pitch {
             return None;
         }
         let rest: String = chars.collect();
-        let split = rest
-            .char_indices()
-            .find(|(_, c)| c.is_ascii_digit() || *c == '-')
-            .map(|(i, _)| i)?;
+        let split = rest.char_indices().find(|(_, c)| c.is_ascii_digit() || *c == '-').map(|(i, _)| i)?;
         let (acc, oct) = rest.split_at(split);
         let alter = match acc {
             "" | "n" => 0,
@@ -509,11 +469,7 @@ impl Pitch {
             "bb" => -2,
             _ => return None,
         };
-        Some(Pitch {
-            step,
-            alter,
-            octave: oct.parse().ok()?,
-        })
+        Some(Pitch { step, alter, octave: oct.parse().ok()? })
     }
 }
 
@@ -561,11 +517,7 @@ impl Note {
 impl Score {
     /// Iterate (part index, staff index, measure index, &Measure).
     pub fn measure_count(&self) -> usize {
-        self.parts
-            .iter()
-            .flat_map(|p| p.staves.iter().map(|s| s.measures.len()))
-            .max()
-            .unwrap_or(0)
+        self.parts.iter().flat_map(|p| p.staves.iter().map(|s| s.measures.len())).max().unwrap_or(0)
     }
 
     /// The effective time signature at measure `mi` of a staff.
@@ -609,12 +561,7 @@ impl Score {
                     }
                     if let Some(c) = conf {
                         if c < threshold {
-                            out.push(LowConfidence {
-                                part: p.id.clone(),
-                                measure: m.number,
-                                confidence: c,
-                                reasons,
-                            });
+                            out.push(LowConfidence { part: p.id.clone(), measure: m.number, confidence: c, reasons });
                         }
                     }
                 }

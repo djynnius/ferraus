@@ -35,16 +35,16 @@ pub struct Report {
     pub low_confidence: Vec<LowConfidence>,
 }
 
-fn issue(sev: &str, code: &str, part: &Part, staff: Option<u32>, measure: Option<u32>, voice: Option<u32>, msg: String) -> Issue {
-    Issue {
-        severity: sev.into(),
-        code: code.into(),
-        part: Some(part.id.clone()),
-        staff,
-        measure,
-        voice,
-        message: msg,
-    }
+fn issue(
+    sev: &str,
+    code: &str,
+    part: &Part,
+    staff: Option<u32>,
+    measure: Option<u32>,
+    voice: Option<u32>,
+    msg: String,
+) -> Issue {
+    Issue { severity: sev.into(), code: code.into(), part: Some(part.id.clone()), staff, measure, voice, message: msg }
 }
 
 fn q(d: u64, div: u32) -> String {
@@ -96,7 +96,15 @@ pub fn check(score: &Score, unsupported: &[String]) -> Report {
     for p in &score.parts {
         let counts: Vec<usize> = p.staves.iter().map(|s| s.measures.len()).collect();
         if counts.windows(2).any(|w| w[0] != w[1]) {
-            issues.push(issue("error", "staff_measure_count", p, None, None, None, format!("staves have different measure counts: {counts:?}")));
+            issues.push(issue(
+                "error",
+                "staff_measure_count",
+                p,
+                None,
+                None,
+                None,
+                format!("staves have different measure counts: {counts:?}"),
+            ));
         }
         if p.staves.is_empty() {
             issues.push(issue("error", "no_staves", p, None, None, None, "the part has no staves".into()));
@@ -108,73 +116,221 @@ pub fn check(score: &Score, unsupported: &[String]) -> Report {
                 let t = Score::time_at(st, mi);
                 let expected = t.measure_divisions(div) as u64;
                 if m.voices.is_empty() {
-                    issues.push(issue("error", "no_voices", p, Some(st.number), Some(m.number), None, "measure has no voices".into()));
+                    issues.push(issue(
+                        "error",
+                        "no_voices",
+                        p,
+                        Some(st.number),
+                        Some(m.number),
+                        None,
+                        "measure has no voices".into(),
+                    ));
                     failing.push(m.number);
                     continue;
                 }
                 if m.voices.len() > 4 {
-                    issues.push(issue("warning", "too_many_voices", p, Some(st.number), Some(m.number), None, format!("{} voices on one staff (at most 4 are supported by most engravers)", m.voices.len())));
+                    issues.push(issue(
+                        "warning",
+                        "too_many_voices",
+                        p,
+                        Some(st.number),
+                        Some(m.number),
+                        None,
+                        format!("{} voices on one staff (at most 4 are supported by most engravers)", m.voices.len()),
+                    ));
                 }
                 let mut seen = Vec::new();
                 for v in &m.voices {
                     if seen.contains(&v.number) {
-                        issues.push(issue("error", "duplicate_voice", p, Some(st.number), Some(m.number), Some(v.number), "voice number used twice".into()));
+                        issues.push(issue(
+                            "error",
+                            "duplicate_voice",
+                            p,
+                            Some(st.number),
+                            Some(m.number),
+                            Some(v.number),
+                            "voice number used twice".into(),
+                        ));
                     }
                     seen.push(v.number);
                     let total: u64 = v.events.iter().filter(|e| !e.grace).map(|e| e.duration as u64).sum();
                     let is_last = mi + 1 == n;
                     let first_voice = v.number == m.voices.iter().map(|x| x.number).min().unwrap_or(1);
                     if total > expected {
-                        issues.push(issue("error", "measure_too_long", p, Some(st.number), Some(m.number), Some(v.number), format!("voice {} lasts {}, the {}/{} measure holds {}", v.number, q(total, div), t.beats, t.beat_type, q(expected, div))));
+                        issues.push(issue(
+                            "error",
+                            "measure_too_long",
+                            p,
+                            Some(st.number),
+                            Some(m.number),
+                            Some(v.number),
+                            format!(
+                                "voice {} lasts {}, the {}/{} measure holds {}",
+                                v.number,
+                                q(total, div),
+                                t.beats,
+                                t.beat_type,
+                                q(expected, div)
+                            ),
+                        ));
                         failing.push(m.number);
                     } else if total < expected && !m.implicit {
                         let completes_pickup = is_last && has_pickup && total + pickup_len == expected;
                         if first_voice && !completes_pickup {
-                            issues.push(issue("error", "measure_too_short", p, Some(st.number), Some(m.number), Some(v.number), format!("voice {} lasts {}, the {}/{} measure needs {}", v.number, q(total, div), t.beats, t.beat_type, q(expected, div))));
+                            issues.push(issue(
+                                "error",
+                                "measure_too_short",
+                                p,
+                                Some(st.number),
+                                Some(m.number),
+                                Some(v.number),
+                                format!(
+                                    "voice {} lasts {}, the {}/{} measure needs {}",
+                                    v.number,
+                                    q(total, div),
+                                    t.beats,
+                                    t.beat_type,
+                                    q(expected, div)
+                                ),
+                            ));
                             failing.push(m.number);
                         } else if !first_voice {
-                            issues.push(issue("info", "voice_incomplete", p, Some(st.number), Some(m.number), Some(v.number), format!("voice {} covers {} of {}", v.number, q(total, div), q(expected, div))));
+                            issues.push(issue(
+                                "info",
+                                "voice_incomplete",
+                                p,
+                                Some(st.number),
+                                Some(m.number),
+                                Some(v.number),
+                                format!("voice {} covers {} of {}", v.number, q(total, div), q(expected, div)),
+                            ));
                         }
                     }
                     for (ei, e) in v.events.iter().enumerate() {
                         if e.duration == 0 && !e.grace {
-                            issues.push(issue("error", "zero_duration", p, Some(st.number), Some(m.number), Some(v.number), format!("event {} has no duration", ei + 1)));
+                            issues.push(issue(
+                                "error",
+                                "zero_duration",
+                                p,
+                                Some(st.number),
+                                Some(m.number),
+                                Some(v.number),
+                                format!("event {} has no duration", ei + 1),
+                            ));
                             failing.push(m.number);
                         }
                         if !e.rest && e.notes.is_empty() {
-                            issues.push(issue("warning", "empty_event", p, Some(st.number), Some(m.number), Some(v.number), format!("event {} has no notes and is not a rest", ei + 1)));
+                            issues.push(issue(
+                                "warning",
+                                "empty_event",
+                                p,
+                                Some(st.number),
+                                Some(m.number),
+                                Some(v.number),
+                                format!("event {} has no notes and is not a rest", ei + 1),
+                            ));
                         }
                         if e.rest && !e.notes.is_empty() {
-                            issues.push(issue("warning", "rest_with_notes", p, Some(st.number), Some(m.number), Some(v.number), format!("event {} is a rest but has notes", ei + 1)));
+                            issues.push(issue(
+                                "warning",
+                                "rest_with_notes",
+                                p,
+                                Some(st.number),
+                                Some(m.number),
+                                Some(v.number),
+                                format!("event {} is a rest but has notes", ei + 1),
+                            ));
                         }
                         for nt in &e.notes {
                             notes += 1;
                             if !(0..=127).contains(&nt.midi) {
-                                issues.push(issue("error", "pitch_range", p, Some(st.number), Some(m.number), Some(v.number), format!("event {}: MIDI note {} is outside 0..127", ei + 1, nt.midi)));
+                                issues.push(issue(
+                                    "error",
+                                    "pitch_range",
+                                    p,
+                                    Some(st.number),
+                                    Some(m.number),
+                                    Some(v.number),
+                                    format!("event {}: MIDI note {} is outside 0..127", ei + 1, nt.midi),
+                                ));
                             }
                             if !nt.unpitched && !p.percussion && nt.pitch.midi() != nt.midi {
-                                issues.push(issue("error", "pitch_mismatch", p, Some(st.number), Some(m.number), Some(v.number), format!("event {}: {} is MIDI {} but the note says {}", ei + 1, nt.pitch.name(), nt.pitch.midi(), nt.midi)));
+                                issues.push(issue(
+                                    "error",
+                                    "pitch_mismatch",
+                                    p,
+                                    Some(st.number),
+                                    Some(m.number),
+                                    Some(v.number),
+                                    format!(
+                                        "event {}: {} is MIDI {} but the note says {}",
+                                        ei + 1,
+                                        nt.pitch.name(),
+                                        nt.pitch.midi(),
+                                        nt.midi
+                                    ),
+                                ));
                             }
                             if !('A'..='G').contains(&nt.pitch.step) {
-                                issues.push(issue("error", "bad_step", p, Some(st.number), Some(m.number), Some(v.number), format!("event {}: step '{}' is not A..G", ei + 1, nt.pitch.step)));
+                                issues.push(issue(
+                                    "error",
+                                    "bad_step",
+                                    p,
+                                    Some(st.number),
+                                    Some(m.number),
+                                    Some(v.number),
+                                    format!("event {}: step '{}' is not A..G", ei + 1, nt.pitch.step),
+                                ));
                             }
                             if nt.tie_start && !tie_continues(st, mi, v.number, ei, nt.midi) {
-                                issues.push(issue("warning", "unterminated_tie", p, Some(st.number), Some(m.number), Some(v.number), format!("event {}: tie from {} has no matching note", ei + 1, nt.pitch.name())));
+                                issues.push(issue(
+                                    "warning",
+                                    "unterminated_tie",
+                                    p,
+                                    Some(st.number),
+                                    Some(m.number),
+                                    Some(v.number),
+                                    format!("event {}: tie from {} has no matching note", ei + 1, nt.pitch.name()),
+                                ));
                             }
                         }
                         if let Some(t) = &e.note_type {
                             if crate::pitch::TYPES.iter().all(|x| x != t) && t != "breve" {
-                                issues.push(issue("warning", "unknown_type", p, Some(st.number), Some(m.number), Some(v.number), format!("event {}: unknown note type '{t}'", ei + 1)));
+                                issues.push(issue(
+                                    "warning",
+                                    "unknown_type",
+                                    p,
+                                    Some(st.number),
+                                    Some(m.number),
+                                    Some(v.number),
+                                    format!("event {}: unknown note type '{t}'", ei + 1),
+                                ));
                             }
                         }
                     }
                 }
                 for h in &m.harmonies {
                     if h.offset as u64 > expected.max(longest(m)) {
-                        issues.push(issue("warning", "harmony_offset", p, Some(st.number), Some(m.number), None, format!("chord symbol {} is placed after the end of the measure", h.text)));
+                        issues.push(issue(
+                            "warning",
+                            "harmony_offset",
+                            p,
+                            Some(st.number),
+                            Some(m.number),
+                            None,
+                            format!("chord symbol {} is placed after the end of the measure", h.text),
+                        ));
                     }
                     if crate::chords::quality_info(&h.quality).is_none() {
-                        issues.push(issue("warning", "unknown_quality", p, Some(st.number), Some(m.number), None, format!("chord quality '{}' is not known", h.quality)));
+                        issues.push(issue(
+                            "warning",
+                            "unknown_quality",
+                            p,
+                            Some(st.number),
+                            Some(m.number),
+                            None,
+                            format!("chord quality '{}' is not known", h.quality),
+                        ));
                     }
                 }
             }
@@ -237,11 +393,7 @@ fn tie_continues(st: &Staff, mi: usize, vn: u32, ei: usize, midi: i32) -> bool {
     }
     // first event of the same voice (or any voice) in the next measure
     if let Some(nm) = st.measures.get(mi + 1) {
-        return nm
-            .voices
-            .iter()
-            .filter_map(|v| v.events.first())
-            .any(|e| e.notes.iter().any(|n| n.midi == midi));
+        return nm.voices.iter().filter_map(|v| v.events.first()).any(|e| e.notes.iter().any(|n| n.midi == midi));
     }
     false
 }

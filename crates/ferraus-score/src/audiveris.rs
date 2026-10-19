@@ -10,13 +10,30 @@ pub const VERSION: &str = "5.11.0";
 
 /// (platform key, asset file name, sha256)
 const ASSETS: &[(&str, &str, &str)] = &[
-    ("macos-aarch64", "Audiveris-5.11.0-macosx-arm64.dmg", "17491af8b6d40153b031dd1f0815e37213f0999ef23f10586af46706e59b2eb6"),
-    ("macos-x86_64", "Audiveris-5.11.0-macosx-x86_64.dmg", "11794424c6f1698617836a77d2c5818c46405a3fe7388281c623c4e383fa33cb"),
-    ("linux-x86_64", "Audiveris-5.11.0-ubuntu22.04-x86_64.deb", "ae714594f40e54b1a4951fc3f914f08ae38fe5d07b7f2283b1a904fdb6e0a318"),
-    ("windows-x86_64", "Audiveris-5.11.0-windowsConsole-x86_64.msi", "5f1b4e96a12c53c7da426814b76e599363c4181e291855996e0a6878dda95f71"),
+    (
+        "macos-aarch64",
+        "Audiveris-5.11.0-macosx-arm64.dmg",
+        "17491af8b6d40153b031dd1f0815e37213f0999ef23f10586af46706e59b2eb6",
+    ),
+    (
+        "macos-x86_64",
+        "Audiveris-5.11.0-macosx-x86_64.dmg",
+        "11794424c6f1698617836a77d2c5818c46405a3fe7388281c623c4e383fa33cb",
+    ),
+    (
+        "linux-x86_64",
+        "Audiveris-5.11.0-ubuntu22.04-x86_64.deb",
+        "ae714594f40e54b1a4951fc3f914f08ae38fe5d07b7f2283b1a904fdb6e0a318",
+    ),
+    (
+        "windows-x86_64",
+        "Audiveris-5.11.0-windowsConsole-x86_64.msi",
+        "5f1b4e96a12c53c7da426814b76e599363c4181e291855996e0a6878dda95f71",
+    ),
 ];
 
-pub const LICENSE_NOTICE: &str = "Audiveris (https://github.com/Audiveris/audiveris) is free software licensed under the \
+pub const LICENSE_NOTICE: &str =
+    "Audiveris (https://github.com/Audiveris/audiveris) is free software licensed under the \
 GNU Affero General Public License v3.0 (AGPL-3.0). ferraus runs it as a separate program and does not link it; the \
 download comes from the Audiveris GitHub releases and includes its own Java runtime. By installing it you accept the \
 AGPL-3.0 terms: https://www.gnu.org/licenses/agpl-3.0.html";
@@ -69,7 +86,12 @@ fn find_jar(dir: &Path) -> Option<PathBuf> {
             if let Some(j) = find_jar(&p) {
                 return Some(j);
             }
-        } else if p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).map(|n| n.starts_with("audiveris") && n.ends_with(".jar")).unwrap_or(false) {
+        } else if p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .map(|n| n.starts_with("audiveris") && n.ends_with(".jar"))
+            .unwrap_or(false)
+        {
             return Some(p);
         }
     }
@@ -82,15 +104,23 @@ pub fn install(yes: bool, offline: bool) -> Result<PathBuf> {
         return Ok(p);
     }
     if offline {
-        return Err(Error::new(ErrorKind::Network, "offline", "installing Audiveris needs the network and --offline is set"));
+        return Err(Error::new(
+            ErrorKind::Network,
+            "offline",
+            "installing Audiveris needs the network and --offline is set",
+        ));
     }
     let platform = current_platform();
     let (asset, sha) = asset_for(&platform).ok_or_else(|| {
-        Error::unsupported(format!("no Audiveris {VERSION} build for {platform}"))
-            .with_hint("install Audiveris yourself and put its launcher on PATH (https://github.com/Audiveris/audiveris/releases)")
+        Error::unsupported(format!("no Audiveris {VERSION} build for {platform}")).with_hint(
+            "install Audiveris yourself and put its launcher on PATH (https://github.com/Audiveris/audiveris/releases)",
+        )
     })?;
     if !yes {
-        return Err(Error::usage(format!("{LICENSE_NOTICE}\n\nRe-run with --yes to accept the license and download {asset} (about 80 MB).")).with_hint("ferraus doctor --install-audiveris --yes"));
+        return Err(Error::usage(format!(
+            "{LICENSE_NOTICE}\n\nRe-run with --yes to accept the license and download {asset} (about 80 MB)."
+        ))
+        .with_hint("ferraus doctor --install-audiveris --yes"));
     }
     eprintln!("{LICENSE_NOTICE}");
     let dir = install_dir();
@@ -106,19 +136,29 @@ pub fn install(yes: bool, offline: bool) -> Result<PathBuf> {
             .status()
             .map_err(|e| Error::new(ErrorKind::Network, "download_failed", format!("cannot run curl: {e}")))?;
         if !status.success() {
-            return Err(Error::new(ErrorKind::Network, "download_failed", format!("downloading {url} failed ({status})")));
+            return Err(Error::new(
+                ErrorKind::Network,
+                "download_failed",
+                format!("downloading {url} failed ({status})"),
+            ));
         }
     }
     let got = ferraus_core::envelope::sha256_file(&file)?;
     if got != sha {
         let _ = std::fs::remove_file(&file);
-        return Err(Error::new(ErrorKind::ModelDownload, "checksum_mismatch", format!("{asset}: sha256 {got} does not match the pinned {sha}")));
+        return Err(Error::new(
+            ErrorKind::ModelDownload,
+            "checksum_mismatch",
+            format!("{asset}: sha256 {got} does not match the pinned {sha}"),
+        ));
     }
     extract(&file, &dir)?;
     std::fs::write(dir.join("LICENSE-NOTICE.txt"), LICENSE_NOTICE)?;
     std::fs::write(dir.join("VERSION"), VERSION)?;
     let _ = std::fs::remove_dir_all(&dl);
-    find().map(|(p, _)| p).ok_or_else(|| Error::processing(format!("Audiveris was unpacked into {} but its launcher was not found", dir.display())))
+    find().map(|(p, _)| p).ok_or_else(|| {
+        Error::processing(format!("Audiveris was unpacked into {} but its launcher was not found", dir.display()))
+    })
 }
 
 fn run(cmd: &mut Command, what: &str) -> Result<()> {
@@ -134,7 +174,10 @@ fn extract(file: &Path, dir: &Path) -> Result<()> {
     if name.ends_with(".dmg") {
         let mnt = dir.join("mnt");
         std::fs::create_dir_all(&mnt)?;
-        run(Command::new("hdiutil").args(["attach", "-nobrowse", "-readonly", "-mountpoint"]).arg(&mnt).arg(file), "hdiutil attach")?;
+        run(
+            Command::new("hdiutil").args(["attach", "-nobrowse", "-readonly", "-mountpoint"]).arg(&mnt).arg(file),
+            "hdiutil attach",
+        )?;
         let res = run(Command::new("cp").arg("-R").arg(mnt.join("Audiveris.app")).arg(dir), "copy Audiveris.app");
         let _ = run(Command::new("hdiutil").arg("detach").arg(&mnt), "hdiutil detach");
         let _ = std::fs::remove_dir_all(&mnt);
@@ -169,11 +212,16 @@ pub fn transcribe(input: &Path, pages: Option<&str>) -> Result<Vec<Vec<u8>>> {
         Error::new(ErrorKind::Unsupported, "audiveris_missing", "Audiveris is not installed")
             .with_hint("ferraus doctor --install-audiveris --yes")
     })?;
-    let out = std::env::temp_dir().join(format!("ferraus-audiveris-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)));
+    let out = std::env::temp_dir().join(format!(
+        "ferraus-audiveris-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)
+    ));
     std::fs::create_dir_all(&out)?;
     let mut cmd = if jar {
-        let java = crate::engrave::find_in(std::env::var_os("PATH").as_deref(), "java")
-            .ok_or_else(|| Error::new(ErrorKind::Unsupported, "java_missing", "the Audiveris jar needs Java on PATH"))?;
+        let java = crate::engrave::find_in(std::env::var_os("PATH").as_deref(), "java").ok_or_else(|| {
+            Error::new(ErrorKind::Unsupported, "java_missing", "the Audiveris jar needs Java on PATH")
+        })?;
         let mut c = Command::new(java);
         c.arg("-jar").arg(&exe);
         c

@@ -15,7 +15,16 @@ use ferraus_core::{Inputs, OpSpec};
 use std::path::{Path, PathBuf};
 
 pub fn ops() -> Vec<OpSpec> {
-    vec![score_spec(), read_spec(), play_spec(), perform_spec(), convert_spec(), to_json_spec(), from_json_spec(), check_spec()]
+    vec![
+        score_spec(),
+        read_spec(),
+        play_spec(),
+        perform_spec(),
+        convert_spec(),
+        to_json_spec(),
+        from_json_spec(),
+        check_spec(),
+    ]
 }
 
 // ------------------------------------------------------------------------------------
@@ -200,16 +209,21 @@ fn from_json_spec() -> OpSpec {
 }
 
 fn check_spec() -> OpSpec {
-    OpSpec::custom("score check", Category::Score, "Validate a score: measure durations, voices, unsupported constructs", op_check)
-        .about(
-            "Checks every measure's voices against the time signature (pickups and a final bar completing a pickup are \
+    OpSpec::custom(
+        "score check",
+        Category::Score,
+        "Validate a score: measure durations, voices, unsupported constructs",
+        op_check,
+    )
+    .about(
+        "Checks every measure's voices against the time signature (pickups and a final bar completing a pickup are \
 allowed), voice numbering, ties, pitch/MIDI consistency, chord symbols, and constructs the reader skipped. Returns a \
 JSON report; exits with code 9 (verification) when any error is found. -o writes the report to a file first.",
-        )
-        .inputs(Inputs::ONE_ANY)
-        .param(param("strict", ParamKind::Flag).help("Treat warnings as failures too"))
-        .example("ferraus score check song.musicxml --json", "Validate a score and get the report")
-        .example("ferraus score check scan.musicxml -o report.json", "Write the report to a file (exit 9 when it fails)")
+    )
+    .inputs(Inputs::ONE_ANY)
+    .param(param("strict", ParamKind::Flag).help("Treat warnings as failures too"))
+    .example("ferraus score check song.musicxml --json", "Validate a score and get the report")
+    .example("ferraus score check scan.musicxml -o report.json", "Write the report to a file (exit 9 when it fails)")
 }
 
 // ------------------------------------------------------------------------------------
@@ -222,7 +236,11 @@ fn read_bytes(ctx: &mut OpCtx, path: &Path) -> Result<Vec<u8>> {
     }
     ctx.check_allowed(path)?;
     if !path.exists() {
-        return Err(Error::new(ErrorKind::InputMissing, "input_not_found", format!("input not found: {}", path.display())));
+        return Err(Error::new(
+            ErrorKind::InputMissing,
+            "input_not_found",
+            format!("input not found: {}", path.display()),
+        ));
     }
     ctx.note_input(path);
     Ok(std::fs::read(path)?)
@@ -240,9 +258,14 @@ fn load_input(ctx: &mut OpCtx, i: usize) -> Result<Loaded> {
     let bytes = read_bytes(ctx, &path)?;
     match input_format(&path, &bytes) {
         Some(f) if f.readable() => formats::load_as(f, &bytes),
-        Some(Format::Pdf) | Some(Format::Image) => Err(Error::unsupported(format!("{} is sheet music to recognize, not a notation file", path.display())).with_hint(format!("ferraus score read {} -o score.musicxml", path.display()))),
-        Some(Format::Audio) => Err(Error::unsupported(format!("{} is audio", path.display())).with_hint(format!("ferraus score {} -o score.musicxml", path.display()))),
-        _ => Err(Error::unsupported(format!("cannot tell the notation format of {}", path.display())).with_hint("notation inputs: .musicxml .mxl .mei .abc .ly .mid .json")),
+        Some(Format::Pdf) | Some(Format::Image) => {
+            Err(Error::unsupported(format!("{} is sheet music to recognize, not a notation file", path.display()))
+                .with_hint(format!("ferraus score read {} -o score.musicxml", path.display())))
+        }
+        Some(Format::Audio) => Err(Error::unsupported(format!("{} is audio", path.display()))
+            .with_hint(format!("ferraus score {} -o score.musicxml", path.display()))),
+        _ => Err(Error::unsupported(format!("cannot tell the notation format of {}", path.display()))
+            .with_hint("notation inputs: .musicxml .mxl .mei .abc .ly .mid .json")),
     }
 }
 
@@ -272,7 +295,16 @@ fn role_for(fmt: Format) -> &'static str {
 
 /// Write `score` to `path` in format `fmt` (engraving when needed). Returns written paths.
 #[allow(clippy::too_many_arguments)]
-fn write_as(ctx: &mut OpCtx, score: &Score, path: &Path, fmt: Format, pretty: bool, kind: SolfaKind, engraver: &str, role: Option<&str>) -> Result<Vec<String>> {
+fn write_as(
+    ctx: &mut OpCtx,
+    score: &Score,
+    path: &Path,
+    fmt: Format,
+    pretty: bool,
+    kind: SolfaKind,
+    engraver: &str,
+    role: Option<&str>,
+) -> Result<Vec<String>> {
     let role = role.unwrap_or(role_for(fmt));
     match fmt {
         Format::Svg | Format::Pdf | Format::Png => {
@@ -296,7 +328,9 @@ fn write_as(ctx: &mut OpCtx, score: &Score, path: &Path, fmt: Format, pretty: bo
             }
             Ok(out)
         }
-        Format::Image | Format::Audio => Err(Error::unsupported(format!("cannot write notation as {}", path.display()))),
+        Format::Image | Format::Audio => {
+            Err(Error::unsupported(format!("cannot write notation as {}", path.display())))
+        }
         f => {
             let bytes = formats::save(score, f, pretty, kind)?;
             ctx.write_file(path, &bytes, Some(role))?;
@@ -366,7 +400,11 @@ fn parse_tempo_arg(s: &str) -> Result<Option<f64>> {
     if s == "auto" || s.is_empty() {
         return Ok(None);
     }
-    let v: f64 = s.trim_end_matches("bpm").trim().parse().map_err(|_| Error::usage(format!("--tempo: '{s}' is not a number of quarter notes per minute")))?;
+    let v: f64 = s
+        .trim_end_matches("bpm")
+        .trim()
+        .parse()
+        .map_err(|_| Error::usage(format!("--tempo: '{s}' is not a number of quarter notes per minute")))?;
     if !(1.0..=1000.0).contains(&v) {
         return Err(Error::usage("--tempo must be between 1 and 1000"));
     }
@@ -432,14 +470,20 @@ fn notate_options(a: &Args) -> Result<NotateOptions> {
     o.time = parse_time(&a.str_or("time", "auto"))?;
     let key = a.str_or("key", "auto");
     if key != "auto" {
-        o.key = Some(pitch::parse_key(&key).ok_or_else(|| Error::usage(format!("--key: '{key}' is not a key (G, Em, Bb major, F# minor)")))?);
+        o.key = Some(
+            pitch::parse_key(&key)
+                .ok_or_else(|| Error::usage(format!("--key: '{key}' is not a key (G, Em, Bb major, F# minor)")))?,
+        );
     }
     o.tempo = parse_tempo_arg(&a.str_or("tempo", "auto"))?;
     let split = a.str_or("split", "auto");
     o.split = if split == "auto" {
         Split::Auto
     } else {
-        Split::At(units::parse_note_name(&split).ok_or_else(|| Error::usage(format!("--split: '{split}' is not auto or a note such as C4")))?)
+        Split::At(
+            units::parse_note_name(&split)
+                .ok_or_else(|| Error::usage(format!("--split: '{split}' is not auto or a note such as C4")))?,
+        )
     };
     o.layout = Layout::parse(&a.choice("layout")).unwrap_or(Layout::Auto);
     o.chords = match a.choice("chords").as_str() {
@@ -469,7 +513,8 @@ fn op_score(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let only = only || layout_solfa;
     if let Some(lp) = a.path("lyrics") {
         ctx.check_allowed(&lp)?;
-        let t = std::fs::read_to_string(&lp).map_err(|e| Error::input(format!("cannot read lyrics {}: {e}", lp.display())))?;
+        let t = std::fs::read_to_string(&lp)
+            .map_err(|e| Error::input(format!("cannot read lyrics {}: {e}", lp.display())))?;
         opts.lyrics = Some(t);
     }
     let fmt = if input.as_os_str() == "-" {
@@ -484,7 +529,9 @@ fn op_score(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
                 let main = ctx.output_path(None, if only { "txt" } else { "musicxml" })?;
                 ctx.prepare_output(&main)?;
                 ctx.record_output(&main, Some("musicxml"));
-                return Ok(json!({"plan": ["analyze tempo", "analyze key", "analyze chords", "separate", "transcribe (per stem)", "drum transcription (native)", "notate"], "parts": crate::audio::parts_list(&a.str_or("parts", "auto"))}));
+                return Ok(
+                    json!({"plan": ["analyze tempo", "analyze key", "analyze chords", "separate", "transcribe (per stem)", "drum transcription (native)", "notate"], "parts": crate::audio::parts_list(&a.str_or("parts", "auto"))}),
+                );
             }
             ctx.note_input(&input);
             let front = crate::audio::front(ctx, &input, &a.str_or("parts", "auto"))?;
@@ -531,9 +578,13 @@ fn op_score(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             (s, None)
         }
         Some(Format::Pdf) | Some(Format::Image) => {
-            return Err(Error::unsupported(format!("{} is sheet music; recognize it first", input.display())).with_hint(format!("ferraus score read {} -o score.musicxml", input.display())));
+            return Err(Error::unsupported(format!("{} is sheet music; recognize it first", input.display()))
+                .with_hint(format!("ferraus score read {} -o score.musicxml", input.display())));
         }
-        _ => return Err(Error::unsupported(format!("cannot tell what {} is", input.display())).with_hint("score accepts audio, MIDI, or notation files")),
+        _ => {
+            return Err(Error::unsupported(format!("cannot tell what {} is", input.display()))
+                .with_hint("score accepts audio, MIDI, or notation files"))
+        }
     };
     if annotate {
         solfa::annotate(&mut score, kind);
@@ -546,12 +597,25 @@ fn op_score(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             Format::SolfaMarkdown => Format::SolfaMarkdown,
             Format::SolfaText => Format::SolfaText,
             other => {
-                return Err(Error::usage(format!("--solfa only writes sol-fa text and no staff, but -o asks for {}", other.name())).with_hint("use -o song.txt or -o song.md"));
+                return Err(Error::usage(format!(
+                    "--solfa only writes sol-fa text and no staff, but -o asks for {}",
+                    other.name()
+                ))
+                .with_hint("use -o song.txt or -o song.md"));
             }
         };
     }
     let engraver = a.str_or("engraver", "auto");
-    let main_paths = write_as(ctx, &score, &main, main_fmt, true, kind, &engraver, Some(if only { "solfa" } else { role_for(main_fmt) }))?;
+    let main_paths = write_as(
+        ctx,
+        &score,
+        &main,
+        main_fmt,
+        true,
+        kind,
+        &engraver,
+        Some(if only { "solfa" } else { role_for(main_fmt) }),
+    )?;
     let extras = if only {
         // only the requested text outputs; no staff notation
         let mut v = Vec::new();
@@ -670,7 +734,9 @@ fn play_options(a: &Args, ctx: &OpCtx, score: &Score) -> Result<PlayOptions> {
     };
     if let Some(map) = a.str("instrument-map") {
         for item in map.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
-            let (pid, inst) = item.split_once('=').ok_or_else(|| Error::usage(format!("--instrument-map: '{item}' is not like P1=piano")))?;
+            let (pid, inst) = item
+                .split_once('=')
+                .ok_or_else(|| Error::usage(format!("--instrument-map: '{item}' is not like P1=piano")))?;
             let pid = pid.trim();
             if !score.parts.iter().any(|p| p.id == pid) {
                 let ids: Vec<&str> = score.parts.iter().map(|p| p.id.as_str()).collect();
@@ -703,12 +769,15 @@ fn op_perform(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let xml_path = audio.with_extension("musicxml");
     let mid_path = audio.with_extension("mid");
     // the notation input itself may already sit at the MusicXML/MIDI path beside the audio
-    let is_input = |p: &Path, ctx: &OpCtx| ctx.inputs.iter().any(|i| ferraus_core::ctx::absolutize(i) == ferraus_core::ctx::absolutize(p));
+    let is_input = |p: &Path, ctx: &OpCtx| {
+        ctx.inputs.iter().any(|i| ferraus_core::ctx::absolutize(i) == ferraus_core::ctx::absolutize(p))
+    };
     if !is_input(&xml_path, ctx) {
         ctx.write_file(&xml_path, crate::musicxml::write(&score).as_bytes(), Some("musicxml"))?;
     }
     if is_input(&mid_path, ctx) {
-        return Err(Error::usage(format!("the performance MIDI would overwrite the input {}", mid_path.display())).with_hint("choose another -o name for the audio"));
+        return Err(Error::usage(format!("the performance MIDI would overwrite the input {}", mid_path.display()))
+            .with_hint("choose another -o name for the audio"));
     }
     ctx.write_file(&mid_path, &midi::write_midi(&m)?, Some("midi"))?;
     let inst = a.str_or("instrument", "piano");
@@ -717,7 +786,13 @@ fn op_perform(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         ctx.prepare_output(&audio)?;
         ctx.record_output(&audio, Some("audio"));
     } else {
-        let (v, outs) = ferraus_core::exec::run_nested(ctx, "render", &[("instrument", inst.as_str())], vec![mid_path.clone()], Some(&audio))?;
+        let (v, outs) = ferraus_core::exec::run_nested(
+            ctx,
+            "render",
+            &[("instrument", inst.as_str())],
+            vec![mid_path.clone()],
+            Some(&audio),
+        )?;
         for mut o in outs {
             if o.role.is_none() {
                 o.role = Some("audio".into());
@@ -755,7 +830,11 @@ fn op_convert(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         }
         None => match &ctx.globals.output {
             Some(_) => ctx.output_path(None, "musicxml")?,
-            None => return Err(Error::usage("score convert needs an output: ferraus score convert in.musicxml out.abc (or -o out.abc)")),
+            None => {
+                return Err(Error::usage(
+                    "score convert needs an output: ferraus score convert in.musicxml out.abc (or -o out.abc)",
+                ))
+            }
         },
     };
     let l = load_input(ctx, 0)?;
@@ -766,7 +845,9 @@ fn op_convert(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     if !l.unsupported.is_empty() {
         ctx.warn("unsupported_constructs", format!("{} construct(s) were skipped by the reader", l.unsupported.len()));
     }
-    Ok(json!({"from": l.format.name(), "to": fmt.name(), "outputs": paths, "measures": l.score.measure_count(), "check_ok": report.ok}))
+    Ok(
+        json!({"from": l.format.name(), "to": fmt.name(), "outputs": paths, "measures": l.score.measure_count(), "check_ok": report.ok}),
+    )
 }
 
 fn op_to_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -776,7 +857,9 @@ fn op_to_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         let out = ctx.output_path(None, "json")?;
         let bytes = if a.flag("pretty") { serde_json::to_vec_pretty(&l.score)? } else { serde_json::to_vec(&l.score)? };
         ctx.write_file(&out, &bytes, Some("json"))?;
-        return Ok(json!({"output": out.display().to_string(), "parts": l.score.parts.len(), "measures": l.score.measure_count()}));
+        return Ok(
+            json!({"output": out.display().to_string(), "parts": l.score.parts.len(), "measures": l.score.measure_count()}),
+        );
     }
     Ok(v)
 }
@@ -784,7 +867,8 @@ fn op_to_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 fn op_from_json(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let path = ctx.input(0)?.to_path_buf();
     let bytes = read_bytes(ctx, &path)?;
-    let score: Score = serde_json::from_slice(&bytes).map_err(|e| Error::input(format!("not a ferraus score JSON: {e}")))?;
+    let score: Score =
+        serde_json::from_slice(&bytes).map_err(|e| Error::input(format!("not a ferraus score JSON: {e}")))?;
     let out = ctx.output_path(None, "musicxml")?;
     let fmt = out_format(&out)?;
     let paths = write_as(ctx, &score, &out, fmt, a.flag("pretty"), SolfaKind::Movable, "auto", None)?;
@@ -807,7 +891,9 @@ fn op_check(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         } else {
             check::summary(&report, 5)
         };
-        return Err(Error::verification(format!("score check failed: {msg}")).with_hint("fix the listed measures (score read --fix edits.json, or score from-json) and run score check again"));
+        return Err(Error::verification(format!("score check failed: {msg}")).with_hint(
+            "fix the listed measures (score read --fix edits.json, or score from-json) and run score check again",
+        ));
     }
     Ok(v)
 }

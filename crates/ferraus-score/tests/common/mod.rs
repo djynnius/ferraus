@@ -163,10 +163,19 @@ pub fn flat_notes(s: &Score, part: usize, staff: usize) -> Vec<(u64, u64, i32)> 
 }
 
 /// Run an op from this crate's registry with inputs, params, and -o.
-pub fn run_op(name: &str, inputs: Vec<PathBuf>, pairs: &[(&str, &str)], output: Option<PathBuf>) -> ferraus_core::Result<(serde_json::Value, Vec<String>)> {
+pub fn run_op(
+    name: &str,
+    inputs: Vec<PathBuf>,
+    pairs: &[(&str, &str)],
+    output: Option<PathBuf>,
+) -> ferraus_core::Result<(serde_json::Value, Vec<String>)> {
     let reg = ferraus_core::testing::leak_registry(ferraus_score::ops());
     let spec = reg.get(name).expect("op");
-    let args = ferraus_core::Args::build(spec, pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), &|_, _| None)?;
+    let args = ferraus_core::Args::build(
+        spec,
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        &|_, _| None,
+    )?;
     let mut g = Globals::default();
     g.output = output.map(|p| p.display().to_string());
     g.overwrite = true;

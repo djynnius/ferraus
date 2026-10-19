@@ -95,7 +95,9 @@ pub fn annotate(score: &mut Score, kind: SolfaKind) {
             let midis: Vec<i32> = st
                 .measures
                 .iter()
-                .flat_map(|m| m.voices.iter().flat_map(|v| v.events.iter().filter_map(|e| e.notes.iter().map(|n| n.midi).max())))
+                .flat_map(|m| {
+                    m.voices.iter().flat_map(|v| v.events.iter().filter_map(|e| e.notes.iter().map(|n| n.midi).max()))
+                })
                 .collect();
             let first_key = Score::key_at(st, 0);
             let doh_ref = reference_doh(&midis, first_key, kind);
@@ -121,7 +123,15 @@ struct Seg {
 }
 
 /// One bar of sol-fa text plus its lyric syllables.
-fn bar_text(m: &Measure, time: TimeSig, div: u32, key: KeySig, kind: SolfaKind, doh_ref: i32, carry: &mut bool) -> (String, Vec<String>) {
+fn bar_text(
+    m: &Measure,
+    time: TimeSig,
+    div: u32,
+    key: KeySig,
+    kind: SolfaKind,
+    doh_ref: i32,
+    carry: &mut bool,
+) -> (String, Vec<String>) {
     let pulse = (div * 4 / time.beat_type.max(1)) as u64;
     let full = time.measure_divisions(div) as u64;
     let mut segs: Vec<Seg> = Vec::new();
@@ -266,7 +276,12 @@ fn lines(score: &Score, kind: SolfaKind, bars_per_line: usize) -> (KeySig, TimeS
     let midis: Vec<i32> = st
         .measures
         .iter()
-        .flat_map(|m| m.voices.iter().filter(|v| v.number == 1).flat_map(|v| v.events.iter().filter_map(|e| e.notes.iter().map(|n| n.midi).max())))
+        .flat_map(|m| {
+            m.voices
+                .iter()
+                .filter(|v| v.number == 1)
+                .flat_map(|v| v.events.iter().filter_map(|e| e.notes.iter().map(|n| n.midi).max()))
+        })
         .collect();
     let key0 = Score::key_at(st, 0);
     let time0 = Score::time_at(st, 0);

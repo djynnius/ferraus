@@ -181,7 +181,13 @@ impl<'a> Runtime<'a> {
                             envelope.error = Some(e);
                         }
                     } else {
-                        return Err(e);
+                        // keep what the op measured (e.g. the failed checks of a verify)
+                        let mut env = Envelope::error(spec.name, e, start.elapsed().as_millis() as u64);
+                        env.params = envelope.params.clone();
+                        env.inputs = std::mem::take(&mut ctx.input_records);
+                        env.metrics = std::mem::take(&mut ctx.metrics);
+                        env.warnings = std::mem::take(&mut ctx.warnings);
+                        return Ok(Outcome { envelope: env, stdout: None });
                     }
                 }
             }

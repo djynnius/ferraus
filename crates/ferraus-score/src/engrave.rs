@@ -108,7 +108,8 @@ pub fn engrave(score: &Score, to: &str, pref: &str) -> Result<Engraved> {
     let native = || Engraved { engine: "native".into(), pages: vec![crate::svg::render(score).into_bytes()] };
     if pref == "native" {
         if to != "svg" {
-            return Err(Error::new(ErrorKind::Unsupported, "engraver_missing", "the native engraver writes SVG only").with_hint("use the ferraus-engrave helper or LilyPond for PDF and PNG"));
+            return Err(Error::new(ErrorKind::Unsupported, "engraver_missing", "the native engraver writes SVG only")
+                .with_hint("use the ferraus-engrave helper or LilyPond for PDF and PNG"));
         }
         return Ok(native());
     }
@@ -138,15 +139,15 @@ fn helper_call(exe: &Path, args: &[&str], input: &str) -> Result<Vec<u8>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| Error::new(ErrorKind::Unsupported, "engraver_failed", format!("cannot start {}: {e}", exe.display())))?;
+        .map_err(|e| {
+            Error::new(ErrorKind::Unsupported, "engraver_failed", format!("cannot start {}: {e}", exe.display()))
+        })?;
     {
         let mut stdin = child.stdin.take().unwrap();
         // the helper may exit early on bad input; ignore broken pipes here and report its stderr
         let _ = stdin.write_all(input.as_bytes());
     }
-    let out = child
-        .wait_with_output()
-        .map_err(|e| Error::processing(format!("engraver failed: {e}")))?;
+    let out = child.wait_with_output().map_err(|e| Error::processing(format!("engraver failed: {e}")))?;
     if !out.status.success() {
         return Err(Error::processing(format!(
             "ferraus-engrave failed ({}): {}",
@@ -161,7 +162,8 @@ pub fn run_helper(exe: &Path, xml: &str, to: &str) -> Result<Vec<Vec<u8>>> {
     if to == "pdf" {
         return Ok(vec![helper_call(exe, &["--to", "pdf"], xml)?]);
     }
-    let count = String::from_utf8_lossy(&helper_call(exe, &["--count"], xml)?).trim().parse::<u32>().unwrap_or(1).max(1);
+    let count =
+        String::from_utf8_lossy(&helper_call(exe, &["--count"], xml)?).trim().parse::<u32>().unwrap_or(1).max(1);
     let mut pages = Vec::new();
     for p in 1..=count {
         let ps = p.to_string();
@@ -191,7 +193,10 @@ fn run_lilypond(exe: &Path, ly: &str, to: &str) -> Result<Vec<Vec<u8>>> {
         .map_err(|e| Error::processing(format!("cannot run lilypond: {e}")))?;
     if !out.status.success() {
         let _ = std::fs::remove_dir_all(&dir);
-        return Err(Error::processing(format!("lilypond failed: {}", String::from_utf8_lossy(&out.stderr).lines().rev().take(3).collect::<Vec<_>>().join(" | "))));
+        return Err(Error::processing(format!(
+            "lilypond failed: {}",
+            String::from_utf8_lossy(&out.stderr).lines().rev().take(3).collect::<Vec<_>>().join(" | ")
+        )));
     }
     let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)?
         .flatten()

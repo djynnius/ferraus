@@ -47,7 +47,10 @@ impl Format {
     }
     /// Notation formats this crate can read.
     pub fn readable(self) -> bool {
-        matches!(self, Format::MusicXml | Format::Mxl | Format::Mei | Format::Abc | Format::Lily | Format::Midi | Format::Json)
+        matches!(
+            self,
+            Format::MusicXml | Format::Mxl | Format::Mei | Format::Abc | Format::Lily | Format::Midi | Format::Json
+        )
     }
 }
 
@@ -71,7 +74,8 @@ pub fn format_of(path: &Path) -> Option<Format> {
         "pdf" => Format::Pdf,
         "png" => Format::Png,
         "jpg" | "jpeg" | "tif" | "tiff" | "bmp" | "gif" | "webp" => Format::Image,
-        "wav" | "flac" | "mp3" | "ogg" | "opus" | "m4a" | "aac" | "aiff" | "aif" | "wv" | "caf" | "mp4" | "mov" | "mkv" | "webm" => Format::Audio,
+        "wav" | "flac" | "mp3" | "ogg" | "opus" | "m4a" | "aac" | "aiff" | "aif" | "wv" | "caf" | "mp4" | "mov"
+        | "mkv" | "webm" => Format::Audio,
         _ => return None,
     })
 }
@@ -117,7 +121,8 @@ pub struct Loaded {
 pub fn load(path: &Path, bytes: &[u8]) -> Result<Loaded> {
     let fmt = match format_of(path) {
         Some(f) if f.readable() => f,
-        Some(Format::MusicXml) | None => sniff(bytes).ok_or_else(|| Error::unsupported(format!("cannot tell the notation format of {}", path.display())))?,
+        Some(Format::MusicXml) | None => sniff(bytes)
+            .ok_or_else(|| Error::unsupported(format!("cannot tell the notation format of {}", path.display())))?,
         Some(other) => {
             return Err(Error::unsupported(format!("{} is {} and not a notation file", path.display(), other.name()))
                 .with_hint("notation inputs: .musicxml .mxl .mei .abc .ly .mid .json"))
@@ -134,7 +139,8 @@ pub fn load_as(fmt: Format, bytes: &[u8]) -> Result<Loaded> {
         Format::Abc => (abc::read(&text())?, vec![]),
         Format::Lily => (lily::read(&text())?, vec![]),
         Format::Json => {
-            let s: Score = serde_json::from_slice(bytes).map_err(|e| Error::input(format!("not a ferraus score JSON: {e}")))?;
+            let s: Score =
+                serde_json::from_slice(bytes).map_err(|e| Error::input(format!("not a ferraus score JSON: {e}")))?;
             (s, vec![])
         }
         Format::Midi => {
