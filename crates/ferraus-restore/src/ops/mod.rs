@@ -3,3 +3,4 @@
 pub mod clicks;
 pub mod hum;
 pub mod spectral;
+pub mod stereo;
