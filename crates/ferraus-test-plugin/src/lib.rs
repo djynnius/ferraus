@@ -65,38 +65,14 @@ struct ParamDef {
     unit: Unit,
 }
 
-const GAIN_PARAMS: &[ParamDef] = &[ParamDef {
-    id: 0,
-    name: "gain",
-    min: -60.0,
-    max: 24.0,
-    default: 0.0,
-    unit: Unit::Db,
-}];
-const SINE_PARAMS: &[ParamDef] = &[ParamDef {
-    id: 0,
-    name: "level",
-    min: -60.0,
-    max: 0.0,
-    default: -6.0,
-    unit: Unit::Db,
-}];
-const CRASH_PARAMS: &[ParamDef] = &[ParamDef {
-    id: 7,
-    name: "crash_on_process",
-    min: 0.0,
-    max: 1.0,
-    default: 0.0,
-    unit: Unit::Bool,
-}];
-const HANG_PARAMS: &[ParamDef] = &[ParamDef {
-    id: 9,
-    name: "hang_on_process",
-    min: 0.0,
-    max: 1.0,
-    default: 1.0,
-    unit: Unit::Bool,
-}];
+const GAIN_PARAMS: &[ParamDef] =
+    &[ParamDef { id: 0, name: "gain", min: -60.0, max: 24.0, default: 0.0, unit: Unit::Db }];
+const SINE_PARAMS: &[ParamDef] =
+    &[ParamDef { id: 0, name: "level", min: -60.0, max: 0.0, default: -6.0, unit: Unit::Db }];
+const CRASH_PARAMS: &[ParamDef] =
+    &[ParamDef { id: 7, name: "crash_on_process", min: 0.0, max: 1.0, default: 0.0, unit: Unit::Bool }];
+const HANG_PARAMS: &[ParamDef] =
+    &[ParamDef { id: 9, name: "hang_on_process", min: 0.0, max: 1.0, default: 1.0, unit: Unit::Bool }];
 
 fn params_of(k: Kind) -> &'static [ParamDef] {
     match k {
@@ -116,19 +92,10 @@ unsafe impl<const N: usize> Sync for Ptrs<N> {}
 
 static GAIN_FEATURES: Ptrs<3> = Ptrs([c"audio-effect".as_ptr(), c"utility".as_ptr(), null()]);
 static DELAY_FEATURES: Ptrs<3> = Ptrs([c"audio-effect".as_ptr(), c"delay".as_ptr(), null()]);
-static SINE_FEATURES: Ptrs<4> = Ptrs([
-    c"instrument".as_ptr(),
-    c"synthesizer".as_ptr(),
-    c"stereo".as_ptr(),
-    null(),
-]);
+static SINE_FEATURES: Ptrs<4> = Ptrs([c"instrument".as_ptr(), c"synthesizer".as_ptr(), c"stereo".as_ptr(), null()]);
 static TEST_FEATURES: Ptrs<2> = Ptrs([c"audio-effect".as_ptr(), null()]);
 
-const fn desc(
-    id: &'static CStr,
-    name: &'static CStr,
-    features: *const *const c_char,
-) -> clap_plugin_descriptor {
+const fn desc(id: &'static CStr, name: &'static CStr, features: *const *const c_char) -> clap_plugin_descriptor {
     clap_plugin_descriptor {
         clap_version: CLAP_VERSION,
         id: id.as_ptr(),
@@ -144,31 +111,11 @@ const fn desc(
 }
 
 static DESCRIPTORS: [clap_plugin_descriptor; 5] = [
-    desc(
-        c"ferraus.test.gain",
-        c"Ferraus Test Gain",
-        GAIN_FEATURES.0.as_ptr(),
-    ),
-    desc(
-        c"ferraus.test.delay",
-        c"Ferraus Test Delay",
-        DELAY_FEATURES.0.as_ptr(),
-    ),
-    desc(
-        c"ferraus.test.sine",
-        c"Ferraus Test Sine",
-        SINE_FEATURES.0.as_ptr(),
-    ),
-    desc(
-        c"ferraus.test.crash",
-        c"Ferraus Test Crash",
-        TEST_FEATURES.0.as_ptr(),
-    ),
-    desc(
-        c"ferraus.test.hang",
-        c"Ferraus Test Hang",
-        TEST_FEATURES.0.as_ptr(),
-    ),
+    desc(c"ferraus.test.gain", c"Ferraus Test Gain", GAIN_FEATURES.0.as_ptr()),
+    desc(c"ferraus.test.delay", c"Ferraus Test Delay", DELAY_FEATURES.0.as_ptr()),
+    desc(c"ferraus.test.sine", c"Ferraus Test Sine", SINE_FEATURES.0.as_ptr()),
+    desc(c"ferraus.test.crash", c"Ferraus Test Crash", TEST_FEATURES.0.as_ptr()),
+    desc(c"ferraus.test.hang", c"Ferraus Test Hang", TEST_FEATURES.0.as_ptr()),
 ];
 
 // ---------------------------------------------------------------------------------------
@@ -263,8 +210,7 @@ impl Instance {
     }
 
     fn note_off(&mut self, key: i16, channel: i16) {
-        self.voices
-            .retain(|v| !(v.key == key && (channel < 0 || v.channel == channel)));
+        self.voices.retain(|v| !(v.key == key && (channel < 0 || v.channel == channel)));
     }
 
     fn render_sine(&mut self, outs: &mut [&mut [f32]], from: usize, to: usize) {
@@ -367,10 +313,7 @@ unsafe fn port_channels<'a>(
     out
 }
 
-unsafe extern "C" fn plugin_process(
-    p: *const clap_plugin,
-    process: *const clap_process,
-) -> clap_process_status {
+unsafe extern "C" fn plugin_process(p: *const clap_plugin, process: *const clap_process) -> clap_process_status {
     let me = inst(p);
     let pr = &*process;
     let frames = pr.frames_count as usize;
@@ -389,10 +332,8 @@ unsafe extern "C" fn plugin_process(
     }
 
     // Inputs are read into owned copies first so in-place buffers stay correct.
-    let ins: Vec<Vec<f32>> = port_channels(pr.audio_inputs, pr.audio_inputs_count, frames)
-        .into_iter()
-        .map(|s| s.to_vec())
-        .collect();
+    let ins: Vec<Vec<f32>> =
+        port_channels(pr.audio_inputs, pr.audio_inputs_count, frames).into_iter().map(|s| s.to_vec()).collect();
     let mut outs = port_channels(pr.audio_outputs, pr.audio_outputs_count, frames);
 
     match me.kind {
@@ -420,11 +361,7 @@ unsafe extern "C" fn plugin_process(
                     std::thread::sleep(std::time::Duration::from_secs(1));
                 }
             }
-            let g = if kind == Kind::Gain {
-                db_to_lin(me.values[0]) as f32
-            } else {
-                1.0
-            };
+            let g = if kind == Kind::Gain { db_to_lin(me.values[0]) as f32 } else { 1.0 };
             for (c, out) in outs.iter_mut().enumerate() {
                 let input = ins.get(c);
                 for (i, o) in out.iter_mut().enumerate() {
@@ -469,8 +406,7 @@ unsafe extern "C" fn plugin_get_extension(p: *const clap_plugin, id: *const c_ch
         &LATENCY as *const _ as *const c_void
     } else if id == CLAP_EXT_TAIL && kind != Kind::Hang {
         &TAIL as *const _ as *const c_void
-    } else if (id == CLAP_EXT_PRESET_LOAD || id == CLAP_EXT_PRESET_LOAD_COMPAT) && kind == Kind::Gain
-    {
+    } else if (id == CLAP_EXT_PRESET_LOAD || id == CLAP_EXT_PRESET_LOAD_COMPAT) && kind == Kind::Gain {
         &PRESET_LOAD as *const _ as *const c_void
     } else {
         null()
@@ -505,12 +441,7 @@ unsafe extern "C" fn params_get_info(p: *const clap_plugin, index: u32, info: *m
     };
     let info = &mut *info;
     info.id = d.id;
-    info.flags = CLAP_PARAM_IS_AUTOMATABLE
-        | if d.unit == Unit::Bool {
-            CLAP_PARAM_IS_STEPPED
-        } else {
-            0
-        };
+    info.flags = CLAP_PARAM_IS_AUTOMATABLE | if d.unit == Unit::Bool { CLAP_PARAM_IS_STEPPED } else { 0 };
     info.cookie = null_mut();
     copy_str(&mut info.name, d.name);
     copy_str(&mut info.module, "");
@@ -606,10 +537,7 @@ unsafe extern "C" fn params_flush(
     }
 }
 
-static STATE: clap_plugin_state = clap_plugin_state {
-    save: Some(state_save),
-    load: Some(state_load),
-};
+static STATE: clap_plugin_state = clap_plugin_state { save: Some(state_save), load: Some(state_load) };
 
 unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostream) -> bool {
     let me = inst(p);
@@ -625,11 +553,7 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
     };
     let mut off = 0usize;
     while off < bytes.len() {
-        let n = write(
-            stream,
-            bytes[off..].as_ptr() as *const c_void,
-            (bytes.len() - off) as u64,
-        );
+        let n = write(stream, bytes[off..].as_ptr() as *const c_void, (bytes.len() - off) as u64);
         if n <= 0 {
             return false;
         }
@@ -671,10 +595,8 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     true
 }
 
-static AUDIO_PORTS: clap_plugin_audio_ports = clap_plugin_audio_ports {
-    count: Some(audio_ports_count),
-    get: Some(audio_ports_get),
-};
+static AUDIO_PORTS: clap_plugin_audio_ports =
+    clap_plugin_audio_ports { count: Some(audio_ports_count), get: Some(audio_ports_get) };
 
 unsafe extern "C" fn audio_ports_count(p: *const clap_plugin, is_input: bool) -> u32 {
     if is_input && inst(p).kind == Kind::Sine {
@@ -703,10 +625,8 @@ unsafe extern "C" fn audio_ports_get(
     true
 }
 
-static NOTE_PORTS: clap_plugin_note_ports = clap_plugin_note_ports {
-    count: Some(note_ports_count),
-    get: Some(note_ports_get),
-};
+static NOTE_PORTS: clap_plugin_note_ports =
+    clap_plugin_note_ports { count: Some(note_ports_count), get: Some(note_ports_get) };
 
 unsafe extern "C" fn note_ports_count(_p: *const clap_plugin, is_input: bool) -> u32 {
     if is_input {
@@ -733,25 +653,19 @@ unsafe extern "C" fn note_ports_get(
     true
 }
 
-static LATENCY: clap_plugin_latency = clap_plugin_latency {
-    get: Some(latency_get),
-};
+static LATENCY: clap_plugin_latency = clap_plugin_latency { get: Some(latency_get) };
 
 unsafe extern "C" fn latency_get(_p: *const clap_plugin) -> u32 {
     DELAY_LATENCY
 }
 
-static TAIL: clap_plugin_tail = clap_plugin_tail {
-    get: Some(tail_get),
-};
+static TAIL: clap_plugin_tail = clap_plugin_tail { get: Some(tail_get) };
 
 unsafe extern "C" fn tail_get(_p: *const clap_plugin) -> u32 {
     0
 }
 
-static PRESET_LOAD: clap_plugin_preset_load = clap_plugin_preset_load {
-    from_location: Some(preset_from_location),
-};
+static PRESET_LOAD: clap_plugin_preset_load = clap_plugin_preset_load { from_location: Some(preset_from_location) };
 
 const PRESETS: &[(&CStr, &CStr, f64)] = &[(c"Quiet", c"quiet", -12.0), (c"Loud", c"loud", 6.0)];
 
@@ -787,14 +701,8 @@ unsafe extern "C" fn factory_count(_f: *const clap_plugin_factory) -> u32 {
     DESCRIPTORS.len() as u32
 }
 
-unsafe extern "C" fn factory_descriptor(
-    _f: *const clap_plugin_factory,
-    index: u32,
-) -> *const clap_plugin_descriptor {
-    DESCRIPTORS
-        .get(index as usize)
-        .map(|d| d as *const _)
-        .unwrap_or(null())
+unsafe extern "C" fn factory_descriptor(_f: *const clap_plugin_factory, index: u32) -> *const clap_plugin_descriptor {
+    DESCRIPTORS.get(index as usize).map(|d| d as *const _).unwrap_or(null())
 }
 
 unsafe extern "C" fn factory_create(
@@ -814,13 +722,12 @@ unsafe extern "C" fn factory_create(
     null()
 }
 
-static PROVIDER_DESC: clap_preset_discovery_provider_descriptor =
-    clap_preset_discovery_provider_descriptor {
-        clap_version: CLAP_VERSION,
-        id: c"ferraus.test.presets".as_ptr(),
-        name: c"Ferraus Test Presets".as_ptr(),
-        vendor: c"ferraus".as_ptr(),
-    };
+static PROVIDER_DESC: clap_preset_discovery_provider_descriptor = clap_preset_discovery_provider_descriptor {
+    clap_version: CLAP_VERSION,
+    id: c"ferraus.test.presets".as_ptr(),
+    name: c"Ferraus Test Presets".as_ptr(),
+    vendor: c"ferraus".as_ptr(),
+};
 
 static PRESET_FACTORY: clap_preset_discovery_factory = clap_preset_discovery_factory {
     count: Some(pf_count),
@@ -904,10 +811,7 @@ unsafe extern "C" fn provider_get_metadata(
         return false;
     }
     let r = &*receiver;
-    let id = clap_universal_plugin_id {
-        abi: c"clap".as_ptr(),
-        id: c"ferraus.test.gain".as_ptr(),
-    };
+    let id = clap_universal_plugin_id { abi: c"clap".as_ptr(), id: c"ferraus.test.gain".as_ptr() };
     for (name, key, _) in PRESETS {
         if let Some(begin) = r.begin_preset {
             if !begin(receiver, name.as_ptr(), key.as_ptr()) {

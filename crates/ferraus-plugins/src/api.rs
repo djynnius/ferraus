@@ -32,10 +32,7 @@ impl PluginRef {
     /// A plugin given directly by path (format from the extension, CLAP by default).
     pub fn from_path(path: impl Into<PathBuf>, plugin_id: Option<&str>) -> PluginRef {
         let path = path.into();
-        let name = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "plugin".into());
+        let name = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "plugin".into());
         PluginRef {
             format: PluginFormat::from_path(&path).unwrap_or(PluginFormat::Clap),
             path,
@@ -68,57 +65,33 @@ pub struct MidiEvent {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MidiEventKind {
     /// `velocity` in 0..=1.
-    NoteOn { channel: u8, key: u8, velocity: f32 },
-    NoteOff { channel: u8, key: u8, velocity: f32 },
+    NoteOn {
+        channel: u8,
+        key: u8,
+        velocity: f32,
+    },
+    NoteOff {
+        channel: u8,
+        key: u8,
+        velocity: f32,
+    },
     /// Any other 3-byte MIDI message (CC, pitch bend, program change...).
     Raw([u8; 3]),
 }
 
 impl MidiEvent {
     pub fn note_on(frame: u64, channel: u8, key: u8, velocity: f32) -> MidiEvent {
-        MidiEvent {
-            frame,
-            kind: MidiEventKind::NoteOn {
-                channel,
-                key,
-                velocity,
-            },
-        }
+        MidiEvent { frame, kind: MidiEventKind::NoteOn { channel, key, velocity } }
     }
 
     pub fn note_off(frame: u64, channel: u8, key: u8) -> MidiEvent {
-        MidiEvent {
-            frame,
-            kind: MidiEventKind::NoteOff {
-                channel,
-                key,
-                velocity: 0.0,
-            },
-        }
+        MidiEvent { frame, kind: MidiEventKind::NoteOff { channel, key, velocity: 0.0 } }
     }
 
     fn to_wire(self) -> (u64, Event) {
         let e = match self.kind {
-            MidiEventKind::NoteOn {
-                channel,
-                key,
-                velocity,
-            } => Event::NoteOn {
-                time: 0,
-                channel,
-                key,
-                velocity,
-            },
-            MidiEventKind::NoteOff {
-                channel,
-                key,
-                velocity,
-            } => Event::NoteOff {
-                time: 0,
-                channel,
-                key,
-                velocity,
-            },
+            MidiEventKind::NoteOn { channel, key, velocity } => Event::NoteOn { time: 0, channel, key, velocity },
+            MidiEventKind::NoteOff { channel, key, velocity } => Event::NoteOff { time: 0, channel, key, velocity },
             MidiEventKind::Raw(data) => Event::Midi { time: 0, data },
         };
         (self.frame, e)
@@ -188,12 +161,7 @@ impl PluginRun {
         let params: serde_json::Map<String, Value> = self
             .params
             .iter()
-            .map(|p| {
-                (
-                    p.name.clone(),
-                    json!({"id": p.id, "value": p.value, "text": p.text}),
-                )
-            })
+            .map(|p| (p.name.clone(), json!({"id": p.id, "value": p.value, "text": p.text})))
             .collect();
         json!({
             "name": if self.info.descriptor.name.is_empty() { plugin.name.clone() } else { self.info.descriptor.name.clone() },
@@ -233,11 +201,7 @@ impl PluginSession {
         if !info.descriptor.name.is_empty() {
             host.set_label(&info.descriptor.name);
         }
-        Ok(PluginSession {
-            host,
-            info,
-            plugin: plugin.clone(),
-        })
+        Ok(PluginSession { host, info, plugin: plugin.clone() })
     }
 
     /// Apply state, then preset, then params; returns the explicit params' values.
@@ -282,10 +246,7 @@ fn check_sr(sr: u32) -> Result<()> {
 
 fn validate_block(opts: &PluginOptions) -> Result<()> {
     if !(16..=16384).contains(&opts.block_size) {
-        return Err(Error::usage(format!(
-            "block size {} is out of range (16..16384)",
-            opts.block_size
-        )));
+        return Err(Error::usage(format!("block size {} is out of range (16..16384)", opts.block_size)));
     }
     Ok(())
 }
@@ -352,11 +313,7 @@ pub fn render_instrument(
     params: &[(String, String)],
     state: Option<&[u8]>,
 ) -> Result<AudioBuffer> {
-    let opts = PluginOptions {
-        params: params.to_vec(),
-        state: state.map(|s| s.to_vec()),
-        ..Default::default()
-    };
+    let opts = PluginOptions { params: params.to_vec(), state: state.map(|s| s.to_vec()), ..Default::default() };
     Ok(render_instrument_with(plugin, midi_events, sample_rate, duration, &opts)?.audio)
 }
 
@@ -449,12 +406,7 @@ pub fn read_state_file(path: &Path) -> Result<Vec<u8>> {
             .get("state_b64")
             .or_else(|| v.pointer("/plugins/0/state_b64"))
             .and_then(|s| s.as_str())
-            .ok_or_else(|| {
-                Error::usage(format!(
-                    "{} is JSON but has no state_b64 field",
-                    path.display()
-                ))
-            })?;
+            .ok_or_else(|| Error::usage(format!("{} is JSON but has no state_b64 field", path.display())))?;
         return base64::engine::general_purpose::STANDARD
             .decode(b64.trim())
             .map_err(|e| Error::usage(format!("{}: state_b64 is not base64: {e}", path.display())));

@@ -78,10 +78,7 @@ pub fn clap_binary(bundle: &Path) -> HostResult<PathBuf> {
             }
         }
     }
-    Err(load_err(format!(
-        "{} is a directory but not a CLAP bundle (no Contents/MacOS executable)",
-        bundle.display()
-    )))
+    Err(load_err(format!("{} is a directory but not a CLAP bundle (no Contents/MacOS executable)", bundle.display())))
 }
 
 fn plist_string(text: &str, key: &str) -> Option<String> {
@@ -133,11 +130,7 @@ impl Module {
                 return Err(load_err("the plugin's clap_entry.init() failed"));
             }
         }
-        Ok(Module {
-            entry,
-            path: bundle.to_path_buf(),
-            _lib: std::mem::ManuallyDrop::new(lib),
-        })
+        Ok(Module { entry, path: bundle.to_path_buf(), _lib: std::mem::ManuallyDrop::new(lib) })
     }
 
     fn factory(&self, id: &CStr) -> *const c_void {
@@ -258,9 +251,7 @@ unsafe extern "C" fn host_request_callback(h: *const clap_host) {
     shared(h).callback_requested.store(true, Ordering::SeqCst);
 }
 
-static HOST_LOG: clap_host_log = clap_host_log {
-    log: Some(host_log),
-};
+static HOST_LOG: clap_host_log = clap_host_log { log: Some(host_log) };
 unsafe extern "C" fn host_log(_h: *const clap_host, severity: clap_log_severity, msg: *const c_char) {
     let level = match severity {
         CLAP_LOG_DEBUG => "debug",
@@ -272,10 +263,8 @@ unsafe extern "C" fn host_log(_h: *const clap_host, severity: clap_log_severity,
     eprintln!("[plugin {level}] {}", cs(msg));
 }
 
-static HOST_THREAD_CHECK: clap_host_thread_check = clap_host_thread_check {
-    is_main_thread: Some(host_is_main),
-    is_audio_thread: Some(host_is_audio),
-};
+static HOST_THREAD_CHECK: clap_host_thread_check =
+    clap_host_thread_check { is_main_thread: Some(host_is_main), is_audio_thread: Some(host_is_audio) };
 unsafe extern "C" fn host_is_main(h: *const clap_host) -> bool {
     !shared(h).in_process.load(Ordering::SeqCst)
 }
@@ -292,27 +281,17 @@ unsafe extern "C" fn host_params_rescan(_h: *const clap_host, _f: clap_param_res
 unsafe extern "C" fn host_params_clear(_h: *const clap_host, _id: clap_id, _f: clap_param_clear_flags) {}
 unsafe extern "C" fn host_noop(_h: *const clap_host) {}
 
-static HOST_STATE: clap_host_state = clap_host_state {
-    mark_dirty: Some(host_noop),
-};
-static HOST_LATENCY: clap_host_latency = clap_host_latency {
-    changed: Some(host_noop),
-};
-static HOST_TAIL: clap_host_tail = clap_host_tail {
-    changed: Some(host_noop),
-};
-static HOST_AUDIO_PORTS: clap_host_audio_ports = clap_host_audio_ports {
-    is_rescan_flag_supported: Some(host_ap_flag),
-    rescan: Some(host_ap_rescan),
-};
+static HOST_STATE: clap_host_state = clap_host_state { mark_dirty: Some(host_noop) };
+static HOST_LATENCY: clap_host_latency = clap_host_latency { changed: Some(host_noop) };
+static HOST_TAIL: clap_host_tail = clap_host_tail { changed: Some(host_noop) };
+static HOST_AUDIO_PORTS: clap_host_audio_ports =
+    clap_host_audio_ports { is_rescan_flag_supported: Some(host_ap_flag), rescan: Some(host_ap_rescan) };
 unsafe extern "C" fn host_ap_flag(_h: *const clap_host, _f: u32) -> bool {
     false
 }
 unsafe extern "C" fn host_ap_rescan(_h: *const clap_host, _f: u32) {}
-static HOST_NOTE_PORTS: clap_host_note_ports = clap_host_note_ports {
-    supported_dialects: Some(host_np_dialects),
-    rescan: Some(host_ap_rescan),
-};
+static HOST_NOTE_PORTS: clap_host_note_ports =
+    clap_host_note_ports { supported_dialects: Some(host_np_dialects), rescan: Some(host_ap_rescan) };
 unsafe extern "C" fn host_np_dialects(_h: *const clap_host) -> clap_note_dialect {
     CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI
 }
@@ -358,24 +337,14 @@ struct EventList {
 }
 
 fn header(size: usize, time: u32, type_: clap_event_type) -> clap_event_header {
-    clap_event_header {
-        size: size as u32,
-        time,
-        space_id: CLAP_CORE_EVENT_SPACE_ID,
-        type_,
-        flags: 0,
-    }
+    clap_event_header { size: size as u32, time, space_id: CLAP_CORE_EVENT_SPACE_ID, type_, flags: 0 }
 }
 
 impl EventList {
     fn param(&mut self, time: u32, id: clap_id, cookie: *mut c_void, value: f64) {
         self.events.push(EventStore {
             param: clap_event_param_value {
-                header: header(
-                    std::mem::size_of::<clap_event_param_value>(),
-                    time,
-                    CLAP_EVENT_PARAM_VALUE,
-                ),
+                header: header(std::mem::size_of::<clap_event_param_value>(), time, CLAP_EVENT_PARAM_VALUE),
                 param_id: id,
                 cookie,
                 note_id: -1,
@@ -439,10 +408,7 @@ unsafe extern "C" fn events_push(_l: *const clap_output_events, _e: *const clap_
     true
 }
 
-static OUT_EVENTS: clap_output_events = clap_output_events {
-    ctx: null_mut(),
-    try_push: Some(events_push),
-};
+static OUT_EVENTS: clap_output_events = clap_output_events { ctx: null_mut(), try_push: Some(events_push) };
 
 unsafe extern "C" fn ostream_write(s: *const clap_ostream, buf: *const c_void, size: u64) -> i64 {
     let v = &mut *((*s).ctx as *mut Vec<u8>);
@@ -497,11 +463,7 @@ unsafe extern "C" fn ix_location(
     let d = &mut *((*ix).indexer_data as *mut IndexerData);
     if !loc.is_null() {
         let l = &*loc;
-        let path = if l.location.is_null() {
-            None
-        } else {
-            Some(cs(l.location))
-        };
+        let path = if l.location.is_null() { None } else { Some(cs(l.location)) };
         d.locations.push((l.kind, path));
     }
     true
@@ -550,16 +512,8 @@ unsafe extern "C" fn rcv_begin(
     }
     let info = PresetInfo {
         name,
-        load_key: if load_key.is_null() {
-            None
-        } else {
-            Some(cs(load_key))
-        },
-        location_kind: if d.kind == CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN {
-            "plugin".into()
-        } else {
-            "file".into()
-        },
+        load_key: if load_key.is_null() { None } else { Some(cs(load_key)) },
+        location_kind: if d.kind == CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN { "plugin".into() } else { "file".into() },
         location: d.location.clone(),
         creators: Vec::new(),
         description: String::new(),
@@ -614,10 +568,7 @@ fn walk_files(dir: &Path, exts: &[String], depth: usize, out: &mut Vec<PathBuf>)
         if p.is_dir() {
             walk_files(&p, exts, depth + 1, out);
         } else {
-            let ext = p
-                .extension()
-                .map(|e| e.to_string_lossy().to_ascii_lowercase())
-                .unwrap_or_default();
+            let ext = p.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
             if exts.is_empty() || exts.contains(&ext) {
                 out.push(p);
             }
@@ -692,10 +643,7 @@ fn discover_presets(module: &Module, plugin_id: &str) -> Vec<PresetInfo> {
                         (Some(l), CLAP_PRESET_DISCOVERY_LOCATION_FILE) if Path::new(l).is_dir() => {
                             let mut files = Vec::new();
                             walk_files(Path::new(l), &exts, 0, &mut files);
-                            files
-                                .into_iter()
-                                .map(|f| Some(f.to_string_lossy().into_owned()))
-                                .collect()
+                            files.into_iter().map(|f| Some(f.to_string_lossy().into_owned())).collect()
                         }
                         _ => vec![loc.clone()],
                     };
@@ -848,10 +796,7 @@ impl ClapBackend {
         let same = self.module.as_ref().map(|m| m.path == path).unwrap_or(false);
         if !same {
             if !self.plugin.is_null() {
-                return Err(HostError::new(
-                    "bad_request",
-                    "a different plugin is already loaded in this host",
-                ));
+                return Err(HostError::new("bad_request", "a different plugin is already loaded in this host"));
             }
             self.module = None;
             self.module = Some(Module::open(path)?);
@@ -878,10 +823,7 @@ impl ClapBackend {
     }
 
     fn text(&self) -> ClapText {
-        ClapText {
-            plugin: self.plugin,
-            ext: self.ext.params,
-        }
+        ClapText { plugin: self.plugin, ext: self.ext.params }
     }
 
     fn read_params(&mut self) {
@@ -910,10 +852,7 @@ impl ClapBackend {
         let mut conv = self.text();
         for i in 0..count {
             let mut info: clap_param_info = unsafe { std::mem::zeroed() };
-            let ok = ext
-                .get_info
-                .map(|g| unsafe { g(self.plugin, i, &mut info) })
-                .unwrap_or(false);
+            let ok = ext.get_info.map(|g| unsafe { g(self.plugin, i, &mut info) }).unwrap_or(false);
             if !ok {
                 continue;
             }
@@ -983,10 +922,7 @@ impl ClapBackend {
                             dialects.push(name.to_string());
                         }
                     }
-                    out.push(NotePortInfo {
-                        name: unsafe { cs(info.name.as_ptr()) },
-                        dialects,
-                    });
+                    out.push(NotePortInfo { name: unsafe { cs(info.name.as_ptr()) }, dialects });
                 }
             }
         }
@@ -1012,12 +948,7 @@ impl ClapBackend {
         self.params
             .iter()
             .filter(|p| ids.map(|ids| ids.contains(&p.id)).unwrap_or(true))
-            .map(|p| ParamValue {
-                id: p.id,
-                name: p.name.clone(),
-                value: p.value,
-                text: p.value_text.clone(),
-            })
+            .map(|p| ParamValue { id: p.id, name: p.name.clone(), value: p.value, text: p.value_text.clone() })
             .collect()
     }
 }
@@ -1051,11 +982,7 @@ impl Backend for ClapBackend {
         let (desc, _) = match plugin_id {
             Some(id) => descs.iter().find(|(d, _)| d.id == id).cloned().ok_or_else(|| {
                 let ids: Vec<&str> = descs.iter().map(|(d, _)| d.id.as_str()).collect();
-                load_err(format!(
-                    "plugin id '{id}' is not in {} (it contains: {})",
-                    path.display(),
-                    ids.join(", ")
-                ))
+                load_err(format!("plugin id '{id}' is not in {} (it contains: {})", path.display(), ids.join(", ")))
             })?,
             None if descs.len() == 1 => descs[0].clone(),
             None => {
@@ -1069,9 +996,7 @@ impl Backend for ClapBackend {
             }
         };
         let factory = m.plugin_factory()?;
-        let create = factory
-            .create_plugin
-            .ok_or_else(|| load_err("factory has no create_plugin"))?;
+        let create = factory.create_plugin.ok_or_else(|| load_err("factory has no create_plugin"))?;
         let cid = cstring(&desc.id);
         let plugin = unsafe { create(factory, host_ptr, cid.as_ptr()) };
         if plugin.is_null() {
@@ -1112,10 +1037,7 @@ impl Backend for ClapBackend {
         let note_inputs = self.scan_note_ports(true);
         let note_outputs = self.scan_note_ports(false);
         let pick_main = |ports: &[PortInfo]| -> Option<usize> {
-            ports
-                .iter()
-                .position(|p| p.main)
-                .or(if ports.is_empty() { None } else { Some(0) })
+            ports.iter().position(|p| p.main).or(if ports.is_empty() { None } else { Some(0) })
         };
         self.main_in = pick_main(&audio_inputs);
         self.main_out = pick_main(&audio_outputs);
@@ -1154,18 +1076,12 @@ impl Backend for ClapBackend {
         let mut list = EventList::default();
         let mut ids = Vec::new();
         for a in assigns {
-            let p = find_param(&self.params, &a.name)
-                .map_err(|m| HostError::new("unknown_param", m))?
-                .clone();
+            let p = find_param(&self.params, &a.name).map_err(|m| HostError::new("unknown_param", m))?.clone();
             if p.readonly {
-                return Err(HostError::new(
-                    "bad_value",
-                    format!("parameter '{}' is read-only", p.name),
-                ));
+                return Err(HostError::new("bad_value", format!("parameter '{}' is read-only", p.name)));
             }
             let mut conv = self.text();
-            let v = resolve_value(&p, &a.value, &mut conv)
-                .map_err(|m| HostError::new("bad_value", m))?;
+            let v = resolve_value(&p, &a.value, &mut conv).map_err(|m| HostError::new("bad_value", m))?;
             let idx = self.params.iter().position(|x| x.id == p.id).unwrap();
             let cookie = self.cookies[idx];
             list.param(0, p.id, cookie, v);
@@ -1194,10 +1110,7 @@ impl Backend for ClapBackend {
     fn load_preset(&mut self, preset: &str) -> HostResult<Vec<ParamValue>> {
         let presets = self.list_presets()?;
         let Some(ext) = (unsafe { self.ext.preset_load.as_ref() }) else {
-            return Err(HostError::new(
-                "unsupported",
-                "this plugin does not implement CLAP preset loading",
-            ));
+            return Err(HostError::new("unsupported", "this plugin does not implement CLAP preset loading"));
         };
         let found = presets
             .iter()
@@ -1237,9 +1150,7 @@ impl Backend for ClapBackend {
         };
         let loc = found.location.as_deref().map(cstring);
         let key = found.load_key.as_deref().map(cstring);
-        let f = ext
-            .from_location
-            .ok_or_else(|| HostError::new("unsupported", "preset-load has no from_location"))?;
+        let f = ext.from_location.ok_or_else(|| HostError::new("unsupported", "preset-load has no from_location"))?;
         let ok = unsafe {
             f(
                 self.plugin,
@@ -1249,10 +1160,7 @@ impl Backend for ClapBackend {
             )
         };
         if !ok {
-            return Err(HostError::new(
-                "preset_failed",
-                format!("the plugin could not load preset '{}'", found.name),
-            ));
+            return Err(HostError::new("preset_failed", format!("the plugin could not load preset '{}'", found.name)));
         }
         self.pending.clear();
         self.pump();
@@ -1266,10 +1174,7 @@ impl Backend for ClapBackend {
             return Err(HostError::new("no_state", "this plugin has no state extension"));
         };
         let mut data: Vec<u8> = Vec::new();
-        let stream = clap_ostream {
-            ctx: &mut data as *mut Vec<u8> as *mut c_void,
-            write: Some(ostream_write),
-        };
+        let stream = clap_ostream { ctx: &mut data as *mut Vec<u8> as *mut c_void, write: Some(ostream_write) };
         let ok = ext.save.map(|s| unsafe { s(self.plugin, &stream) }).unwrap_or(false);
         if !ok {
             return Err(HostError::new("no_state", "the plugin failed to save its state"));
@@ -1283,10 +1188,7 @@ impl Backend for ClapBackend {
             return Err(HostError::new("no_state", "this plugin has no state extension"));
         };
         let mut st = IStream { data: state, pos: 0 };
-        let stream = clap_istream {
-            ctx: &mut st as *mut IStream as *mut c_void,
-            read: Some(istream_read),
-        };
+        let stream = clap_istream { ctx: &mut st as *mut IStream as *mut c_void, read: Some(istream_read) };
         let ok = ext.load.map(|l| unsafe { l(self.plugin, &stream) }).unwrap_or(false);
         if !ok {
             return Err(HostError::new(
@@ -1305,20 +1207,9 @@ impl Backend for ClapBackend {
         self.deactivate();
         let p = unsafe { &*self.plugin };
         self.sample_rate = sample_rate;
-        self.in_bufs = self
-            .in_ports
-            .iter()
-            .map(|&c| vec![vec![0.0f32; block_size as usize]; c as usize])
-            .collect();
-        self.out_bufs = self
-            .out_ports
-            .iter()
-            .map(|&c| vec![vec![0.0f32; block_size as usize]; c as usize])
-            .collect();
-        let ok = p
-            .activate
-            .map(|a| unsafe { a(self.plugin, sample_rate, 1, block_size) })
-            .unwrap_or(false);
+        self.in_bufs = self.in_ports.iter().map(|&c| vec![vec![0.0f32; block_size as usize]; c as usize]).collect();
+        self.out_bufs = self.out_ports.iter().map(|&c| vec![vec![0.0f32; block_size as usize]; c as usize]).collect();
+        let ok = p.activate.map(|a| unsafe { a(self.plugin, sample_rate, 1, block_size) }).unwrap_or(false);
         if !ok {
             return Err(HostError::new(
                 "activate_failed",
@@ -1327,10 +1218,7 @@ impl Backend for ClapBackend {
         }
         self.active = true;
         self.host.in_process.store(true, Ordering::SeqCst);
-        let started = p
-            .start_processing
-            .map(|s| unsafe { s(self.plugin) })
-            .unwrap_or(true);
+        let started = p.start_processing.map(|s| unsafe { s(self.plugin) }).unwrap_or(true);
         self.host.in_process.store(false, Ordering::SeqCst);
         if !started {
             return Err(HostError::new("activate_failed", "start_processing failed"));
@@ -1338,13 +1226,9 @@ impl Backend for ClapBackend {
         self.processing = true;
         self.steady = 0;
         self.pump();
-        let latency = unsafe { self.ext.latency.as_ref() }
-            .and_then(|l| l.get)
-            .map(|g| unsafe { g(self.plugin) })
-            .unwrap_or(0);
-        let tail = unsafe { self.ext.tail.as_ref() }
-            .and_then(|t| t.get)
-            .map(|g| unsafe { g(self.plugin) });
+        let latency =
+            unsafe { self.ext.latency.as_ref() }.and_then(|l| l.get).map(|g| unsafe { g(self.plugin) }).unwrap_or(0);
+        let tail = unsafe { self.ext.tail.as_ref() }.and_then(|t| t.get).map(|g| unsafe { g(self.plugin) });
         Ok(Activation { latency, tail })
     }
 
@@ -1374,22 +1258,12 @@ impl Backend for ClapBackend {
                 ch[..n].fill(0.0);
             }
         }
-        let mut in_ptrs: Vec<Vec<*mut f32>> = self
-            .in_bufs
-            .iter_mut()
-            .map(|p| p.iter_mut().map(|c| c.as_mut_ptr()).collect())
-            .collect();
-        let mut out_ptrs: Vec<Vec<*mut f32>> = self
-            .out_bufs
-            .iter_mut()
-            .map(|p| p.iter_mut().map(|c| c.as_mut_ptr()).collect())
-            .collect();
+        let mut in_ptrs: Vec<Vec<*mut f32>> =
+            self.in_bufs.iter_mut().map(|p| p.iter_mut().map(|c| c.as_mut_ptr()).collect()).collect();
+        let mut out_ptrs: Vec<Vec<*mut f32>> =
+            self.out_bufs.iter_mut().map(|p| p.iter_mut().map(|c| c.as_mut_ptr()).collect()).collect();
         let mk = |ptrs: &mut Vec<*mut f32>| clap_sys::audio_buffer::clap_audio_buffer {
-            data32: if ptrs.is_empty() {
-                null_mut()
-            } else {
-                ptrs.as_mut_ptr()
-            },
+            data32: if ptrs.is_empty() { null_mut() } else { ptrs.as_mut_ptr() },
             data64: null_mut(),
             channel_count: ptrs.len() as u32,
             latency: 0,
@@ -1402,18 +1276,13 @@ impl Backend for ClapBackend {
         for (id, cookie, v) in self.pending.drain(..) {
             list.param(0, id, cookie, v);
         }
-        let use_midi = self.note_dialects & CLAP_NOTE_DIALECT_CLAP == 0
-            && self.note_dialects & CLAP_NOTE_DIALECT_MIDI != 0;
+        let use_midi =
+            self.note_dialects & CLAP_NOTE_DIALECT_CLAP == 0 && self.note_dialects & CLAP_NOTE_DIALECT_MIDI != 0;
         let mut sorted: Vec<Event> = events.to_vec();
         sorted.sort_by_key(|e| e.time());
         for e in sorted {
             match e {
-                Event::NoteOn {
-                    time,
-                    channel,
-                    key,
-                    velocity,
-                } => {
+                Event::NoteOn { time, channel, key, velocity } => {
                     if use_midi {
                         let v = (velocity.clamp(0.0, 1.0) * 127.0).round().max(1.0) as u8;
                         list.midi(time.min(frames - 1), [0x90 | (channel & 15), key & 127, v]);
@@ -1421,12 +1290,7 @@ impl Backend for ClapBackend {
                         list.note(time.min(frames - 1), true, channel, key, velocity);
                     }
                 }
-                Event::NoteOff {
-                    time,
-                    channel,
-                    key,
-                    velocity,
-                } => {
+                Event::NoteOff { time, channel, key, velocity } => {
                     if use_midi {
                         let v = (velocity.clamp(0.0, 1.0) * 127.0).round() as u8;
                         list.midi(time.min(frames - 1), [0x80 | (channel & 15), key & 127, v]);
@@ -1465,33 +1329,20 @@ impl Backend for ClapBackend {
             steady_time: self.steady,
             frames_count: frames,
             transport: &transport,
-            audio_inputs: if in_audio.is_empty() {
-                null()
-            } else {
-                in_audio.as_ptr()
-            },
-            audio_outputs: if out_audio.is_empty() {
-                null_mut()
-            } else {
-                out_audio.as_mut_ptr()
-            },
+            audio_inputs: if in_audio.is_empty() { null() } else { in_audio.as_ptr() },
+            audio_outputs: if out_audio.is_empty() { null_mut() } else { out_audio.as_mut_ptr() },
             audio_inputs_count: in_audio.len() as u32,
             audio_outputs_count: out_audio.len() as u32,
             in_events: &input,
             out_events: &OUT_EVENTS,
         };
         let p = unsafe { &*self.plugin };
-        let f = p
-            .process
-            .ok_or_else(|| HostError::new("process_failed", "plugin has no process()"))?;
+        let f = p.process.ok_or_else(|| HostError::new("process_failed", "plugin has no process()"))?;
         self.host.in_process.store(true, Ordering::SeqCst);
         let status = unsafe { f(self.plugin, &proc_) };
         self.host.in_process.store(false, Ordering::SeqCst);
         if status == CLAP_PROCESS_ERROR {
-            return Err(HostError::new(
-                "process_failed",
-                "the plugin returned CLAP_PROCESS_ERROR",
-            ));
+            return Err(HostError::new("process_failed", "the plugin returned CLAP_PROCESS_ERROR"));
         }
         if let Some(mo) = self.main_out {
             for (c, out) in outputs.iter_mut().enumerate() {
@@ -1527,9 +1378,6 @@ impl Backend for ClapBackend {
     }
 
     fn main_channels(&self) -> (u32, u32) {
-        (
-            self.main_in.map(|i| self.in_ports[i]).unwrap_or(0),
-            self.main_out.map(|i| self.out_ports[i]).unwrap_or(0),
-        )
+        (self.main_in.map(|i| self.in_ports[i]).unwrap_or(0), self.main_out.map(|i| self.out_ports[i]).unwrap_or(0))
     }
 }

@@ -108,16 +108,9 @@ pub fn host_binary(format: PluginFormat) -> Result<PathBuf> {
     Err(Error::new(
         ErrorKind::Plugin,
         "plugin_host_missing",
-        format!(
-            "the {} plugin host '{}' was not found next to ferraus or on PATH",
-            format,
-            format.host_program()
-        ),
+        format!("the {} plugin host '{}' was not found next to ferraus or on PATH", format, format.host_program()),
     )
-    .with_hint(format!(
-        "reinstall ferraus, or set {var}=/path/to/{}",
-        format.host_program()
-    )))
+    .with_hint(format!("reinstall ferraus, or set {var}=/path/to/{}", format.host_program())))
 }
 
 static SHM_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -130,10 +123,8 @@ struct ShmFile {
 
 impl ShmFile {
     fn create(layout: ShmLayout) -> Result<ShmFile> {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
+        let nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         let path = std::env::temp_dir().join(format!(
             "ferraus-shm-{}-{}-{nanos}.bin",
             std::process::id(),
@@ -187,18 +178,10 @@ impl PluginHost {
     /// Start a host for `format`; `label` and `path` name the plugin in errors.
     pub fn spawn(format: PluginFormat, label: &str, path: &Path, watchdog: Duration) -> Result<PluginHost> {
         let bin = host_binary(format)?;
-        let mut child = Command::new(&bin)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                Error::new(
-                    ErrorKind::Plugin,
-                    "plugin_host_failed",
-                    format!("cannot start {}: {e}", bin.display()),
-                )
-            })?;
+        let mut child =
+            Command::new(&bin).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(
+                |e| Error::new(ErrorKind::Plugin, "plugin_host_failed", format!("cannot start {}: {e}", bin.display())),
+            )?;
         let stdout = child.stdout.take().expect("piped stdout");
         let stderr = child.stderr.take().expect("piped stderr");
         let (tx, rx) = mpsc::channel();
@@ -257,9 +240,7 @@ impl PluginHost {
             Reply::Hello { protocol, host, .. } => Err(Error::new(
                 ErrorKind::Plugin,
                 "plugin_host_mismatch",
-                format!(
-                    "{host} speaks protocol {protocol}, ferraus expects {PROTOCOL_VERSION}"
-                ),
+                format!("{host} speaks protocol {protocol}, ferraus expects {PROTOCOL_VERSION}"),
             )
             .with_hint("reinstall ferraus so the plugin host matches")),
             other => Err(h.unexpected(other)),
@@ -380,14 +361,10 @@ impl PluginHost {
 
     fn reply_error(&self, code: &str, message: &str) -> Error {
         let (kind, hint) = match code {
-            "unknown_param" | "bad_value" => (
-                ErrorKind::Usage,
-                Some(format!("ferraus plugin info \"{}\"", self.label)),
-            ),
-            "unknown_preset" => (
-                ErrorKind::Usage,
-                Some(format!("ferraus plugin presets list \"{}\"", self.label)),
-            ),
+            "unknown_param" | "bad_value" => {
+                (ErrorKind::Usage, Some(format!("ferraus plugin info \"{}\"", self.label)))
+            }
+            "unknown_preset" => (ErrorKind::Usage, Some(format!("ferraus plugin presets list \"{}\"", self.label))),
             "bad_state" | "bad_request" => (ErrorKind::Usage, None),
             _ => (ErrorKind::Plugin, None),
         };
@@ -405,9 +382,7 @@ impl PluginHost {
     }
 
     pub fn probe(&mut self, path: &Path) -> Result<Vec<Descriptor>> {
-        match self.request(&Request::Probe {
-            path: path.to_string_lossy().into_owned(),
-        })? {
+        match self.request(&Request::Probe { path: path.to_string_lossy().into_owned() })? {
             Reply::Probe { plugins } => Ok(plugins),
             other => Err(self.unexpected(other)),
         }
@@ -434,13 +409,7 @@ impl PluginHost {
         if params.is_empty() {
             return Ok(Vec::new());
         }
-        let params = params
-            .iter()
-            .map(|(n, v)| ParamAssign {
-                name: n.clone(),
-                value: v.clone(),
-            })
-            .collect();
+        let params = params.iter().map(|(n, v)| ParamAssign { name: n.clone(), value: v.clone() }).collect();
         self.params_reply(Request::SetParams { params })
     }
 
@@ -449,9 +418,7 @@ impl PluginHost {
     }
 
     pub fn load_preset(&mut self, preset: &str) -> Result<Vec<ParamValue>> {
-        self.params_reply(Request::LoadPreset {
-            preset: preset.to_string(),
-        })
+        self.params_reply(Request::LoadPreset { preset: preset.to_string() })
     }
 
     pub fn list_presets(&mut self) -> Result<Vec<PresetInfo>> {
@@ -487,12 +454,7 @@ impl PluginHost {
         channels_out: u32,
         slots: u32,
     ) -> Result<Activated> {
-        let layout = ShmLayout {
-            channels_in,
-            channels_out,
-            block_size,
-            slots: slots.max(1),
-        };
+        let layout = ShmLayout { channels_in, channels_out, block_size, slots: slots.max(1) };
         let shm = ShmFile::create(layout)?;
         let req = Request::Activate {
             sample_rate: sample_rate as f64,
@@ -501,17 +463,9 @@ impl PluginHost {
         };
         self.shm = Some(shm);
         match self.request(&req)? {
-            Reply::Activated {
-                latency,
-                tail,
-                channels_in,
-                channels_out,
-            } => Ok(Activated {
-                latency,
-                tail,
-                channels_in,
-                channels_out,
-            }),
+            Reply::Activated { latency, tail, channels_in, channels_out } => {
+                Ok(Activated { latency, tail, channels_in, channels_out })
+            }
             other => Err(self.unexpected(other)),
         }
     }
@@ -527,11 +481,7 @@ impl PluginHost {
         events: &[(u64, Event)],
         progress: &mut dyn FnMut(f64) -> Result<()>,
     ) -> Result<Vec<Vec<f32>>> {
-        let layout = self
-            .shm
-            .as_ref()
-            .map(|s| s.layout)
-            .ok_or_else(|| Error::internal("run before activate"))?;
+        let layout = self.shm.as_ref().map(|s| s.layout).ok_or_else(|| Error::internal("run before activate"))?;
         let bs = layout.block_size as usize;
         let blocks = total.div_ceil(bs);
         let mut out = vec![vec![0.0f32; total]; layout.channels_out as usize];
@@ -565,38 +515,18 @@ impl PluginHost {
                     let (frame, e) = events[ev_i];
                     let t = (frame as usize).saturating_sub(start) as u32;
                     evs.push(match e {
-                        Event::NoteOn {
-                            channel,
-                            key,
-                            velocity,
-                            ..
-                        } => Event::NoteOn {
-                            time: t,
-                            channel,
-                            key,
-                            velocity,
-                        },
-                        Event::NoteOff {
-                            channel,
-                            key,
-                            velocity,
-                            ..
-                        } => Event::NoteOff {
-                            time: t,
-                            channel,
-                            key,
-                            velocity,
-                        },
+                        Event::NoteOn { channel, key, velocity, .. } => {
+                            Event::NoteOn { time: t, channel, key, velocity }
+                        }
+                        Event::NoteOff { channel, key, velocity, .. } => {
+                            Event::NoteOff { time: t, channel, key, velocity }
+                        }
                         Event::Midi { data, .. } => Event::Midi { time: t, data },
                     });
                     ev_i += 1;
                 }
                 std::sync::atomic::fence(Ordering::SeqCst);
-                self.send(&Request::Process {
-                    slot,
-                    frames: n as u32,
-                    events: evs,
-                })?;
+                self.send(&Request::Process { slot, frames: n as u32, events: evs })?;
                 sent += 1;
             }
             match self.recv()? {

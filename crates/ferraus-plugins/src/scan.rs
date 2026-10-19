@@ -50,11 +50,7 @@ impl ScannedPlugin {
         PluginRef {
             format: self.format,
             path: self.path.clone(),
-            plugin_id: if self.id.is_empty() {
-                None
-            } else {
-                Some(self.id.clone())
-            },
+            plugin_id: if self.id.is_empty() { None } else { Some(self.id.clone()) },
             name: self.name.clone(),
             vendor: self.vendor.clone(),
             version: self.version.clone(),
@@ -62,8 +58,7 @@ impl ScannedPlugin {
     }
 
     fn from_descriptor(d: Descriptor, format: PluginFormat, path: &Path, source: &str) -> Self {
-        let category = infer_category(&format!("{} {}", d.name, d.features.join(" ")))
-            .map(|s| s.to_string());
+        let category = infer_category(&format!("{} {}", d.name, d.features.join(" "))).map(|s| s.to_string());
         ScannedPlugin {
             id: d.id,
             name: d.name,
@@ -105,10 +100,7 @@ impl ScanCache {
             .ok()
             .and_then(|b| serde_json::from_slice::<ScanCache>(&b).ok())
             .filter(|c| c.version == CACHE_VERSION)
-            .unwrap_or(ScanCache {
-                version: CACHE_VERSION,
-                entries: BTreeMap::new(),
-            })
+            .unwrap_or(ScanCache { version: CACHE_VERSION, entries: BTreeMap::new() })
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -161,27 +153,27 @@ pub fn user_plugin_dir(format: PluginFormat) -> PathBuf {
 }
 
 fn local_app_data() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("AppData/Local"))
+    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(|| home().join("AppData/Local"))
 }
 
 /// The standard per-OS plugin folders from the PRD (plus `CLAP_PATH` for CLAP and the
-/// ferraus per-user install folder).
+/// ferraus per-user install folder). `FERRAUS_PLUGIN_STANDARD_DIRS=0` limits this to the
+/// ferraus install folder (hermetic tests and sandboxes).
 pub fn standard_dirs(format: PluginFormat) -> Vec<PathBuf> {
+    if std::env::var("FERRAUS_PLUGIN_STANDARD_DIRS").map(|v| v == "0").unwrap_or(false) {
+        return vec![user_plugin_dir(format)];
+    }
     let h = home();
     let common = std::env::var_os("COMMONPROGRAMFILES")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("C:/Program Files/Common Files"));
     let mut dirs: Vec<PathBuf> = match (format, std::env::consts::OS) {
-        (PluginFormat::Clap, "macos") => vec![
-            h.join("Library/Audio/Plug-Ins/CLAP"),
-            PathBuf::from("/Library/Audio/Plug-Ins/CLAP"),
-        ],
-        (PluginFormat::Vst3, "macos") => vec![
-            h.join("Library/Audio/Plug-Ins/VST3"),
-            PathBuf::from("/Library/Audio/Plug-Ins/VST3"),
-        ],
+        (PluginFormat::Clap, "macos") => {
+            vec![h.join("Library/Audio/Plug-Ins/CLAP"), PathBuf::from("/Library/Audio/Plug-Ins/CLAP")]
+        }
+        (PluginFormat::Vst3, "macos") => {
+            vec![h.join("Library/Audio/Plug-Ins/VST3"), PathBuf::from("/Library/Audio/Plug-Ins/VST3")]
+        }
         (PluginFormat::Clap, "windows") => {
             vec![common.join("CLAP"), local_app_data().join("Programs/Common/CLAP")]
         }
@@ -189,11 +181,9 @@ pub fn standard_dirs(format: PluginFormat) -> Vec<PathBuf> {
             vec![common.join("VST3"), local_app_data().join("Programs/Common/VST3")]
         }
         (PluginFormat::Clap, _) => vec![h.join(".clap"), PathBuf::from("/usr/lib/clap")],
-        (PluginFormat::Vst3, _) => vec![
-            h.join(".vst3"),
-            PathBuf::from("/usr/lib/vst3"),
-            PathBuf::from("/usr/local/lib/vst3"),
-        ],
+        (PluginFormat::Vst3, _) => {
+            vec![h.join(".vst3"), PathBuf::from("/usr/lib/vst3"), PathBuf::from("/usr/local/lib/vst3")]
+        }
     };
     if format == PluginFormat::Clap {
         if let Some(p) = std::env::var_os("CLAP_PATH") {
@@ -239,10 +229,7 @@ fn walk(dir: &Path, formats: &[PluginFormat], depth: usize, out: &mut Vec<(Plugi
             out.push((f, p));
             continue;
         }
-        let ext = p
-            .extension()
-            .map(|e| e.to_string_lossy().to_ascii_lowercase())
-            .unwrap_or_default();
+        let ext = p.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
         if matches!(ext.as_str(), "component" | "app" | "lv2" | "vst" | "aaxplugin" | "clap" | "vst3") {
             continue;
         }
@@ -359,16 +346,8 @@ pub fn read_vst3_moduleinfo(bundle: &Path) -> Option<Vec<ScannedPlugin>> {
     let text = std::fs::read_to_string(file).ok()?;
     let v: serde_json::Value = serde_json::from_str(&json5_lite(&text)).ok()?;
     let module_version = v.get("Version").and_then(|x| x.as_str()).unwrap_or("").to_string();
-    let factory_vendor = v
-        .pointer("/Factory Info/Vendor")
-        .and_then(|x| x.as_str())
-        .unwrap_or("")
-        .to_string();
-    let url = v
-        .pointer("/Factory Info/URL")
-        .and_then(|x| x.as_str())
-        .unwrap_or("")
-        .to_string();
+    let factory_vendor = v.pointer("/Factory Info/Vendor").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let url = v.pointer("/Factory Info/URL").and_then(|x| x.as_str()).unwrap_or("").to_string();
     let mut out = Vec::new();
     for c in v.get("Classes").and_then(|c| c.as_array()).into_iter().flatten() {
         let cat = c.get("Category").and_then(|x| x.as_str()).unwrap_or("");
@@ -376,14 +355,10 @@ pub fn read_vst3_moduleinfo(bundle: &Path) -> Option<Vec<ScannedPlugin>> {
             continue;
         }
         let subs: Vec<String> = match c.get("Sub Categories") {
-            Some(serde_json::Value::Array(a)) => a
-                .iter()
-                .filter_map(|s| s.as_str())
-                .map(|s| s.to_ascii_lowercase())
-                .collect(),
-            Some(serde_json::Value::String(s)) => {
-                s.split('|').map(|s| s.trim().to_ascii_lowercase()).collect()
+            Some(serde_json::Value::Array(a)) => {
+                a.iter().filter_map(|s| s.as_str()).map(|s| s.to_ascii_lowercase()).collect()
             }
+            Some(serde_json::Value::String(s)) => s.split('|').map(|s| s.trim().to_ascii_lowercase()).collect(),
             _ => Vec::new(),
         };
         let mut features = subs.clone();
@@ -425,28 +400,17 @@ pub fn probe_bundle(format: PluginFormat, path: &Path, watchdog: Duration) -> Re
             return Ok(p);
         }
     }
-    let label = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let label = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let probed = PluginHost::spawn(format, &label, path, watchdog).and_then(|mut h| {
         let r = h.probe(path);
         h.shutdown();
         r
     });
     match (probed, format) {
-        (Ok(ds), _) => Ok(ds
-            .into_iter()
-            .map(|d| ScannedPlugin::from_descriptor(d, format, path, "probe"))
-            .collect()),
+        (Ok(ds), _) => Ok(ds.into_iter().map(|d| ScannedPlugin::from_descriptor(d, format, path, "probe")).collect()),
         (Err(e), PluginFormat::Vst3) if e.code != "plugin_crashed" && e.code != "plugin_timeout" => {
             // No moduleinfo.json and no usable VST3 host: still list the bundle by name.
-            let d = Descriptor {
-                id: String::new(),
-                name: label.clone(),
-                kind: "unknown".into(),
-                ..Default::default()
-            };
+            let d = Descriptor { id: String::new(), name: label.clone(), kind: "unknown".into(), ..Default::default() };
             let mut p = ScannedPlugin::from_descriptor(d, format, path, "bundle");
             p.description = format!("not probed: {}", e.message);
             Ok(vec![p])
@@ -531,11 +495,7 @@ pub fn scan(opts: &ScanOptions) -> Result<ScanReport> {
             }
         }
     }
-    let mut report = ScanReport {
-        dirs: dirs.clone(),
-        bundles: bundles.len(),
-        ..Default::default()
-    };
+    let mut report = ScanReport { dirs: dirs.clone(), bundles: bundles.len(), ..Default::default() };
     let mut todo: Vec<(PluginFormat, PathBuf, u64)> = Vec::new();
     for (f, p) in &bundles {
         let key = p.to_string_lossy().into_owned();
@@ -574,18 +534,8 @@ pub fn scan(opts: &ScanOptions) -> Result<ScanReport> {
         report.probed += 1;
         let key = p.to_string_lossy().into_owned();
         let entry = match r {
-            Ok(plugins) => CacheEntry {
-                mtime: m,
-                format: Some(f),
-                plugins,
-                error: None,
-            },
-            Err(e) => CacheEntry {
-                mtime: m,
-                format: Some(f),
-                plugins: Vec::new(),
-                error: Some(e.message.clone()),
-            },
+            Ok(plugins) => CacheEntry { mtime: m, format: Some(f), plugins, error: None },
+            Err(e) => CacheEntry { mtime: m, format: Some(f), plugins: Vec::new(), error: Some(e.message.clone()) },
         };
         cache.entries.insert(key, entry);
     }
@@ -595,11 +545,7 @@ pub fn scan(opts: &ScanOptions) -> Result<ScanReport> {
         if let Some(e) = cache.entries.get(&p.to_string_lossy().into_owned()) {
             report.plugins.extend(e.plugins.iter().cloned());
             if let Some(err) = &e.error {
-                report.errors.push(ScanError {
-                    path: p.clone(),
-                    format: *f,
-                    error: err.clone(),
-                });
+                report.errors.push(ScanError { path: p.clone(), format: *f, error: err.clone() });
             }
         }
     }
@@ -608,10 +554,7 @@ pub fn scan(opts: &ScanOptions) -> Result<ScanReport> {
 }
 
 fn norm(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_alphanumeric())
-        .flat_map(|c| c.to_lowercase())
-        .collect()
+    s.chars().filter(|c| c.is_alphanumeric()).flat_map(|c| c.to_lowercase()).collect()
 }
 
 fn unquote(s: &str) -> &str {
@@ -701,11 +644,7 @@ pub fn resolve_plugin_with(
                 "plugin_not_found",
                 format!("{} has no plugin with id '{}'", p.display(), id_part.unwrap()),
             )),
-            0 => Err(Error::new(
-                ErrorKind::Plugin,
-                "plugin_not_found",
-                format!("{} contains no plugins", p.display()),
-            )),
+            0 => Err(Error::new(ErrorKind::Plugin, "plugin_not_found", format!("{} contains no plugins", p.display()))),
             _ => Err(ambiguous(q, &chosen, true)),
         };
     }
@@ -723,12 +662,7 @@ pub fn resolve_plugin_with(
     }
     let mut cache = ScanCache::load(cache_path);
     if cache.entries.is_empty() {
-        let opts = ScanOptions {
-            standard: true,
-            watchdog,
-            cache_path: cache_path.to_path_buf(),
-            ..Default::default()
-        };
+        let opts = ScanOptions { standard: true, watchdog, cache_path: cache_path.to_path_buf(), ..Default::default() };
         let _ = scan(&opts);
         cache = ScanCache::load(cache_path);
     }
@@ -768,12 +702,8 @@ fn ambiguous(q: &str, hits: &[&ScannedPlugin], by_path: bool) -> Error {
     } else {
         format!("ferraus plugin info \"{}\"", first.id)
     };
-    Error::new(
-        ErrorKind::Usage,
-        "plugin_ambiguous",
-        format!("'{q}' matches several plugins: {}", list.join("; ")),
-    )
-    .with_hint(hint)
+    Error::new(ErrorKind::Usage, "plugin_ambiguous", format!("'{q}' matches several plugins: {}", list.join("; ")))
+        .with_hint(hint)
 }
 
 #[cfg(test)]
@@ -805,7 +735,7 @@ mod tests {
         assert_eq!(p[0].vendor, "Acme");
         assert_eq!(p[0].kind, "instrument");
         assert_eq!(p[0].category.as_deref(), Some("synth"));
-        let found = find_bundles(dir.path(""), &[PluginFormat::Vst3]);
+        let found = find_bundles(&dir.0, &[PluginFormat::Vst3]);
         assert_eq!(found.len(), 1);
     }
 }

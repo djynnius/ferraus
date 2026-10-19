@@ -34,8 +34,8 @@ pub mod sounds;
 
 #[cfg(feature = "ops")]
 pub use api::{
-    process_effect, process_effect_with, render_instrument, render_instrument_with, MidiEvent,
-    MidiEventKind, PluginFormat, PluginOptions, PluginRef, PluginRun,
+    process_effect, process_effect_with, render_instrument, render_instrument_with, MidiEvent, MidiEventKind,
+    PluginFormat, PluginOptions, PluginRef, PluginRun,
 };
 
 /// Ops this crate contributes to the command registry.

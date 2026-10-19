@@ -46,10 +46,7 @@ pub fn read_frame<R: Read + ?Sized>(r: &mut R) -> io::Result<Option<Vec<u8>>> {
             if got == 0 {
                 return Ok(None);
             }
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "truncated frame header",
-            ));
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "truncated frame header"));
         }
         got += n;
     }
@@ -91,11 +88,7 @@ pub enum Request {
     /// Restore native state saved earlier.
     SetState { state_b64: String },
     /// Activate at a sample rate and maximum block size and map the shared-memory file.
-    Activate {
-        sample_rate: f64,
-        block_size: u32,
-        shm_path: String,
-    },
+    Activate { sample_rate: f64, block_size: u32, shm_path: String },
     /// Process `frames` (≤ block size) from slot `slot`; events carry sample offsets
     /// relative to the block start, sorted by time.
     Process {
@@ -113,6 +106,7 @@ pub enum Request {
 /// Host → client.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "reply", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // one reply per request; boxing buys nothing here
 pub enum Reply {
     Hello {
         host: String,
@@ -171,15 +165,16 @@ pub enum Event {
         velocity: f32,
     },
     /// Any 3-byte MIDI message (CC, pitch bend, aftertouch, program change...).
-    Midi { time: u32, data: [u8; 3] },
+    Midi {
+        time: u32,
+        data: [u8; 3],
+    },
 }
 
 impl Event {
     pub fn time(&self) -> u32 {
         match self {
-            Event::NoteOn { time, .. } | Event::NoteOff { time, .. } | Event::Midi { time, .. } => {
-                *time
-            }
+            Event::NoteOn { time, .. } | Event::NoteOff { time, .. } | Event::Midi { time, .. } => *time,
         }
     }
 }
@@ -355,20 +350,12 @@ impl ShmLayout {
 
     /// Byte offset of output channel `ch` in `slot`.
     pub fn output_offset(&self, slot: u32, ch: u32) -> usize {
-        SHM_HEADER
-            + slot as usize * self.slot_bytes()
-            + ((self.channels_in + ch) * self.block_size) as usize * 4
+        SHM_HEADER + slot as usize * self.slot_bytes() + ((self.channels_in + ch) * self.block_size) as usize * 4
     }
 
     pub fn write_header(&self, buf: &mut [u8]) {
         buf[..8].copy_from_slice(SHM_MAGIC);
-        let words = [
-            PROTOCOL_VERSION,
-            self.channels_in,
-            self.channels_out,
-            self.block_size,
-            self.slots,
-        ];
+        let words = [PROTOCOL_VERSION, self.channels_in, self.channels_out, self.block_size, self.slots];
         for (i, w) in words.iter().enumerate() {
             buf[8 + 4 * i..12 + 4 * i].copy_from_slice(&w.to_le_bytes());
         }
@@ -380,17 +367,9 @@ impl ShmLayout {
         }
         let w = |i: usize| u32::from_le_bytes([buf[8 + 4 * i], buf[9 + 4 * i], buf[10 + 4 * i], buf[11 + 4 * i]]);
         if w(0) != PROTOCOL_VERSION {
-            return Err(format!(
-                "shared memory protocol {} does not match host protocol {PROTOCOL_VERSION}",
-                w(0)
-            ));
+            return Err(format!("shared memory protocol {} does not match host protocol {PROTOCOL_VERSION}", w(0)));
         }
-        let l = ShmLayout {
-            channels_in: w(1),
-            channels_out: w(2),
-            block_size: w(3),
-            slots: w(4),
-        };
+        let l = ShmLayout { channels_in: w(1), channels_out: w(2), block_size: w(3), slots: w(4) };
         if l.block_size == 0 || l.slots == 0 || l.total_bytes() > buf.len() {
             return Err("shared memory header is inconsistent with the file size".into());
         }
@@ -434,14 +413,10 @@ fn split_number(text: &str) -> Option<(f64, String)> {
         return None;
     }
     // the longest numeric prefix (handles `1e3`, `-6`, `2.5`)
-    let end = (1..=t.len())
-        .rev()
-        .filter(|&i| t.is_char_boundary(i))
-        .find(|&i| {
-            let s = &t[..i];
-            s.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E'))
-                && s.parse::<f64>().is_ok()
-        })?;
+    let end = (1..=t.len()).rev().filter(|&i| t.is_char_boundary(i)).find(|&i| {
+        let s = &t[..i];
+        s.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E')) && s.parse::<f64>().is_ok()
+    })?;
     let n: f64 = t[..end].parse().ok()?;
     Some((n, t[end..].trim().to_ascii_lowercase()))
 }
@@ -541,12 +516,7 @@ pub fn find_param<'a>(params: &'a [ParamInfo], key: &str) -> Result<&'a ParamInf
             }
         }
     }
-    let norm = |s: &str| {
-        s.chars()
-            .filter(|c| c.is_alphanumeric())
-            .flat_map(|c| c.to_lowercase())
-            .collect::<String>()
-    };
+    let norm = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(|c| c.to_lowercase()).collect::<String>();
     let full = |p: &ParamInfo| {
         if p.module.is_empty() {
             p.name.clone()
@@ -566,11 +536,7 @@ pub fn find_param<'a>(params: &'a [ParamInfo], key: &str) -> Result<&'a ParamInf
             0 => continue,
             1 => return Ok(hits[0]),
             _ => {
-                let names: Vec<String> = hits
-                    .iter()
-                    .take(8)
-                    .map(|p| format!("{} (id {})", full(p), p.id))
-                    .collect();
+                let names: Vec<String> = hits.iter().take(8).map(|p| format!("{} (id {})", full(p), p.id)).collect();
                 return Err(format!(
                     "parameter '{key}' is ambiguous: {}; use the id (e.g. id:{})",
                     names.join(", "),
@@ -579,19 +545,11 @@ pub fn find_param<'a>(params: &'a [ParamInfo], key: &str) -> Result<&'a ParamInf
             }
         }
     }
-    let mut known: Vec<String> = params
-        .iter()
-        .filter(|p| !p.hidden)
-        .take(12)
-        .map(|p| p.name.clone())
-        .collect();
+    let mut known: Vec<String> = params.iter().filter(|p| !p.hidden).take(12).map(|p| p.name.clone()).collect();
     if params.len() > 12 {
         known.push("...".into());
     }
-    Err(format!(
-        "unknown parameter '{key}'; parameters include: {}",
-        known.join(", ")
-    ))
+    Err(format!("unknown parameter '{key}'; parameters include: {}", known.join(", ")))
 }
 
 /// Convert a ferraus value string to the plugin's plain value: `norm:x`, the plugin's own
@@ -601,10 +559,7 @@ pub fn resolve_value(p: &ParamInfo, text: &str, conv: &mut dyn ParamText) -> Res
     let (lo, hi) = (p.min.min(p.max), p.min.max(p.max));
     let in_range = |v: f64| v >= lo - 1e-9 * (1.0 + lo.abs()) && v <= hi + 1e-9 * (1.0 + hi.abs());
     if let Some(n) = t.strip_prefix("norm:") {
-        let x: f64 = n
-            .trim()
-            .parse()
-            .map_err(|_| format!("'{t}' is not norm:<0..1>"))?;
+        let x: f64 = n.trim().parse().map_err(|_| format!("'{t}' is not norm:<0..1>"))?;
         if !(0.0..=1.0).contains(&x) {
             return Err(format!("{t} is outside norm:0..1"));
         }
@@ -637,11 +592,7 @@ pub fn resolve_value(p: &ParamInfo, text: &str, conv: &mut dyn ParamText) -> Res
             v += 1.0;
         }
     }
-    let example = if p.default_text.is_empty() {
-        fmt_num(p.default)
-    } else {
-        p.default_text.clone()
-    };
+    let example = if p.default_text.is_empty() { fmt_num(p.default) } else { p.default_text.clone() };
     Err(format!(
         "cannot convert '{t}' for parameter '{}' (range {}..{}, e.g. '{example}' or norm:0.5)",
         p.name,
@@ -663,12 +614,7 @@ mod tests {
             &Request::Process {
                 slot: 2,
                 frames: 64,
-                events: vec![Event::NoteOn {
-                    time: 3,
-                    channel: 0,
-                    key: 60,
-                    velocity: 0.8,
-                }],
+                events: vec![Event::NoteOn { time: 3, channel: 0, key: 60, velocity: 0.8 }],
             },
         )
         .unwrap();
@@ -693,12 +639,7 @@ mod tests {
 
     #[test]
     fn shm_layout_offsets() {
-        let l = ShmLayout {
-            channels_in: 2,
-            channels_out: 2,
-            block_size: 512,
-            slots: 4,
-        };
+        let l = ShmLayout { channels_in: 2, channels_out: 2, block_size: 512, slots: 4 };
         let mut b = vec![0u8; l.total_bytes()];
         l.write_header(&mut b);
         assert_eq!(ShmLayout::read_header(&b).unwrap(), l);
@@ -719,13 +660,7 @@ mod tests {
 
     #[test]
     fn resolves_values() {
-        let p = ParamInfo {
-            id: 3,
-            name: "gain".into(),
-            min: -60.0,
-            max: 24.0,
-            ..Default::default()
-        };
+        let p = ParamInfo { id: 3, name: "gain".into(), min: -60.0, max: 24.0, ..Default::default() };
         assert_eq!(resolve_value(&p, "-6dB", &mut Db).unwrap(), -6.0);
         assert_eq!(resolve_value(&p, "norm:0.5", &mut Db).unwrap(), -18.0);
         assert!(resolve_value(&p, "loud", &mut Db).is_err());

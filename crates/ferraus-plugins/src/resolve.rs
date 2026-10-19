@@ -179,27 +179,103 @@ impl SoundsEnv {
 // categories
 
 const CATEGORY_WORDS: &[(&str, &[&str])] = &[
-    ("drums", &["drum", "drums", "kit", "percussion", "perc", "snare", "kick", "hihat", "hi-hat", "cymbal", "timpani", "tom", "808", "909", "conga", "bongo"]),
-    ("keys", &["piano", "keys", "keyboard", "rhodes", "wurli", "epiano", "e-piano", "electric-piano", "organ", "harpsichord", "clavinet", "celesta", "grand", "upright", "dx7"]),
+    (
+        "drums",
+        &[
+            "drum",
+            "drums",
+            "kit",
+            "percussion",
+            "perc",
+            "snare",
+            "kick",
+            "hihat",
+            "hi-hat",
+            "cymbal",
+            "timpani",
+            "tom",
+            "808",
+            "909",
+            "conga",
+            "bongo",
+        ],
+    ),
+    (
+        "keys",
+        &[
+            "piano",
+            "keys",
+            "keyboard",
+            "rhodes",
+            "wurli",
+            "epiano",
+            "e-piano",
+            "electric-piano",
+            "organ",
+            "harpsichord",
+            "clavinet",
+            "celesta",
+            "grand",
+            "upright",
+            "dx7",
+        ],
+    ),
     ("bass", &["bass", "contrabass", "upright-bass"]),
     ("guitar", &["guitar", "nylon", "acoustic-guitar", "strat", "les paul", "banjo", "ukulele", "mandolin"]),
-    ("strings", &["strings", "string", "violin", "viola", "cello", "ensemble", "orchestra", "harp", "pizzicato", "fiddle"]),
+    (
+        "strings",
+        &["strings", "string", "violin", "viola", "cello", "ensemble", "orchestra", "harp", "pizzicato", "fiddle"],
+    ),
     ("brass", &["brass", "trumpet", "trombone", "horn", "tuba", "cornet", "flugelhorn"]),
-    ("winds", &["flute", "clarinet", "oboe", "bassoon", "sax", "saxophone", "woodwind", "woodwinds", "winds", "piccolo", "recorder", "pan flute"]),
+    (
+        "winds",
+        &[
+            "flute",
+            "clarinet",
+            "oboe",
+            "bassoon",
+            "sax",
+            "saxophone",
+            "woodwind",
+            "woodwinds",
+            "winds",
+            "piccolo",
+            "recorder",
+            "pan flute",
+        ],
+    ),
     ("vocal", &["vocal", "voice", "choir", "vox", "aah", "ooh", "singer"]),
     ("pad", &["pad", "pads", "atmosphere", "ambient", "texture", "drone"]),
-    ("synth", &["synth", "synthesizer", "lead", "wavetable", "fm", "analog", "modular", "polysynth", "monosynth", "arp"]),
-    ("fx", &["fx", "effect", "audio-effect", "reverb", "delay", "impulse", "ir", "chorus", "distortion", "compressor", "eq", "filter", "sfx"]),
+    (
+        "synth",
+        &["synth", "synthesizer", "lead", "wavetable", "fm", "analog", "modular", "polysynth", "monosynth", "arp"],
+    ),
+    (
+        "fx",
+        &[
+            "fx",
+            "effect",
+            "audio-effect",
+            "reverb",
+            "delay",
+            "impulse",
+            "ir",
+            "chorus",
+            "distortion",
+            "compressor",
+            "eq",
+            "filter",
+            "sfx",
+        ],
+    ),
 ];
 
 /// The category ferraus infers from a name, tags, or path text (first match wins in the
 /// order drums, keys, guitar, bass, strings, brass, winds, vocal, pad, synth, fx).
 pub fn infer_category(text: &str) -> Option<&'static str> {
     let lower = text.to_ascii_lowercase();
-    let words: Vec<&str> = lower
-        .split(|c: char| !(c.is_alphanumeric() || c == '-'))
-        .filter(|w| !w.is_empty())
-        .collect();
+    let words: Vec<&str> =
+        lower.split(|c: char| !(c.is_alphanumeric() || c == '-')).filter(|w| !w.is_empty()).collect();
     for (cat, keys) in CATEGORY_WORDS {
         for k in *keys {
             if k.contains(' ') {
@@ -244,23 +320,23 @@ fn words_of(p: &Path, root: &Path) -> Vec<String> {
 
 fn is_ir_context(p: &Path, root: &Path) -> bool {
     let rel = p.strip_prefix(root).unwrap_or(p);
-    let mut texts: Vec<String> = rel
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().to_ascii_lowercase())
-        .collect();
+    let mut texts: Vec<String> =
+        rel.components().map(|c| c.as_os_str().to_string_lossy().to_ascii_lowercase()).collect();
     if let Some(n) = root.file_name() {
         texts.push(n.to_string_lossy().to_ascii_lowercase());
     }
     texts.iter().any(|t| {
-        t.split(|c: char| !c.is_alphanumeric())
-            .any(|w| matches!(w, "ir" | "irs" | "impulse" | "impulses" | "reverb" | "cab" | "cabinet" | "convolution" | "rir" | "rirs"))
+        t.split(|c: char| !c.is_alphanumeric()).any(|w| {
+            matches!(
+                w,
+                "ir" | "irs" | "impulse" | "impulses" | "reverb" | "cab" | "cabinet" | "convolution" | "rir" | "rirs"
+            )
+        })
     })
 }
 
 fn has_ext(p: &Path, exts: &[&str]) -> bool {
-    p.extension()
-        .map(|e| exts.contains(&e.to_string_lossy().to_ascii_lowercase().as_str()))
-        .unwrap_or(false)
+    p.extension().map(|e| exts.contains(&e.to_string_lossy().to_ascii_lowercase().as_str())).unwrap_or(false)
 }
 
 /// Files (not plugins) under `root`: `.sf2`, `.sfz`, and IR audio files. Samples inside a
@@ -407,10 +483,7 @@ pub struct InstalledRecord {
 }
 
 pub fn read_installed(env: &SoundsEnv) -> Vec<InstalledRecord> {
-    std::fs::read(env.installed_file())
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+    std::fs::read(env.installed_file()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 
 pub fn write_installed(env: &SoundsEnv, recs: &[InstalledRecord]) -> Result<()> {
@@ -475,13 +548,8 @@ pub fn discover(env: &SoundsEnv, sound_paths: &[PathBuf], watchdog: Duration) ->
         }
     }
     if !dirs.is_empty() {
-        let opts = ScanOptions {
-            extra: dirs,
-            standard: false,
-            watchdog,
-            cache_path: env.scan_cache(),
-            ..Default::default()
-        };
+        let opts =
+            ScanOptions { extra: dirs, standard: false, watchdog, cache_path: env.scan_cache(), ..Default::default() };
         for p in scan::scan(&opts)?.plugins {
             let s = plugin_sound(&p, "sound-path");
             if !out.iter().any(|o| o.path == s.path && o.plugin_id == s.plugin_id) {
@@ -526,10 +594,8 @@ pub fn write_aliases(env: &SoundsEnv, aliases: &BTreeMap<String, String>) -> Res
     if let Some(p) = f.parent() {
         std::fs::create_dir_all(p)?;
     }
-    let body = toml::to_string(&AliasFile {
-        aliases: aliases.clone(),
-    })
-    .map_err(|e| Error::internal(format!("cannot write aliases: {e}")))?;
+    let body = toml::to_string(&AliasFile { aliases: aliases.clone() })
+        .map_err(|e| Error::internal(format!("cannot write aliases: {e}")))?;
     let text = format!(
         "# Instrument aliases for ferraus (`ferraus sounds alias name=<id or source>`).\n# Values are sound ids, registry ids, or explicit sources such as plugin:\"Surge XT\" or sf2:/path/gm.sf2.\n{body}"
     );
@@ -592,10 +658,7 @@ fn explicit(env: &SoundsEnv, q: &str, sound_paths: &[PathBuf], watchdog: Duratio
             format!("{} file not found: {}", kind.as_str(), p.display()),
         ));
     }
-    let name = p
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let name = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     Ok(Some(Sound {
         id: slug(&name),
         category: infer_category(&name).map(|s| s.to_string()),
@@ -611,10 +674,7 @@ fn explicit(env: &SoundsEnv, q: &str, sound_paths: &[PathBuf], watchdog: Duratio
 }
 
 fn norm(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_alphanumeric())
-        .flat_map(|c| c.to_lowercase())
-        .collect()
+    s.chars().filter(|c| c.is_alphanumeric()).flat_map(|c| c.to_lowercase()).collect()
 }
 
 fn candidates_error(q: &str, hits: &[&Sound]) -> Error {
@@ -638,7 +698,12 @@ fn candidates_error(q: &str, hits: &[&Sound]) -> Error {
 
 /// Resolve an instrument (or IR) name. `Ok(None)` when nothing matches, so callers can
 /// fall back to General MIDI names; an ambiguous name is an error listing candidates.
-pub fn resolve_sound(env: &SoundsEnv, query: &str, sound_paths: &[PathBuf], watchdog: Duration) -> Result<Option<Resolved>> {
+pub fn resolve_sound(
+    env: &SoundsEnv,
+    query: &str,
+    sound_paths: &[PathBuf],
+    watchdog: Duration,
+) -> Result<Option<Resolved>> {
     resolve_inner(env, query, sound_paths, watchdog, 0)
 }
 
@@ -654,18 +719,11 @@ fn resolve_inner(
         return Err(Error::usage("empty instrument name"));
     }
     if let Some(s) = explicit(env, q, sound_paths, watchdog)? {
-        return Ok(Some(Resolved {
-            query: q.into(),
-            via: "explicit".into(),
-            alias_target: None,
-            sound: s,
-        }));
+        return Ok(Some(Resolved { query: q.into(), via: "explicit".into(), alias_target: None, sound: s }));
     }
     if depth == 0 {
         let aliases = read_aliases(env);
-        let target = aliases
-            .get(q)
-            .or_else(|| aliases.iter().find(|(k, _)| k.eq_ignore_ascii_case(q)).map(|(_, v)| v));
+        let target = aliases.get(q).or_else(|| aliases.iter().find(|(k, _)| k.eq_ignore_ascii_case(q)).map(|(_, v)| v));
         if let Some(t) = target {
             if let Some(mut r) = resolve_inner(env, t, sound_paths, watchdog, depth + 1)? {
                 r.alias_target = Some(t.clone());
@@ -698,12 +756,7 @@ fn resolve_inner(
         let hits = if inst.is_empty() { hits } else { inst };
         match hits.len() {
             0 => Ok(None),
-            1 => Ok(Some(Resolved {
-                query: q.into(),
-                via: via.into(),
-                alias_target: None,
-                sound: hits[0].clone(),
-            })),
+            1 => Ok(Some(Resolved { query: q.into(), via: via.into(), alias_target: None, sound: hits[0].clone() })),
             _ => {
                 // the same sound from one install (several .sfz variants) still counts as ambiguous
                 Err(candidates_error(q, &hits))

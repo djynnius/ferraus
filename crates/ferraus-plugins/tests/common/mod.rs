@@ -38,7 +38,16 @@ pub fn ensure_built() -> PathBuf {
             let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.toml");
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
             let status = Command::new(cargo)
-                .args(["build", "--quiet", "-p", "ferraus-plughost", "-p", "ferraus-plughost-vst3", "-p", "ferraus-test-plugin"])
+                .args([
+                    "build",
+                    "--quiet",
+                    "-p",
+                    "ferraus-plughost",
+                    "-p",
+                    "ferraus-plughost-vst3",
+                    "-p",
+                    "ferraus-test-plugin",
+                ])
                 .arg("--manifest-path")
                 .arg(&manifest)
                 .arg("--target-dir")
@@ -86,4 +95,100 @@ pub fn fake_vst3(dir: &Path, name: &str, instrument: bool) -> PathBuf {
     )
     .unwrap();
     b
+}
+
+/// A tiny HTTP/1.1 file server on 127.0.0.1 for download tests. Supports `Range:
+/// bytes=N-`. With `truncate_first`, the first full (non-range) response for each path
+/// sends only half the body before closing. Returns the base URL.
+pub fn http_server(files: Vec<(String, Vec<u8>)>, truncate_first: bool) -> String {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let mut truncated: Vec<String> = Vec::new();
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            if reader.read_line(&mut line).is_err() {
+                continue;
+            }
+            let path = line.split_whitespace().nth(1).unwrap_or("/").to_string();
+            let mut range: Option<u64> = None;
+            loop {
+                let mut h = String::new();
+                if reader.read_line(&mut h).is_err() || h == "\r\n" || h.is_empty() {
+                    break;
+                }
+                let lower = h.to_ascii_lowercase();
+                if let Some(v) = lower.strip_prefix("range: bytes=") {
+                    range = v.trim().trim_end_matches('-').parse().ok();
+                }
+            }
+            let Some((_, body)) = files.iter().find(|(p, _)| *p == path) else {
+                let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                continue;
+            };
+            match range {
+                Some(start) if (start as usize) < body.len() => {
+                    let rest = &body[start as usize..];
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
+                        rest.len(),
+                        start,
+                        body.len() - 1,
+                        body.len()
+                    );
+                    let _ = stream.write_all(rest);
+                }
+                Some(_) => {
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    );
+                }
+                None => {
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    if truncate_first && !truncated.contains(&path) {
+                        truncated.push(path.clone());
+                        let _ = stream.write_all(&body[..body.len() / 2]);
+                    } else {
+                        let _ = stream.write_all(body);
+                    }
+                }
+            }
+            let _ = stream.flush();
+        }
+    });
+    format!("http://{addr}")
+}
+
+/// Minimal RIFF bytes that look like an SF2 file.
+pub fn fake_sf2() -> Vec<u8> {
+    let mut v = b"RIFF".to_vec();
+    v.extend_from_slice(&4u32.to_le_bytes());
+    v.extend_from_slice(b"sfbk");
+    v
+}
+
+pub fn sha256_hex(b: &[u8]) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(b))
+}
+
+/// A folder with the CLAP test plugin, an SF2, and an SFZ library.
+pub fn sound_folder(dir: &Path) -> PathBuf {
+    let root = dir.join("my-sounds");
+    clap_bundle(&root.join("plugins"), "FerrausTest");
+    std::fs::write(root.join("Warm Strings.sf2"), fake_sf2()).unwrap();
+    let lib = root.join("Felt Piano");
+    std::fs::create_dir_all(lib.join("samples")).unwrap();
+    std::fs::write(lib.join("Felt Piano.sfz"), "<region> sample=samples/c4.wav key=60\n").unwrap();
+    std::fs::write(lib.join("samples/c4.wav"), b"RIFF").unwrap();
+    root
 }

@@ -18,10 +18,7 @@ pub struct HostError {
 
 impl HostError {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
-        HostError {
-            code: code.into(),
-            message: message.into(),
-        }
+        HostError { code: code.into(), message: message.into() }
     }
 }
 
@@ -119,10 +116,7 @@ pub fn serve_on(backend: &mut dyn Backend, input: &mut dyn Read, out: &mut dyn W
         let req: Request = match serde_json::from_slice(&frame) {
             Ok(r) => r,
             Err(e) => {
-                let reply = Reply::Error {
-                    code: "bad_request".into(),
-                    message: format!("cannot parse request: {e}"),
-                };
+                let reply = Reply::Error { code: "bad_request".into(), message: format!("cannot parse request: {e}") };
                 if write_frame(out, &reply).is_err() {
                     return 3;
                 }
@@ -141,18 +135,10 @@ pub fn serve_on(backend: &mut dyn Backend, input: &mut dyn Read, out: &mut dyn W
 }
 
 fn err(e: HostError) -> Reply {
-    Reply::Error {
-        code: e.code,
-        message: e.message,
-    }
+    Reply::Error { code: e.code, message: e.message }
 }
 
-fn handle(
-    backend: &mut dyn Backend,
-    req: Request,
-    shm: &mut Option<Shm>,
-    block_size: &mut u32,
-) -> Reply {
+fn handle(backend: &mut dyn Backend, req: Request, shm: &mut Option<Shm>, block_size: &mut u32) -> Reply {
     let b64 = base64::engine::general_purpose::STANDARD;
     match req {
         Request::Hello => Reply::Hello {
@@ -165,12 +151,10 @@ fn handle(
             Ok(plugins) => Reply::Probe { plugins },
             Err(e) => err(e),
         },
-        Request::Load { path, plugin_id } => {
-            match backend.load(Path::new(&path), plugin_id.as_deref()) {
-                Ok(info) => Reply::Loaded { info },
-                Err(e) => err(e),
-            }
-        }
+        Request::Load { path, plugin_id } => match backend.load(Path::new(&path), plugin_id.as_deref()) {
+            Ok(info) => Reply::Loaded { info },
+            Err(e) => err(e),
+        },
         Request::SetParams { params } => match backend.set_params(&params) {
             Ok(params) => Reply::Params { params },
             Err(e) => err(e),
@@ -188,9 +172,7 @@ fn handle(
             Err(e) => err(e),
         },
         Request::GetState => match backend.get_state() {
-            Ok(s) => Reply::State {
-                state_b64: b64.encode(s),
-            },
+            Ok(s) => Reply::State { state_b64: b64.encode(s) },
             Err(e) => err(e),
         },
         Request::SetState { state_b64 } => match b64.decode(state_b64.trim()) {
@@ -200,11 +182,7 @@ fn handle(
             },
             Err(e) => err(HostError::new("bad_request", format!("state is not base64: {e}"))),
         },
-        Request::Activate {
-            sample_rate,
-            block_size: bs,
-            shm_path,
-        } => {
+        Request::Activate { sample_rate, block_size: bs, shm_path } => {
             let map = match File::options()
                 .read(true)
                 .write(true)
@@ -213,10 +191,7 @@ fn handle(
             {
                 Ok(m) => m,
                 Err(e) => {
-                    return err(HostError::new(
-                        "bad_request",
-                        format!("cannot map shared memory {shm_path}: {e}"),
-                    ))
+                    return err(HostError::new("bad_request", format!("cannot map shared memory {shm_path}: {e}")))
                 }
             };
             let layout = match ShmLayout::read_header(&map) {
@@ -224,31 +199,19 @@ fn handle(
                 Err(e) => return err(HostError::new("bad_request", e)),
             };
             if layout.block_size != bs {
-                return err(HostError::new(
-                    "bad_request",
-                    "block size differs from the shared memory header",
-                ));
+                return err(HostError::new("bad_request", "block size differs from the shared memory header"));
             }
             match backend.activate(sample_rate, bs) {
                 Ok(a) => {
                     let (ci, co) = backend.main_channels();
                     *shm = Some(Shm { map, layout });
                     *block_size = bs;
-                    Reply::Activated {
-                        latency: a.latency,
-                        tail: a.tail,
-                        channels_in: ci,
-                        channels_out: co,
-                    }
+                    Reply::Activated { latency: a.latency, tail: a.tail, channels_in: ci, channels_out: co }
                 }
                 Err(e) => err(e),
             }
         }
-        Request::Process {
-            slot,
-            frames,
-            events,
-        } => {
+        Request::Process { slot, frames, events } => {
             let Some(s) = shm.as_mut() else {
                 return err(HostError::new("bad_request", "process before activate"));
             };
@@ -261,12 +224,10 @@ fn handle(
             let n = frames as usize;
             // SAFETY: offsets come from the validated layout, input and output ranges are
             // disjoint, and the client does not touch this slot until we reply.
-            let ins: Vec<&[f32]> = (0..l.channels_in)
-                .map(|c| unsafe { &*f32_slice_mut(base, l.input_offset(slot, c), n) })
-                .collect();
-            let mut outs: Vec<&mut [f32]> = (0..l.channels_out)
-                .map(|c| unsafe { f32_slice_mut(base, l.output_offset(slot, c), n) })
-                .collect();
+            let ins: Vec<&[f32]> =
+                (0..l.channels_in).map(|c| unsafe { &*f32_slice_mut(base, l.input_offset(slot, c), n) }).collect();
+            let mut outs: Vec<&mut [f32]> =
+                (0..l.channels_out).map(|c| unsafe { f32_slice_mut(base, l.output_offset(slot, c), n) }).collect();
             for o in outs.iter_mut() {
                 o.fill(0.0);
             }

@@ -6,8 +6,7 @@ use ferraus_core::testing::TempDir;
 use ferraus_core::{AudioBuffer, ErrorKind};
 use ferraus_plugins::api::{PluginSession, Tail};
 use ferraus_plugins::{
-    process_effect, process_effect_with, render_instrument, render_instrument_with, MidiEvent,
-    PluginOptions, PluginRef,
+    process_effect, process_effect_with, render_instrument, render_instrument_with, MidiEvent, PluginOptions, PluginRef,
 };
 use std::time::{Duration, Instant};
 
@@ -17,17 +16,11 @@ fn plugin(dir: &TempDir, id: &str) -> PluginRef {
 }
 
 fn opts() -> PluginOptions {
-    PluginOptions {
-        watchdog: Duration::from_secs(20),
-        tail: Tail::Seconds(0.0),
-        ..Default::default()
-    }
+    PluginOptions { watchdog: Duration::from_secs(20), tail: Tail::Seconds(0.0), ..Default::default() }
 }
 
 fn tone(frames: usize) -> AudioBuffer {
-    let s: Vec<f32> = (0..frames)
-        .map(|i| (i as f32 * 0.05).sin() * 0.8)
-        .collect();
+    let s: Vec<f32> = (0..frames).map(|i| (i as f32 * 0.05).sin() * 0.8).collect();
     AudioBuffer::from_planar(48000, vec![s.clone(), s])
 }
 
@@ -42,10 +35,7 @@ fn gain_minus_6db_halves_amplitude() {
     let ratio = out.peak() / input.peak();
     assert!((ratio - 0.5012).abs() < 0.002, "ratio {ratio}");
     // display-name lookup, case-insensitive, and norm: values
-    let o = PluginOptions {
-        params: vec![("Gain".into(), "norm:1".into())],
-        ..opts()
-    };
+    let o = PluginOptions { params: vec![("Gain".into(), "norm:1".into())], ..opts() };
     let r = process_effect_with(&p, &input, &o).unwrap();
     assert_eq!(r.params[0].text, "24.00 dB");
     // a mono input is widened to the plugin's stereo input
@@ -87,10 +77,7 @@ fn sine_instrument_onset_and_state_reproduce() {
     let sr = 48000u32;
     let onset = 12_345u64; // not on a block boundary
     let events = [MidiEvent::note_on(onset, 0, 69, 0.9), MidiEvent::note_off(onset + 9600, 0, 69)];
-    let o = PluginOptions {
-        params: vec![("level".into(), "-12dB".into())],
-        ..opts()
-    };
+    let o = PluginOptions { params: vec![("level".into(), "-12dB".into())], ..opts() };
     let run = render_instrument_with(&p, &events, sr, 1.0, &o).unwrap();
     let a = &run.audio;
     assert_eq!(a.frames(), sr as usize);
@@ -136,10 +123,7 @@ fn crash_is_a_plugin_error_and_the_next_job_still_runs() {
 fn hang_trips_the_watchdog() {
     let d = TempDir::new("hang");
     let hang = plugin(&d, "ferraus.test.hang");
-    let o = PluginOptions {
-        watchdog: Duration::from_millis(1500),
-        ..opts()
-    };
+    let o = PluginOptions { watchdog: Duration::from_millis(1500), ..opts() };
     let t = Instant::now();
     let e = process_effect_with(&hang, &tone(2000), &o).unwrap_err();
     let took = t.elapsed();
@@ -173,10 +157,7 @@ fn presets_state_and_info() {
     let e = s.host.load_preset("nope").unwrap_err();
     assert_eq!(e.kind, ErrorKind::Usage);
     // a preset applies in a run, and is recorded
-    let o = PluginOptions {
-        preset: Some("Quiet".into()),
-        ..opts()
-    };
+    let o = PluginOptions { preset: Some("Quiet".into()), ..opts() };
     let run = process_effect_with(&p, &tone(1000), &o).unwrap();
     let ratio = run.audio.peak() / tone(1000).peak();
     assert!((ratio - 0.2512).abs() < 0.002, "{ratio}");
