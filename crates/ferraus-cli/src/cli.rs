@@ -367,7 +367,7 @@ fn parse_globals(m: &ArgMatches, cfg: &Config) -> ferraus_core::Result<(Globals,
         g.threads = 4;
     }
     g.device = get_str(m, "device").or_else(|| cfg.compute.device.clone()).unwrap_or_else(|| "auto".into());
-    g.bpm = match get_str(m, "bpm") {
+    g.bpm = match get_str(m, "bpm").filter(|v| v != "auto") {
         None => None,
         Some(v) => Some(v.trim().parse::<f64>().map_err(|_| Error::usage(format!("--bpm: '{v}' is not a number")))?),
     };
