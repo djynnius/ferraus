@@ -580,7 +580,34 @@ fn mono_and_podcast() {
     let ops: Vec<&str> = r["plan"]["stages"].as_array().unwrap().iter().map(|s| s["op"].as_str().unwrap()).collect();
     assert!(ops.contains(&"deess"));
     assert!(!ops.contains(&"widen"));
-    assert!(o.envelope.warnings.iter().any(|w| w.code == "leveler_unavailable"));
+    if registry().get("leveler").is_some() {
+        assert!(ops.contains(&"leveler"), "{ops:?}");
+    } else {
+        assert!(o.envelope.warnings.iter().any(|w| w.code == "leveler_unavailable"));
+    }
+}
+
+#[test]
+fn clipped_mix_runs_declip_first_when_available() {
+    let td = TempDir::new("m-declip");
+    let mut b = song(&short(style("rock"), 4.0));
+    b.scale(4.0);
+    b.data.iter_mut().flatten().for_each(|v| *v = v.clamp(-0.9, 0.9));
+    let inp = td.path("clipped.wav");
+    write(&inp, &b);
+    let out = td.path("clipped.master.wav");
+    let o = invoke("master", &[&inp], &[], Some(&out));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let r = &o.envelope.result;
+    assert!(r["declip"].as_str().unwrap().contains("clipping"), "{}", r["declip"]);
+    let first = r["plan"]["stages"][0]["op"].as_str().unwrap();
+    if registry().get("declip").is_some() {
+        assert_eq!(first, "declip");
+    } else {
+        assert_ne!(first, "declip");
+        assert!(o.envelope.warnings.iter().any(|w| w.code == "declip_unavailable"));
+    }
+    check_streaming("clipped", &read_wav(&out));
 }
 
 #[test]

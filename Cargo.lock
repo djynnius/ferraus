@@ -567,6 +567,7 @@ dependencies = [
  "ferraus-dsp",
  "ferraus-edit",
  "ferraus-pitch",
+ "ferraus-restore",
  "serde",
  "serde_json",
 ]

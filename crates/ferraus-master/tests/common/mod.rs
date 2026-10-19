@@ -21,6 +21,8 @@ pub fn registry() -> &'static Registry {
         ops.extend(ferraus_analysis::ops());
         ops.extend(ferraus_edit::ops());
         ops.extend(ferraus_pitch::ops());
+        // declip and leveler (when this checkout has them; the chain skips them otherwise)
+        ops.extend(ferraus_restore::ops());
         ops.extend(ferraus_master::ops());
         leak_registry(ops)
     })
