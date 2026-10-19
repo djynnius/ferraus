@@ -211,6 +211,9 @@ pub struct TierSpec {
     pub ensemble_mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Why `--tier auto` must not pick this tier (it still runs when named explicitly).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_skip: Option<String>,
 }
 
 impl TierSpec {

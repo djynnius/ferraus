@@ -24,7 +24,7 @@ along the way).
 - Noise reduction: profile spectral gating, adaptive mode, RNNoise and DeepFilterNet 3.
 - Separation: ONNX Runtime with execution-provider fallback, a signed model registry with
   resumable verified downloads; tiers `fast`, `balanced` (fine-tuned Demucs), `quality`
-  (Mel-Band RoFormer vocals, the `auto` default), `max`, `--stems 6`, `--drum-split` (DrumSep);
+  (Mel-Band RoFormer vocals; held back from `auto` until its license review, so `auto` picks `balanced`), `max`, `--stems 6`, `--drum-split` (DrumSep);
   ensembles, TTA, sum-to-mix, cascades; streaming separation with temp-file spill under
   `--max-memory` and block-by-block decode and encode (60-minute song: 1.6 GB on `fast` and
   `balanced`, 2.8 GB on `quality`); htdemucs STFT on the host and all cores on Apple silicon

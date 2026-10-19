@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-restore"
+description = "Audio restoration and utility effects for ferraus (declick, hum, dereverb, and more)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

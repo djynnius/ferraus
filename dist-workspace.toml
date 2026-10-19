@@ -35,5 +35,6 @@ github-attestations = true
 pr-run-mode = "plan"
 # Extra static files to include in each app archive
 include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
-# Sign and notarize macOS binaries in CI (needs the CODESIGN_* secrets, see docs/dev/RELEASING.md)
-macos-sign = true
+# Sign and notarize macOS binaries in CI: off until a Developer ID certificate is set up
+# (CODESIGN_* secrets, docs/dev/RELEASE-SETUP.md section 4); then set this to true and run `dist generate`
+macos-sign = false

@@ -1,5 +1,6 @@
-# dist publish job: apt and dnf repositories, container images, winget and scoop manifests,
-# and crates.io. Runs only from the release workflow, behind the `release` environment,
+# dist publish job: crates.io, plus opt-in apt and dnf repositories, container images, and
+# winget and scoop manifests (repository variables PUBLISH_APT_DNF, PUBLISH_CONTAINERS,
+# PUBLISH_WINGET_SCOOP). Runs only from the release workflow, behind the `release` environment,
 # whose required reviewers are the human approval gate. Signing keys live only in that
 # environment's secrets.
 name: Publish packages
@@ -38,6 +39,8 @@ jobs:
 
   apt-dnf:
     needs: verify-attestations
+    # opt in with the repository variable PUBLISH_APT_DNF=true once gh-pages and PACKAGE_SIGNING_KEY exist
+    if: vars.PUBLISH_APT_DNF == 'true'
     runs-on: ubuntu-22.04
     environment: release
     steps:
@@ -78,6 +81,8 @@ jobs:
 
   containers:
     needs: verify-attestations
+    # opt in with the repository variable PUBLISH_CONTAINERS=true
+    if: vars.PUBLISH_CONTAINERS == 'true'
     runs-on: ubuntu-22.04
     environment: release
     steps:
@@ -110,6 +115,8 @@ jobs:
 
   winget-scoop:
     needs: verify-attestations
+    # opt in with the repository variable PUBLISH_WINGET_SCOOP=true once WINGET_TOKEN and SCOOP_BUCKET_TOKEN exist
+    if: vars.PUBLISH_WINGET_SCOOP == 'true'
     runs-on: windows-2022
     environment: release
     steps:
@@ -129,6 +136,8 @@ jobs:
   crates-io:
     needs: verify-attestations
     runs-on: ubuntu-22.04
+    # the first release waits out crates.io's new-crate rate limit (about 10 minutes per crate)
+    timeout-minutes: 360
     environment: release
     steps:
       - uses: actions/checkout@v4

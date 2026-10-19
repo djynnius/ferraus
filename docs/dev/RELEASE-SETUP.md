@@ -7,6 +7,13 @@ everything, with a human approval before anything is published.
 Run these from a clone of `djynnius/ferraus` with the GitHub CLI logged in (`gh auth login`).
 Keep every secret file outside the repository and delete it after uploading.
 
+**v0.1.0 (core channels):** sections 1, 2, 3, and the crates.io part of 7, with the repository
+public (environment secrets and required reviewers need a public repository on the free plan).
+macOS signing is off (`macos-sign = false`), and apt/dnf, containers, winget, and scoop are
+opt-in through the repository variables `PUBLISH_APT_DNF`, `PUBLISH_CONTAINERS`, and
+`PUBLISH_WINGET_SCOOP` (`gh variable set PUBLISH_APT_DNF --body true`) once their sections
+are done.
+
 ## 1. The `release` environment (the human approval gate)
 
 ```bash
@@ -45,9 +52,10 @@ gh repo create djynnius/homebrew-tap --public --description "Homebrew formulae f
 gh secret set HOMEBREW_TAP_TOKEN --env release   # paste the token
 ```
 
-## 4. macOS signing and notarization (dist `macos-sign = true`)
+## 4. macOS signing and notarization (off until you have a certificate)
 
-From an Apple Developer ID Application certificate exported as `.p12`:
+Set `macos-sign = true` in `dist-workspace.toml` and run `dist generate`, then add the
+secrets from an Apple Developer ID Application certificate exported as `.p12`:
 
 ```bash
 base64 -i DeveloperID.p12 | gh secret set CODESIGN_CERTIFICATE --env release

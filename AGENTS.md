@@ -54,7 +54,7 @@ ferraus tune vocal.clean.wav --key auto --strength 85% -o vocal.tuned.wav --json
 ferraus mix vocal.tuned.wav beat.wav --gains 0dB,-3dB -o mix.wav --json
 ferraus master mix.wav --target streaming -o master.wav --report report.json --json
 
-# stems for a remix (--tier fast for a quick sketch; the default auto picks the best verified tier)
+# stems for a remix (--tier fast for a quick sketch; the default auto picks balanced; --tier quality for the cleanest vocals)
 ferraus separate song.mp3 --stems 4 -y --json
 
 # hummed idea to an instrument

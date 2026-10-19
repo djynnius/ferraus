@@ -43,7 +43,7 @@
           "quality",
           "max"
         ],
-        "description": "Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry (quality, then balanced, then fast) and reports the choice Type: choice.",
+        "description": "Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry and not held back (see the registry's auto_skip; balanced in this release, quality after its license review) and reports the choice Type: choice.",
         "default": "auto",
         "x-ferraus-kind": "choice"
       },

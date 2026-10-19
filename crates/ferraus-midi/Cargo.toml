@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-midi"
+description = "MIDI model, editing, quantize, groove, and transcription for ferraus"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,5 +18,6 @@ rand_chacha.workspace = true
 realfft.workspace = true
 
 [dev-dependencies]
-# dev-only: ferraus-synth depends on this crate, so it may only appear here (tests of `hum`)
-ferraus-synth.workspace = true
+# dev-only: ferraus-synth depends on this crate, so it may only appear here (tests of `hum`).
+# No version, so `cargo publish` drops it and the two crates can be published in order.
+ferraus-synth = { path = "../ferraus-synth" }

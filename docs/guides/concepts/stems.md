@@ -30,10 +30,13 @@ work. The RoFormer's training data is not disclosed by its author (its weights a
   `mdx-kim-vocal-2`, `mdx-kara-2`) are listed with the flag `no_clear_license` and belong to no
   tier; `--model` with `--accept-license` uses one explicitly.
 
-**The default tier is `auto`**: the best tier whose models are all verified, tried in the order
-quality → balanced → fast. Every tier is verified in this registry, so `auto` means `quality`
-and the result records `"tier": "quality (auto)"`. A registry without the RoFormer falls back
-to `balanced` or `fast` and says so in a `tier_fallback` warning (ADR 0007).
+**The default tier is `auto`**: the best tier whose models are all verified and that the
+registry does not hold back, tried in the order quality → balanced → fast. In this release the
+registry holds `quality` back from `auto` (its `auto_skip` field) until the legal review of the
+Mel-Band RoFormer's license is done, so `auto` means `balanced` and the result records
+`"tier": "balanced (auto)"`; `--tier quality` and `--tier max` run when named. A registry whose
+better tiers lack verified models falls back to `balanced` or `fast` and says so in a
+`tier_fallback` warning (ADR 0007).
 
 ## Quality
 

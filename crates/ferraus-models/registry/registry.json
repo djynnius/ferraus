@@ -501,6 +501,7 @@
         ],
         "members_6": [{"model": "separate/htdemucs-6s@v4-onnx.2026-05-21"}],
         "shifts": 1,
+        "auto_skip": "pending legal review of the Mel-Band RoFormer weights' license (MIT per the author's repository, GPL-3.0 on another conversion; docs/legal/LICENSE-REVIEW.md); remove this field once counsel clears it",
         "note": "License audit 2026-10: no BS-RoFormer/SCNet checkpoint has a clear commercial license; the Mel-Band RoFormer by Kimberley Jensen (MIT on its weights repo; audiojs ONNX export) provides vocals, htdemucs_ft the rest. Median SI-SDR on 12 MUSDB18 7-s test excerpts: vocals 11.9 dB (balanced 9.0)."
       },
       "max": {

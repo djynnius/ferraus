@@ -122,10 +122,10 @@ ferraus score take.wav --parts vocals,bass,drums -o take.musicxml --midi take.mi
 
 This runs `analyze tempo`, `analyze key`, `analyze chords`, `separate`, `transcribe` per
 stem, and a native drum transcription, then notates. `--dry-run` shows that plan. It separates
-with the default `quality` tier, so the first run downloads about 960 MB of models (the
-Mel-Band RoFormer and three fine-tuned Demucs models; see
-[Stems and separation tiers](../concepts/stems.md)). On a 7-second excerpt of a MUSDB18 test
-song it took 52 s on a laptop CPU and peaked at 3.2 GB of memory:
+with the default tier (`balanced` in this release: four fine-tuned Demucs models, about 660 MB
+on the first run; see [Stems and separation tiers](../concepts/stems.md)). Measured with the
+`quality` tier (the Mel-Band RoFormer for the vocals) on a 7-second excerpt of a MUSDB18 test
+song, it took 52 s on a laptop CPU and peaked at 3.2 GB of memory:
 
 ```json
 {"parts": [{"id": "P1", "name": "Vocals"}, {"id": "P2", "name": "Bass"}, {"id": "P3", "name": "Drums", "percussion": true}],

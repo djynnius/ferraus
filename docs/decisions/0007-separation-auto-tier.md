@@ -5,6 +5,12 @@ Demucs specialists, `htdemucs-6s`, and an MIT-licensed hosted ONNX export of Kim
 Jensen's Mel-Band RoFormer), so `auto` resolves to `quality`, the PRD's intended default; the
 fallback below still applies to registries that lack a tier's models.
 
+Update 2026-10-19 (release decision): until counsel reviews the RoFormer weights' license (MIT
+on the author's repository, GPL-3.0 on another conversion; `docs/legal/LICENSE-REVIEW.md`), the
+registry's `quality` tier carries `auto_skip`, so `auto` resolves to `balanced` without a
+warning. `--tier quality` and `--tier max` still run when named. Deleting the `auto_skip` field
+restores `quality` as the default.
+
 ## Context
 The PRD makes `quality` (RoFormer-class) the default separation tier. The best open RoFormer
 and SCNet checkpoints either lack a clear license or are published only as PyTorch weights that

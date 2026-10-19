@@ -21,9 +21,9 @@ ferraus separate song.wav --tier fast -y --json
 
 **Decide:** read `result.stems[].quality.score`; skip or flag stems that score low (this test
 song has no vocals, hence 0.018). This recipe uses `--tier fast` for speed; the default
-`--tier auto` picks `quality` (RoFormer vocals, about 8× slower; see
-[Stems and separation tiers](../concepts/stems.md)), worth it when the vocal is the hook of
-the remix. For a long song, add `--async` and poll `ferraus jobs wait <job_id> --json`; memory
+`--tier auto` picks `balanced` in this release (about 4× slower), and `--tier quality`
+(RoFormer vocals, about 9× slower; see [Stems and separation tiers](../concepts/stems.md)) is
+worth it when the vocal is the hook of the remix. For a long song, add `--async` and poll `ferraus jobs wait <job_id> --json`; memory
 stays bounded however long the song is. Need the kit apart for a flip? Add `--drum-split` for
 kick, snare, toms, and cymbals stems.
 

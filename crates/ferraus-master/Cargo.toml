@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-master"
+description = "Mastering for ferraus: loudness targets, chains, analysis, verification, and deliverables"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

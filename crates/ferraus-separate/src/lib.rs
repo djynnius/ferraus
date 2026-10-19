@@ -43,7 +43,7 @@ pub fn ops() -> Vec<OpSpec> {
     .inputs(ferraus_core::op::Inputs::ONE_AUDIO)
     .about("Separates a song into stems with open models run through ONNX Runtime. Tiers trade speed for quality: fast (Demucs v4), balanced (Demucs v4 fine-tuned bag), quality (Mel-Band RoFormer vocals + fine-tuned Demucs), max (ensemble with test-time augmentation); the default, auto, picks the best tier whose models are verified. Models run one at a time over the song window by window, and long inputs spill to temporary files so the run stays within --max-memory. Models download on first use only with -y or models.auto_download = true; otherwise the command fails with exit code 5 and the exact `ferraus models pull` command. With --sum-to-mix on (default) the residual goes to `other`, so the written stems add back to the input within one LSB. Each stem's JSON result carries a quality estimate (ensemble agreement, or mask confidence for a single model).")
     .param(param("stems", ParamKind::Choice).choices(&["2", "4", "6"]).default("4").help("2 = vocals + instrumental, 4 = vocals/drums/bass/other, 6 = adds guitar and piano"))
-    .param(param("tier", ParamKind::Choice).choices(&["auto", "fast", "balanced", "quality", "max"]).default("auto").help("Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry (quality, then balanced, then fast) and reports the choice"))
+    .param(param("tier", ParamKind::Choice).choices(&["auto", "fast", "balanced", "quality", "max"]).default("auto").help("Model tier from the registry; auto picks the best tier whose models are verified and downloadable in this registry and not held back (see the registry's auto_skip; balanced in this release, quality after its license review) and reports the choice"))
     .param(param("only", ParamKind::List).help("Write only these stems, e.g. vocals,drums"))
     .param(param("instrumental", ParamKind::Flag).help("Write one file with the vocals removed"))
     .param(param("model", ParamKind::Str).help("Pin a registry model (name[@version]) or an ONNX file instead of a tier"))
@@ -189,8 +189,9 @@ fn plan_members(
     }
     let mut tier = a.choice("tier");
     if tier == "auto" {
-        tier = auto_tier(manifest, stems_n);
-        if tier != "quality" {
+        let (picked, unverified) = auto_tier(manifest, stems_n);
+        tier = picked;
+        if unverified {
             ctx.warn(
                 "tier_fallback",
                 format!("using the '{tier}' tier: the models of the better tiers are not yet verified for download in this registry (see 'ferraus models list')"),
@@ -217,9 +218,16 @@ fn plan_members(
 }
 
 /// The best tier whose every member is verified (has a SHA-256 and a URL, or is built in).
-fn auto_tier(manifest: &Manifest, stems_n: &str) -> String {
+/// The best tier `--tier auto` may use, and whether a better one was passed over only because
+/// its models are not verified. Tiers with `auto_skip` (e.g. pending license review) are passed
+/// over silently; they still run when named.
+fn auto_tier(manifest: &Manifest, stems_n: &str) -> (String, bool) {
+    let mut unverified = false;
     for t in ["quality", "balanced", "fast"] {
         let Some(spec) = manifest.tier("separate", t) else { continue };
+        if spec.auto_skip.is_some() {
+            continue;
+        }
         let members = if stems_n == "6" && !spec.members_6.is_empty() { &spec.members_6 } else { &spec.members };
         let ok = !members.is_empty()
             && members.iter().all(|m| {
@@ -229,10 +237,11 @@ fn auto_tier(manifest: &Manifest, stems_n: &str) -> String {
                     .unwrap_or(false)
             });
         if ok {
-            return t.to_string();
+            return (t.to_string(), unverified);
         }
+        unverified = true;
     }
-    "fast".to_string()
+    ("fast".to_string(), unverified)
 }
 
 /// A member whose model file is present; its session is opened only while it runs.

@@ -133,7 +133,7 @@ overlapping tiles); blank areas are skipped. `--device cuda` uses a GPU when one
 | --- | --- |
 | Editing, effects, loudness | Studio quality; deterministic and bit-exact on CPU |
 | Profile denoise | Excellent on steady noise (fans, hiss, hum); use `--mode ml` for speech without a noise sample |
-| Stems: vocals, drums, bass, other | `fast` (Demucs v4) is good for practice and remix sketches, with some bleed; `quality` (the default) adds a RoFormer vocal model, about 3 dB cleaner vocals; see [measured quality](concepts/stems.md) |
+| Stems: vocals, drums, bass, other | `fast` (Demucs v4) is good for practice and remix sketches, with some bleed; `balanced` (the default in this release) uses four fine-tuned Demucs models; `--tier quality` adds a RoFormer vocal model, about 3 dB cleaner vocals; see [measured quality](concepts/stems.md) |
 | Stems: piano, guitar, strings | Best-effort; each output carries a quality flag |
 | Pitch correction | Natural on clean monophonic vocals; `--tracker crepe` or `swiftf0` can help on breathy or noisy takes |
 | Hum-to-MIDI | Accurate on clean, separated notes; raise `--onset-sensitivity` for repeated notes |
