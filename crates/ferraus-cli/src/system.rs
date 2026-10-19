@@ -121,8 +121,10 @@ fn job_info(id: &str) -> Result<Value> {
     };
     let pid = meta["pid"].as_u64().unwrap_or(0) as u32;
     let mut result = read_result();
+    // check liveness once: a job that exits between two checks must not look failed
+    let alive = pid != 0 && pid_alive(pid);
     // a job that just exited may not have its result visible yet: look again briefly
-    if result.is_none() && !(pid != 0 && pid_alive(pid)) {
+    if result.is_none() && !alive {
         for _ in 0..10 {
             std::thread::sleep(std::time::Duration::from_millis(100));
             result = read_result();
@@ -140,7 +142,7 @@ fn job_info(id: &str) -> Result<Value> {
         }
     } else if cancelled {
         "cancelled"
-    } else if pid != 0 && pid_alive(pid) {
+    } else if alive {
         "running"
     } else {
         "failed"
