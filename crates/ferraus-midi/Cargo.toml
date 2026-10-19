@@ -10,3 +10,5 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
