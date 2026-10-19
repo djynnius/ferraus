@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-score"
+description = "Scores and sheet music for ferraus: MIDI/audio to notation, MusicXML/ABC/LilyPond/MEI/solfa writers, readers, performance, OMR bridges"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,12 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+midly = { version = "0.5", default-features = false, features = ["alloc", "std"] }
+roxmltree = "0.20"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+pdfium-render = { version = "0.9", optional = true, default-features = false, features = ["pdfium_latest", "thread_safe"] }
+
+[features]
+default = []
+# PDF rasterization for the builtin OMR engine (needs the pdfium shared library at run time)
+pdfium = ["dep:pdfium-render"]
