@@ -102,7 +102,7 @@ impl ParamKind {
             ParamKind::Ratio => units::parse_ratio(raw).map(|_| ()),
             ParamKind::Percent => units::parse_percent(raw).map(|_| ()),
             ParamKind::Grid => {
-                if raw == "auto" {
+                if raw == "auto" || raw == "off" {
                     Ok(())
                 } else {
                     Grid::parse(raw).map(|_| ())
@@ -276,6 +276,7 @@ impl Inputs {
     pub const ONE_AUDIO: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Audio };
     pub const MANY_AUDIO: Inputs = Inputs { min: 1, max: None, kind: InputKind::Audio };
     pub const ONE_MIDI: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Midi };
+    pub const MANY_MIDI: Inputs = Inputs { min: 1, max: None, kind: InputKind::Midi };
     pub const ONE_ANY: Inputs = Inputs { min: 1, max: Some(1), kind: InputKind::Any };
     pub const MANY_ANY: Inputs = Inputs { min: 1, max: None, kind: InputKind::Any };
     pub const OPTIONAL_ANY: Inputs = Inputs { min: 0, max: None, kind: InputKind::Any };
@@ -517,8 +518,10 @@ impl Args {
                 *entry = vec![v];
             }
         }
-        // presets: explicit flags override preset values
-        if let Some(pname) = explicit.get("preset").and_then(|v| v.first()).cloned() {
+        // presets: explicit flags override preset values. An op that declares its own
+        // `preset` parameter (e.g. a plugin preset name) handles it itself.
+        let own_preset = spec.params.iter().any(|p| p.name == "preset");
+        if let Some(pname) = explicit.get("preset").and_then(|v| v.first()).cloned().filter(|_| !own_preset) {
             let values: Vec<(String, String)> = if let Some(p) = spec.presets.iter().find(|p| p.name == pname) {
                 p.values.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
             } else if let Some(u) = user_presets(spec.name, &pname) {
