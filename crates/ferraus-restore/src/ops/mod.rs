@@ -1,6 +1,7 @@
 //! Op definitions, grouped by family.
 
 pub mod automation;
+pub mod chains;
 pub mod clicks;
 pub mod filters;
 pub mod generate;

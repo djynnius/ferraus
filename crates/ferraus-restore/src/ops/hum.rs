@@ -214,6 +214,45 @@ impl NotchBank {
     }
 }
 
+/// Mains hum fundamental if a clear 50/60 Hz hum is present (used by `enhance`).
+pub(crate) fn detect_hum(buf: &AudioBuffer) -> Option<f64> {
+    let sr = buf.sample_rate as f64;
+    let mono: Vec<f64> = buf.mono_mix().iter().map(|v| *v as f64).collect();
+    if mono.len() < (sr * 0.25) as usize {
+        return None;
+    }
+    let (dec, dsr) = decimate(&mono, sr, 61.0 * 6.5);
+    let head = &dec[..dec.len().min((dsr * 30.0) as usize)];
+    let (f, s, strength) = mains_candidate(head, dsr, 6);
+    // a clear line: 15 dB above the spectrum just beside it, and above about -70 dBFS
+    if strength > 30.0 && s > 1e-7 {
+        Some(f.round())
+    } else {
+        None
+    }
+}
+
+/// The better of the 50 and 60 Hz families: (frequency, summed harmonic power, line
+/// strength = power of the first three harmonics over the spectrum just beside them).
+fn mains_candidate(x: &[f64], sr: f64, nh: usize) -> (f64, f64, f64) {
+    let (f50, s50) = refine(x, sr, 50.0, 0.6, nh);
+    let (f60, s60) = refine(x, sr, 60.0, 0.6, nh);
+    let (f, s) = if s50 > s60 { (f50, s50) } else { (f60, s60) };
+    // beside the line: three Hann bins away, but never beyond a quarter of the spacing
+    let delta = (3.0 * sr / x.len().max(1) as f64).max(2.0).min(f / 4.0);
+    let mut line = 0.0;
+    let mut floor = 0.0;
+    for k in 1..=3 {
+        let fk = f * k as f64;
+        if fk + delta >= sr * 0.45 {
+            break;
+        }
+        line += goertzel_amp(x, sr, fk).powi(2);
+        floor += 0.5 * (goertzel_amp(x, sr, fk - delta).powi(2) + goertzel_amp(x, sr, fk + delta).powi(2));
+    }
+    (f, s, line / floor.max(1e-30))
+}
+
 fn parse_hz(s: &str) -> Result<f64> {
     units::parse_freq(s).map_err(|e| Error::usage(format!("--freq: {}", e.message)))
 }
@@ -236,11 +275,8 @@ fn dehum(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer>
     let freq_arg = a.str_or("freq", "auto");
     let nominal = if freq_arg == "auto" {
         let head = &dec[..dec.len().min((dsr * 30.0) as usize)];
-        let (f50, s50) = refine(head, dsr, 50.0, 0.6, est_h);
-        let (f60, s60) = refine(head, dsr, 60.0, 0.6, est_h);
-        let off = hum_score(head, dsr, 55.0, est_h).max(hum_score(head, dsr, 43.0, est_h));
-        let (f, s) = if s50 > s60 { (f50, s50) } else { (f60, s60) };
-        if s < off * 4.0 || s < 1e-14 {
+        let (f, s, strength) = mains_candidate(head, dsr, est_h);
+        if strength < 10.0 || s < 1e-14 {
             ctx.warn(
                 "hum_not_detected",
                 "no clear 50/60 Hz hum found; assuming 60 Hz (pass --freq to choose)",

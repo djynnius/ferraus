@@ -4,6 +4,7 @@
 pub mod biquad;
 pub mod design;
 pub mod fft;
+pub mod loudness;
 pub mod lpc;
 pub mod pitch;
 pub mod util;
