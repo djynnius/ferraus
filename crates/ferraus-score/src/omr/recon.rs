@@ -108,6 +108,9 @@ pub struct Ev {
     pub x: f64,
     pub rest: bool,
     pub pitches: Vec<Pitch>,
+    /// Per pitch: its alteration comes from the key signature (respelled when the score's
+    /// key is decided), not from an accidental in the measure.
+    pub from_key: Vec<bool>,
     pub duration: u32,
     pub dots: u8,
     pub note_type: String,
@@ -596,9 +599,13 @@ pub fn classify_accidental(m: &Mask, sp: f64) -> Option<(Acc, f32)> {
 }
 
 /// The staff position an accidental glyph sits on (the bowl of a flat).
-fn acc_position(st: &StaffLines, b: &BBox, acc: Acc) -> i32 {
+fn acc_position(st: &StaffLines, g: &Component, acc: Acc) -> i32 {
+    let b = g.bbox;
     match acc {
-        Acc::Flat => st.position(b.y1 as f64 - 0.5 * st.sp),
+        // the bowl of a flat is centred on its note, about 0.7 sp above the glyph's bottom
+        // (SMuFL fonts put the flat's bottom at -0.7 sp); staff removal can eat the top
+        // of the bowl, so measure from the bottom
+        Acc::Flat => st.position(b.y1 as f64 - 0.7 * st.sp),
         _ => st.position(b.cy()),
     }
 }
@@ -649,7 +656,7 @@ fn step_of(clef: &Clef, pos: i32) -> (char, i8) {
     (STEPS[d.rem_euclid(7) as usize], d.div_euclid(7) as i8)
 }
 
-fn key_alter_for(fifths: i8, step: char) -> i8 {
+pub fn key_alter_for(fifths: i8, step: char) -> i8 {
     if fifths > 0 && SHARP_ORDER[..fifths as usize].contains(&step) {
         1
     } else if fifths < 0 && FLAT_ORDER[..(-fifths) as usize].contains(&step) {
@@ -679,6 +686,26 @@ fn dotted(base: u32, dots: u8) -> u32 {
     }
 }
 
+/// Ink density of the rows in the fraction `a..b` of the height.
+fn row_density(m: &Mask, a: f64, b: f64) -> f64 {
+    let y0 = (a * m.h as f64).floor() as usize;
+    let y1 = ((b * m.h as f64).ceil() as usize).min(m.h).max(y0 + 1);
+    let n: usize = (y0..y1).map(|y| (0..m.w).filter(|&x| m.get(x, y)).count()).sum();
+    n as f64 / ((y1 - y0) * m.w).max(1) as f64
+}
+
+/// A mask as text (for `FERRAUS_OMR_TRACE`).
+fn ascii(m: &Mask) -> String {
+    let mut s = String::new();
+    for y in 0..m.h {
+        for x in 0..m.w {
+            s.push(if m.get(x, y) { '#' } else { '.' });
+        }
+        s.push('\n');
+    }
+    s
+}
+
 /// Time signature digit from its glyph.
 pub fn classify_digit(m: &Mask) -> Option<u32> {
     let hs = holes(m);
@@ -705,16 +732,23 @@ pub fn classify_digit(m: &Mask) -> Option<u32> {
             }
         }
         _ => {
-            let bottom = band_runs(m, 0.85, 1.0);
+            let bottom = band_runs(m, 0.88, 1.0);
             let bottom_w: f64 = bottom.iter().map(|(a, b)| b - a).sum();
-            let top = band_runs(m, 0.0, 0.15);
-            let top_w: f64 = top.iter().map(|(a, b)| b - a).sum();
-            if bottom_w > 0.7 {
+            let bottom_c = bottom.iter().map(|(a, b)| (a + b) / 2.0).sum::<f64>() / bottom.len().max(1) as f64;
+            // an open 4: a full-width crossbar low down, standing on a stem right of centre
+            let crossbar = (0..m.h)
+                .filter(|&y| (0.5..0.88).contains(&(y as f64 / m.h as f64)))
+                .any(|y| (0..m.w).filter(|&x| m.get(x, y)).count() as f64 >= 0.9 * m.w as f64);
+            if crossbar && bottom_w < 0.6 && bottom_c > 0.5 {
+                Some(4)
+            } else if (0..m.h)
+                .filter(|&y| (0.65..0.95).contains(&(y as f64 / m.h as f64)))
+                .any(|y| (0..m.w).filter(|&x| m.get(x, y)).count() as f64 >= 0.88 * m.w as f64)
+            {
+                // the flat foot of a 2
                 Some(2)
-            } else if top_w > 0.7 && bottom_w < 0.4 {
-                Some(7)
-            } else if top_w > 0.7 {
-                Some(5)
+            } else if row_density(m, 0.0, 0.12) >= 0.75 {
+                Some(if bottom_w < 0.45 { 7 } else { 5 })
             } else {
                 Some(3)
             }
@@ -903,6 +937,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         !heads.iter().any(|h| h.bbox.overlaps(&b) && h.bbox.grow(1, 1).overlaps(&b))
             && !bars.iter().any(|bar| (b.cx() - bar.x).abs() < 0.4 * sp && b.h() as f64 > 3.0 * sp)
     });
+    merge_split_flats(&mut glyphs, sp);
     let mut used = vec![false; glyphs.len()];
 
     // dots
@@ -925,7 +960,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
                 continue;
             }
             let Some((acc, _)) = classify_accidental(&g.local_mask(), sp) else { continue };
-            if acc_position(st, &gb, acc) != heads[hi].pos {
+            if acc_position(st, g, acc) != heads[hi].pos {
                 continue;
             }
             best = Some((gi, acc));
@@ -947,6 +982,10 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             continue;
         }
         if (g.bbox.h() as f64) < 0.15 * sp {
+            continue;
+        }
+        // measure numbers and text above or below the staff
+        if (g.bbox.y1 as f64) < st.top() - 0.2 * sp || (g.bbox.y0 as f64) > st.bottom() + 0.2 * sp {
             continue;
         }
         // merge glyphs that overlap horizontally (clef pieces, stacked digits)
@@ -992,6 +1031,14 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
     let mut flats = 0i8;
     while hi < header.len() {
         let (b, idx) = &header[hi];
+        if idx.iter().all(|&i| (glyphs[i].bbox.h() as f64) < 0.8 * sp) {
+            // the dots of an F clef, specks
+            for &i in idx {
+                used[i] = true;
+            }
+            hi += 1;
+            continue;
+        }
         if idx.len() != 1 {
             break;
         }
@@ -1002,8 +1049,12 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             hi += 1;
             continue;
         }
-        let Some((acc, _)) = classify_accidental(&g.local_mask(), sp) else { break };
-        let (step, _) = step_of(&clef, acc_position(st, b, acc));
+        let class = classify_accidental(&g.local_mask(), sp);
+        if trace() {
+            eprintln!("  key glyph {:?} -> {:?}\n{}", b, class, ascii(&g.local_mask()));
+        }
+        let Some((acc, _)) = class else { break };
+        let (step, _) = step_of(&clef, acc_position(st, g, acc));
         let ok = match acc {
             Acc::Sharp if flats == 0 && sharps < 7 => SHARP_ORDER[sharps as usize] == step,
             Acc::Flat if sharps == 0 && flats < 7 => FLAT_ORDER[flats as usize] == step,
@@ -1073,7 +1124,11 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
         if used[gi] || g.bbox.x0 < header_end {
             continue;
         }
-        if let Some(r) = classify_rest(st, g, c.symbols) {
+        let r = classify_rest(st, g, c.symbols);
+        if trace() && r.is_some() {
+            eprintln!("  rest {:?} -> {:?}\n{}", g.bbox, r.as_ref().map(|r| r.kind), ascii(&g.local_mask()));
+        }
+        if let Some(r) = r {
             used[gi] = true;
             debug.boxes.push((g.bbox, [0, 200, 0]));
             rests.push(r);
@@ -1172,6 +1227,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             x,
             rest: false,
             pitches: Vec::new(),
+            from_key: Vec::new(),
             duration: dotted(base, dots),
             dots,
             note_type: type_name(base).into(),
@@ -1186,6 +1242,7 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             x: r.bbox.cx(),
             rest: true,
             pitches: Vec::new(),
+            from_key: Vec::new(),
             duration: dotted(r.base, r.dots),
             dots: r.dots,
             note_type: r.kind.into(),
@@ -1221,19 +1278,19 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
             if let Some(ps) = &pos_of[i] {
                 for &(pos, acc) in ps {
                     let (step, oct) = step_of(&clef, pos);
-                    let alter = match acc {
+                    let (alter, from_key) = match acc {
                         Some(a) => {
                             local.retain(|(k, _)| *k != (step, oct));
                             local.push(((step, oct), a.alter()));
-                            a.alter()
+                            (a.alter(), false)
                         }
-                        None => local
-                            .iter()
-                            .find(|(k, _)| *k == (step, oct))
-                            .map(|(_, a)| *a)
-                            .unwrap_or_else(|| key_alter_for(key, step)),
+                        None => match local.iter().find(|(k, _)| *k == (step, oct)) {
+                            Some((_, a)) => (*a, false),
+                            None => (key_alter_for(key, step), true),
+                        },
                     };
                     e.pitches.push(Pitch { step, alter, octave: oct });
+                    e.from_key.push(from_key);
                 }
             }
             m.events.push(e);
@@ -1268,30 +1325,44 @@ fn read_time(c: &StaffCtx, b: &BBox, idx: &[usize], glyphs: &[Component]) -> Opt
     let st = c.st;
     let sp = st.sp;
     let mid = st.ys[2];
-    if idx.len() >= 2 && (b.h() as f64) > 3.0 * sp {
-        let mut top: Vec<&Component> = Vec::new();
-        let mut bot: Vec<&Component> = Vec::new();
+    if (b.h() as f64) > 3.0 * sp && (b.h() as f64) < 4.8 * sp && (b.cy() - mid).abs() < 0.7 * sp {
+        // stacked digits; they may touch across the middle line, so split the ink there
+        let mut halves = [Mask::new(b.w() as usize, b.h() as usize), Mask::new(b.w() as usize, b.h() as usize)];
         for &i in idx {
-            let g = &glyphs[i];
-            if (g.bbox.h() as f64) < 0.8 * sp {
-                continue;
-            }
-            if g.bbox.cy() < mid {
-                top.push(g);
-            } else {
-                bot.push(g);
+            for &(x, y) in &glyphs[i].pixels {
+                let half = (y as f64 >= mid) as usize;
+                halves[half].set((x as i64 - b.x0) as usize, (y as i64 - b.y0) as usize, true);
             }
         }
-        let num = |v: &mut Vec<&Component>| -> Option<u32> {
-            v.sort_by_key(|g| g.bbox.x0);
-            let mut n = 0u32;
-            for g in v.iter() {
-                n = n * 10 + classify_digit(&g.local_mask())?;
+        let num = |m: &Mask| -> Option<u32> {
+            // pieces of one digit (cut by the staff lines) overlap horizontally: merge them
+            let mut comps: Vec<Component> = Vec::new();
+            let mut parts = m.components();
+            parts.sort_by_key(|g| std::cmp::Reverse(g.area));
+            for g in parts {
+                match comps.iter_mut().find(|c| 2 * c.bbox.x_overlap(&g.bbox) > c.bbox.w().min(g.bbox.w())) {
+                    Some(c) => {
+                        c.bbox = c.bbox.union(&g.bbox);
+                        c.area += g.area;
+                        c.pixels.extend(g.pixels);
+                    }
+                    None => comps.push(g),
+                }
             }
-            (!v.is_empty()).then_some(n)
+            comps.retain(|g| (g.bbox.h() as f64) >= 0.8 * sp);
+            comps.sort_by_key(|g| g.bbox.x0);
+            let mut n = 0u32;
+            for g in &comps {
+                let d = classify_digit(&g.local_mask())?;
+                if trace() {
+                    eprintln!("  time digit {:?} -> {d} (holes {:?})\n{}", g.bbox, holes(&g.local_mask()), ascii(&g.local_mask()));
+                }
+                n = n * 10 + d;
+            }
+            (!comps.is_empty()).then_some(n)
         };
-        let beats = num(&mut top)?;
-        let beat_type = num(&mut bot)?;
+        let beats = num(&halves[0])?;
+        let beat_type = num(&halves[1])?;
         let beat_type = match beat_type {
             2 | 4 | 8 | 16 => beat_type,
             0 | 9 | 6 => 8,
@@ -1344,10 +1415,11 @@ fn classify_rest(st: &StaffLines, g: &Component, symbols: &ClassMap) -> Option<R
         return None;
     }
     if (2.3..=3.5).contains(&h) && (0.6..=1.6).contains(&w) {
-        // quarter rest (a zigzag) vs sixteenth rest (two flags on the left of a slanted stem)
+        // quarter rest (a zigzag ending in a wide hook) vs sixteenth rest (two flags on the
+        // left of a slanted stem that ends narrow at the bottom left)
         let m = g.local_mask();
-        let left_blobs = left_flag_count(&m);
-        return Some(if left_blobs >= 2 {
+        let bottom: f64 = band_runs(&m, 0.72, 0.9).iter().map(|(a, b)| b - a).sum();
+        return Some(if bottom < 0.5 {
             Rest { bbox: b, base: DIV / 4, kind: "16th", dots: 0, whole_like: false, conf }
         } else {
             Rest { bbox: b, base: DIV, kind: "quarter", dots: 0, whole_like: false, conf }
@@ -1360,6 +1432,39 @@ fn classify_rest(st: &StaffLines, g: &Component, symbols: &ClassMap) -> Option<R
         return Some(Rest { bbox: b, base: DIV / 8, kind: "32nd", dots: 0, whole_like: false, conf: conf * 0.8 });
     }
     None
+}
+
+/// Rejoin flats whose thin stem was cut from the bowl where the bowl meets a staff line.
+fn merge_split_flats(glyphs: &mut Vec<Component>, sp: f64) {
+    loop {
+        let mut pair = None;
+        'outer: for (i, a) in glyphs.iter().enumerate() {
+            let ab = a.bbox;
+            if (ab.w() as f64) > 0.3 * sp || !(1.5..=3.2).contains(&(ab.h() as f64 / sp)) {
+                continue;
+            }
+            for (j, b) in glyphs.iter().enumerate() {
+                let bb = b.bbox;
+                let gap = bb.x0 - ab.x1;
+                if i != j
+                    && gap >= -1
+                    && gap as f64 <= 0.3 * sp
+                    && (0.6..=1.4).contains(&(bb.h() as f64 / sp))
+                    && (0.3..=1.0).contains(&(bb.w() as f64 / sp))
+                    && ((bb.y1 - ab.y1).abs() as f64) <= 0.4 * sp
+                {
+                    pair = Some((i, j));
+                    break 'outer;
+                }
+            }
+        }
+        let Some((i, j)) = pair else { break };
+        let b = glyphs.remove(i.max(j));
+        let a = &mut glyphs[i.min(j)];
+        a.bbox = a.bbox.union(&b.bbox);
+        a.area += b.area;
+        a.pixels.extend(b.pixels);
+    }
 }
 
 /// Number of separate blobs touching the left third of a glyph (flags of 8th/16th rests).

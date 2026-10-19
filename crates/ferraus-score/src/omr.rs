@@ -301,10 +301,18 @@ pub fn assemble(pages: &[PageResult]) -> (Score, Vec<String>) {
     let time = match printed_time {
         Some(t) => {
             // a misread digit: trust the measures when they clearly disagree
-            let inferred = infer_time(&lengths);
+            // a misread top digit: keep the (more reliable) bottom digit and take the number
+            // of beats from how full the measures are
             let agree = lengths.iter().filter(|&&l| l == t.measure_divisions(DIV)).count();
-            match inferred {
-                Some(i) if agree * 3 < lengths.len() && i.measure_divisions(DIV) != t.measure_divisions(DIV) => {
+            let typical = majority(lengths.iter().copied().filter(|&l| l > 0));
+            match typical {
+                Some(len) if agree * 3 < lengths.len() && len != t.measure_divisions(DIV) => {
+                    let unit = 4 * DIV / t.beat_type.max(1);
+                    let i = if len % unit == 0 {
+                        TimeSig::new(len / unit, t.beat_type)
+                    } else {
+                        infer_time(&lengths).unwrap_or(t)
+                    };
                     issues.push(format!(
                         "the time signature read as {}/{} does not match the measures; {}/{} used",
                         t.beats, t.beat_type, i.beats, i.beat_type
@@ -344,6 +352,7 @@ pub fn assemble(pages: &[PageResult]) -> (Score, Vec<String>) {
     let grand = n == 2 && clefs[0].sign == "G" && clefs[1].sign == "F";
     let to_staff = |k: usize, number: u32| -> Staff {
         let ms = &staff_measures[k];
+        let staff_key = if grand { key } else { keys[k] };
         let mut out = Vec::new();
         for (i, m) in ms.iter().enumerate() {
             let num = if pickup { i as u32 } else { i as u32 + 1 };
@@ -358,8 +367,13 @@ pub fn assemble(pages: &[PageResult]) -> (Score, Vec<String>) {
                             e.duration,
                             e.pitches
                                 .iter()
-                                .map(|p| {
-                                    let mut n = Note::new(*p);
+                                .enumerate()
+                                .map(|(pi, p)| {
+                                    let mut p = *p;
+                                    if e.from_key.get(pi).copied().unwrap_or(false) {
+                                        p.alter = recon::key_alter_for(staff_key, p.step);
+                                    }
+                                    let mut n = Note::new(p);
                                     n.confidence = Some(e.confidence);
                                     n
                                 })
@@ -519,6 +533,7 @@ mod tests {
             x: 0.0,
             rest: false,
             pitches: vec![crate::model::Pitch { step: 'C', alter: 0, octave: 4 }],
+            from_key: vec![true],
             duration: d,
             dots,
             note_type: type_from(d).into(),
