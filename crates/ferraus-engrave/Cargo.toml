@@ -1,0 +1,23 @@
+[package]
+name = "ferraus-engrave"
+description = "Engraving helper for ferraus: MusicXML/MEI in, SVG/PDF/PNG out, via Verovio (LGPL-3.0, isolated in this executable)"
+version.workspace = true
+edition.workspace = true
+license = "LGPL-3.0-or-later"
+repository.workspace = true
+authors.workspace = true
+
+[package.metadata.dist]
+# Shipped inside the ferraus archive beside the main binary, not as a separate app.
+dist = false
+
+[[bin]]
+name = "ferraus-engrave"
+path = "src/main.rs"
+
+[features]
+default = ["verovio"]
+verovio = ["dep:verovio", "verovio/png", "verovio/pdf"]
+
+[dependencies]
+verovio = { version = "0.3.6", optional = true }
