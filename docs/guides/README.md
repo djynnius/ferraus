@@ -17,6 +17,9 @@ correction, MIDI, notation in both directions, CLAP/VST3 instrument hosting, and
   [stems for a remix](cookbook/stems-for-remix.md), [hum to an instrument](cookbook/hum-to-instrument.md),
   [sheet music to a performance](cookbook/sheet-music-to-performance.md),
   [batch podcast cleanup](cookbook/batch-podcast-cleanup.md), [pipeline files](cookbook/pipeline-files.md).
+  Runnable versions of these recipes (shell scripts, pipeline files, an MCP client, and a
+  Claude agent loop) are in the repository's
+  [examples folder](https://github.com/djynnius/ferraus/tree/main/examples).
 * **Coming from FFmpeg?** The [FFmpeg equivalents](cookbook/ffmpeg-equivalents.md) table
   translates common commands.
 * **Looking up a command?** Every command has a reference page under *Command reference*, and

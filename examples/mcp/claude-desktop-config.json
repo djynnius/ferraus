@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ferraus": {
+      "command": "ferraus",
+      "args": ["mcp", "serve", "--allow", "/Users/me/music"]
+    }
+  }
+}

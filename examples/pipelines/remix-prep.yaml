@@ -1,0 +1,73 @@
+# Remix prep: measure tempo and key, split the song into stems with the fast separation tier,
+# and prepare each stem for a remix at a new tempo.
+#
+#   examples/make-samples.sh examples/pipelines/samples      # once
+#   ferraus pipeline run examples/pipelines/remix-prep.yaml --dry-run --json  # the plan; computes nothing
+#   ferraus pipeline run examples/pipelines/remix-prep.yaml -y --json         # downloads the model once
+#
+# The separation stage needs a model (htdemucs, 166 MB, MIT license, verified by SHA-256 and
+# kept in the ferraus model cache; `ferraus separate samples/song.wav --tier fast --dry-run
+# --json` names it). Without -y (or models.auto_download = true) the run stops with exit code
+# 5 and an error.hint naming the `ferraus models pull ...` command; nothing is downloaded
+# silently. Once separated, the stems are cached like any other stage, so changing a stem's
+# effects never separates the song again.
+#
+# Paths are relative to this file.
+version: 1
+inputs:
+  song: samples/song.wav # 100 BPM, G major
+stages:
+  # Analysis stages write no audio; their result (bpm, key, confidence) is in the run's JSON
+  # under plan[].result, and they are cached too.
+  - id: tempo
+    op: analyze tempo
+    in: song
+  - id: key
+    op: analyze key
+    in: song
+  - id: stems
+    op: separate
+    in: song
+    args: { stems: 4, tier: fast }
+  # A stage with several outputs is addressed as id.role. The new tempo is 110 BPM: stretch
+  # keeps pitch, and the bass also goes up 2 semitones (G to A major). Drums keep their pitch.
+  - id: drums110
+    op: stretch
+    in: stems.drums
+    args: { bpm: 100, to_bpm: 110 }
+  - id: drums_fx
+    op: fx
+    in: drums110
+    args:
+      chain:
+        - { op: compress, preset: drums }
+        - { op: saturate, type: tape, drive: 4dB }
+  - id: bass110
+    op: stretch
+    in: stems.bass
+    args: { bpm: 100, to_bpm: 110 }
+  - id: bass_up2
+    op: pitch
+    in: bass110
+    args: { semitones: 2 }
+  - id: vocals110
+    op: stretch
+    in: stems.vocals
+    args: { bpm: 100, to_bpm: 110 }
+  - id: vocals_up2
+    op: pitch
+    in: vocals110
+    args: { semitones: 2, formant: preserve }
+  - id: sketch
+    op: mix
+    in: [drums_fx, bass_up2, vocals_up2]
+    args: { gains: [0dB, -2dB, 0dB] }
+outputs:
+  - { from: stems.vocals, path: out/remix/stems/vocals.wav }
+  - { from: stems.drums, path: out/remix/stems/drums.wav }
+  - { from: stems.bass, path: out/remix/stems/bass.wav }
+  - { from: stems.other, path: out/remix/stems/other.wav }
+  - { from: drums_fx, path: out/remix/drums-110.wav }
+  - { from: bass_up2, path: out/remix/bass-110-A.wav }
+  - { from: vocals_up2, path: out/remix/vocals-110-A.wav }
+  - { from: sketch, path: out/remix/sketch-110.wav }

@@ -41,6 +41,11 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 `ferraus describe --agent` prints the whole command surface in under 4,000 tokens. See
 [AGENTS.md](AGENTS.md).
 
+## Examples
+
+[examples/](examples/) has runnable shell scripts, pipeline files, an MCP client, and a Claude
+agent loop. They work on test audio that ferraus generates, and CI runs all of them.
+
 ## Install
 
 | Platform | Command |

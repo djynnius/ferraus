@@ -196,6 +196,13 @@ fn pipeline_runs_and_caches() {
         "version: 1\ninputs:\n  src: tone.wav\nstages:\n  - id: quiet\n    op: gain\n    in: src\n    args: { by: -6dB }\n  - id: faded\n    op: fade\n    in: quiet\n    args: { in: 0.5s }\n  - id: chain\n    op: fx\n    in: faded\n    args:\n      chain:\n        - { op: reverse }\n        - { op: gain, by: -1dB }\noutputs:\n  - { from: chain, path: out/final.wav, bit_depth: 24 }\n  - { from: quiet, path: out/quiet.wav }\n",
     )
     .unwrap();
+    // a dry run plans without computing or caching anything
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml", "--dry-run"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["dry_run"], true);
+    assert_eq!(v["result"]["order"], serde_json::json!(["quiet", "faded", "chain"]));
+    assert!(v["result"]["outputs"][0]["path"].as_str().unwrap().ends_with("final.wav"), "{v}");
+    assert!(!d.path("out/final.wav").exists());
     let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml"]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["result"]["computed"], 3);

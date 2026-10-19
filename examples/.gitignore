@@ -1,0 +1,6 @@
+# made by make-samples.sh and the examples
+samples/
+out/
+pipelines/samples/
+pipelines/out/
+__pycache__/
