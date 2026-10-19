@@ -310,6 +310,15 @@ fn dry_run_plans_without_writing() {
     assert_eq!(c[2]["outputs"].as_array().unwrap().len(), 2);
     assert_eq!(c[2]["unavailable"], json!(["strings"]));
     assert!(!r.dir.path("song.kick.wav").exists());
+    // auto resolves to the best verified tier and records it
+    let (v, ctx) = run(&r, &[], |c| c.globals.dry_run = true).unwrap();
+    assert_eq!(ctx.notes.get("tier").and_then(|t| t.as_str()), Some("quality (auto)"));
+    assert_eq!(v["plan"][0]["model"], "separate/mel-roformer-kj@2024.08");
+    assert!(ctx.warnings.iter().all(|w| w.code != "tier_fallback"));
+    // --stems 2 keeps only the members that produce vocals
+    let (v, _) = run(&r, &[("tier", "max"), ("stems", "2")], |c| c.globals.dry_run = true).unwrap();
+    let models: Vec<&str> = v["plan"].as_array().unwrap().iter().map(|m| m["model"].as_str().unwrap()).collect();
+    assert_eq!(models, vec!["separate/mel-roformer-kj@2024.08", "separate/htdemucs-ft-vocals@v4-onnx.2026-05-21"]);
     // --only narrows the planned outputs
     let (v, _) = run(&r, &[("tier", "fast"), ("only", "vocals")], |c| c.globals.dry_run = true).unwrap();
     assert_eq!(v["outputs"].as_array().unwrap().len(), 1);

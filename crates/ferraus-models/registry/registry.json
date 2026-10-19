@@ -497,12 +497,12 @@
         ],
         "members_6": [{"model": "separate/htdemucs-6s@v4-onnx.2026-05-21"}],
         "shifts": 1,
-        "note": "License audit 2026-10: no BS-RoFormer/SCNet checkpoint has a clear commercial license; the Mel-Band RoFormer by Kimberley Jensen (MIT per its card) provides vocals, htdemucs_ft the rest. Needs the ferraus-hosted ONNX export of mel-roformer-kj."
+        "note": "License audit 2026-10: no BS-RoFormer/SCNet checkpoint has a clear commercial license; the Mel-Band RoFormer by Kimberley Jensen (MIT on its weights repo; audiojs ONNX export) provides vocals, htdemucs_ft the rest. Median SI-SDR on 12 MUSDB18 7-s test excerpts: vocals 11.9 dB (balanced 9.0)."
       },
       "max": {
         "members": [
-          {"model": "separate/mel-roformer-kj@2024.08", "weight": 0.6, "stems": ["vocals"]},
-          {"model": "separate/htdemucs-ft-vocals@v4-onnx.2026-05-21", "weight": 0.4, "stems": ["vocals"]},
+          {"model": "separate/mel-roformer-kj@2024.08", "weight": 0.8, "stems": ["vocals"]},
+          {"model": "separate/htdemucs-ft-vocals@v4-onnx.2026-05-21", "weight": 0.2, "stems": ["vocals"]},
           {"model": "separate/htdemucs-ft-drums@v4-onnx.2026-05-21", "weight": 0.6, "stems": ["drums"]},
           {"model": "separate/htdemucs-ft-bass@v4-onnx.2026-05-21", "weight": 0.6, "stems": ["bass"]},
           {"model": "separate/htdemucs-ft-other@v4-onnx.2026-05-21", "weight": 0.6, "stems": ["other"]},
@@ -512,7 +512,7 @@
         "shifts": 2,
         "channel_swap": true,
         "ensemble_mode": "avg",
-        "note": "The PRD recipe (BS-RoFormer + Mel-Band RoFormer + SCNet XL, RoFormer SW) needs checkpoints whose licenses are unclear; this is the license-clean subset."
+        "note": "The PRD recipe (BS-RoFormer + Mel-Band RoFormer + SCNet XL, RoFormer SW) needs checkpoints whose licenses are unclear; this is the license-clean subset. Vocal weights 0.8/0.2: on 12 MUSDB18 7-s excerpts 0.6/0.4 scored below the RoFormer alone (11.73 vs 11.88 dB SI-SDR), 0.8/0.2 with 2 shifts above it (12.07)."
       }
     },
     "separate.drum-split": {

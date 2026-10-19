@@ -511,9 +511,13 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     ctx.note("shifts", shifts);
     ctx.note("ensemble_mode", &mode);
-    let tier_label = tier_spec.as_ref().map(|_| a.choice("tier"));
-    if let Some(t) = tier_label.as_deref().filter(|t| *t != "auto") {
-        ctx.note("tier", t);
+    // the tier that ran (auto resolved: plan_members noted "<tier> (auto)")
+    let tier_label = tier_spec.as_ref().map(|_| match ctx.notes.get("tier").and_then(|v| v.as_str()) {
+        Some(t) if t.ends_with(" (auto)") => t.trim_end_matches(" (auto)").to_string(),
+        _ => a.choice("tier"),
+    });
+    if tier_spec.is_some() && a.choice("tier") != "auto" {
+        ctx.note("tier", a.choice("tier"));
     }
     let ext = ctx.globals.format.clone().unwrap_or_else(|| "wav".into());
     let overrides: BTreeMap<String, String> = a
