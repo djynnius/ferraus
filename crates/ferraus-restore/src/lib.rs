@@ -16,5 +16,6 @@ pub fn ops() -> Vec<OpSpec> {
     v.extend(ops::hum::ops());
     v.extend(ops::spectral::ops());
     v.extend(ops::stereo::ops());
+    v.extend(ops::level::ops());
     v
 }
