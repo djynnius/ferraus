@@ -1,7 +1,7 @@
 //! Model-based denoising: RNNoise (pure-Rust `nnnoiseless`, weights embedded) and the
 //! model slots for DeepFilterNet 3, music-aware denoise, and de-reverb checkpoints.
 
-use ferraus_core::{AudioBuffer, Error, ErrorKind, Result};
+use ferraus_core::{AudioBuffer, Error, ErrorKind, OpCtx, Result};
 use serde_json::{json, Value};
 
 /// A registry slot for a denoise-family model. The models crate can list these to know
@@ -36,7 +36,7 @@ pub fn model_slots() -> Vec<ModelSlot> {
             purpose: "DeepFilterNet 3 speech enhancement at 48 kHz",
             domain: "speech",
             license: "MIT OR Apache-2.0",
-            runnable: false,
+            runnable: cfg!(feature = "dfn3"),
         },
         ModelSlot {
             pattern: "denoise/music-*",
@@ -91,8 +91,25 @@ pub fn unavailable_slot(prefix: &str, default_name: &str, what: &str) -> Error {
     }
 }
 
-/// DeepFilterNet 3. The official runtime is not compiled into this build (see the crate
-/// docs), so this is always an explicit error.
+/// Run DeepFilterNet 3 (`denoise/dfn3`, through the model cache and its download policy)
+/// on every channel.
+#[cfg(feature = "dfn3")]
+pub fn dfn3(buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
+    let model = crate::dfn3::Dfn3::load(ctx)?;
+    let c: &OpCtx = ctx;
+    model.enhance(buf, &mut |f| {
+        c.set_progress(f);
+        c.check_cancel()
+    })
+}
+
+/// DeepFilterNet 3 in a build without the `dfn3` feature: always an explicit error.
+#[cfg(not(feature = "dfn3"))]
+pub fn dfn3(_buf: &AudioBuffer, _ctx: &mut OpCtx) -> Result<AudioBuffer> {
+    Err(dfn3_unavailable())
+}
+
+/// The error for `--model dfn3` in a build without the `dfn3` feature.
 pub fn dfn3_unavailable() -> Error {
     match find_cached("denoise/dfn3") {
         None => not_cached("denoise/dfn3", "--model dfn3 (DeepFilterNet 3)"),

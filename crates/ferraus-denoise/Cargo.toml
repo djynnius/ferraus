@@ -8,9 +8,11 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
-default = ["rnnoise"]
+default = ["rnnoise", "dfn3"]
 # RNNoise through the pure-Rust `nnnoiseless` port (BSD-3-Clause, weights embedded).
 rnnoise = ["dep:nnnoiseless"]
+# DeepFilterNet 3 through ONNX Runtime (`ferraus-ml`); weights from the model cache.
+dfn3 = ["dep:ferraus-ml", "dep:ferraus-models"]
 
 [dependencies]
 ferraus-core.workspace = true
@@ -18,3 +20,8 @@ serde.workspace = true
 serde_json.workspace = true
 realfft.workspace = true
 nnnoiseless = { version = "0.5.2", default-features = false, optional = true }
+ferraus-ml = { workspace = true, optional = true }
+ferraus-models = { workspace = true, optional = true }
+
+[dev-dependencies]
+ferraus-models.workspace = true

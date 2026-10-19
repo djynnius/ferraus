@@ -291,6 +291,7 @@
       "source": {"paper": "https://arxiv.org/abs/2305.08227", "weights": "https://github.com/Rikorose/DeepFilterNet/tree/main/models"},
       "status": "verified",
       "arch": "dfn3",
+      "provider_hints": ["cuda", "directml", "cpu"],
       "io": {"params": {"fft_size": 960, "hop_size": 480, "nb_erb": 32, "nb_df": 96, "df_order": 5, "graphs": ["enc.onnx", "erb_dec.onnx", "df_dec.onnx"]}},
       "notes": "Archive with three ONNX graphs (tmp/export/{enc,erb_dec,df_dec}.onnx) and config.ini; STFT/ERB features and deep filtering run outside the graphs. Downloaded and hashed by the project. The URL tracks the main branch; the hash pins the content. ferraus-denoise may instead use the feature-gated deep_filter crate with embedded weights."
     },
@@ -318,6 +319,7 @@
       "source": {"paper": "https://arxiv.org/abs/1802.06182", "weights": "https://github.com/yqzhishen/onnxcrepe/releases/tag/v1.1.0"},
       "status": "unverified",
       "arch": "crepe",
+      "provider_hints": ["cuda", "directml", "cpu"],
       "io": {"inputs": [{"name": "frames", "shape": [-1, 1024]}], "outputs": [{"name": "probabilities", "shape": [-1, 360]}], "chunk_samples": 1024},
       "notes": "Frames of 1024 samples at 16 kHz, normalized per frame by the host; 360 bins of 20 cents. Not downloaded (only the tiny variant was)."
     },
@@ -334,6 +336,7 @@
       "source": {"paper": "https://arxiv.org/abs/1802.06182", "weights": "https://github.com/yqzhishen/onnxcrepe/releases/tag/v1.1.0"},
       "status": "verified",
       "arch": "crepe",
+      "provider_hints": ["cuda", "directml", "cpu"],
       "io": {"inputs": [{"name": "frames", "shape": [-1, 1024]}], "outputs": [{"name": "probabilities", "shape": [-1, 360]}], "chunk_samples": 1024},
       "notes": "Downloaded and hashed by the project."
     },
@@ -365,6 +368,7 @@
       "source": {"paper": "https://arxiv.org/abs/2508.18440", "weights": "https://github.com/lars76/swift-f0"},
       "status": "verified",
       "arch": "swiftf0",
+      "provider_hints": ["cuda", "directml", "cpu"],
       "io": {"inputs": [{"name": "audio", "shape": [1, -1]}, {"name": "fmin", "shape": []}, {"name": "fmax", "shape": []}], "outputs": [{"name": "pitch", "shape": [1, -1]}, {"name": "confidence", "shape": [1, -1]}], "params": {"hop": 256}},
       "notes": "Downloaded and hashed by the project. The URL tracks the main branch; if upstream changes the file the hash check fails (exit 6) and the entry must be re-pinned. Output 'pitch' is float64."
     },
@@ -381,6 +385,7 @@
       "source": {"paper": "https://arxiv.org/abs/2203.09893", "weights": "https://github.com/spotify/basic-pitch"},
       "status": "verified",
       "arch": "basic-pitch",
+      "provider_hints": ["cuda", "directml", "cpu"],
       "io": {
         "inputs": [{"name": "serving_default_input_2:0", "shape": [-1, 43844, 1]}],
         "outputs": [{"name": "StatefulPartitionedCall:0", "shape": [-1, 172, 264]}, {"name": "StatefulPartitionedCall:1", "shape": [-1, 172, 88]}, {"name": "StatefulPartitionedCall:2", "shape": [-1, 172, 88]}],

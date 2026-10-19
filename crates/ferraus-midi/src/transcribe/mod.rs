@@ -473,10 +473,11 @@ fn poly_notes(
     o: &TranscribeOptions,
     model: &mut Option<(String, String, String)>,
 ) -> Result<(Vec<RawNote>, String)> {
+    let act = t.activations(x, sr)?;
+    // the model identity is known once the weights were resolved
     if let Some(m) = t.model() {
         *model = Some(m);
     }
-    let act = t.activations(x, sr)?;
     let bo = poly::BasicPitchOptions {
         onset_thresh: (1.0 - o.onset_sensitivity).clamp(0.05, 0.95) as f32,
         min_note_len: (o.min_note_s * poly::frames_per_second()).round().max(1.0) as usize,

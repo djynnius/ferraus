@@ -81,7 +81,7 @@ fn specs_are_documented() {
         ("noisiness", "30%"),
         ("decay", "65%"),
         ("floor", "0dB"),
-        ("model", "rnnoise"),
+        ("model", "dfn3"),
         ("strength", "100%"),
         ("mode", "profile"),
     ] {
@@ -339,8 +339,9 @@ fn model_slots_fail_explicitly() {
     std::env::set_var("FERRAUS_HOME", &home.0);
     let x = noise_buf(0.5, 0.05, 12);
     for (pairs, hint) in [
+        (vec![("mode", "ml")], "ferraus models pull denoise/dfn3"),
         (vec![("mode", "ml"), ("model", "dfn3")], "ferraus models pull denoise/dfn3"),
-        (vec![("mode", "hybrid"), ("auto", "true"), ("model", "dfn3")], "ferraus models pull denoise/dfn3"),
+        (vec![("mode", "hybrid"), ("auto", "true")], "ferraus models pull denoise/dfn3"),
         (vec![("mode", "ml"), ("model", "music")], "ferraus models pull denoise/music-roformer"),
         (vec![("dereverb", "true")], "ferraus models pull denoise/dereverb-roformer"),
     ] {
@@ -348,7 +349,8 @@ fn model_slots_fail_explicitly() {
         let e = r.unwrap_err();
         assert_eq!(e.kind, ErrorKind::ModelNotCached, "{pairs:?}");
         assert_eq!(e.exit_code, 5);
-        assert_eq!(e.hint.as_deref(), Some(hint), "{pairs:?}");
+        // registry models name their version in the hint (denoise/dfn3@0.5.6)
+        assert!(e.hint.as_deref().unwrap_or("").starts_with(hint), "{pairs:?}: {:?}", e.hint);
     }
     let slots = ferraus_denoise::ml::model_slots();
     assert!(slots.iter().any(|s| s.pattern == "denoise/music-*"));

@@ -58,4 +58,62 @@ fn render_plugin(
 /// Register cross-crate hooks once per process.
 pub fn install() {
     ferraus_synth::set_plugin_offline_renderer(render_plugin);
+    install_transcription();
+}
+
+/// Basic Pitch (polyphonic transcription) through ferraus-ml's ONNX runtime.
+struct BasicPitch {
+    model: std::sync::Mutex<Option<(String, String, String)>>,
+}
+
+impl ferraus_midi::transcribe::poly::PolyTranscriber for BasicPitch {
+    fn name(&self) -> &str {
+        "basic-pitch"
+    }
+
+    fn model(&self) -> Option<(String, String, String)> {
+        self.model.lock().ok().and_then(|m| m.clone())
+    }
+
+    fn activations(&self, samples: &[f32], sr: u32) -> Result<ferraus_midi::transcribe::poly::PolyActivations> {
+        use ferraus_midi::transcribe::poly::{Activation, PolyActivations};
+        let mono = ferraus_core::resample::resample_channel(
+            samples,
+            sr,
+            ferraus_ml::basic_pitch::BASIC_PITCH_RATE,
+            ferraus_core::resample::Quality::High,
+        );
+        // the download policy comes from the environment the CLI set up (-y, config, --offline)
+        let mut g = ferraus_core::Globals::default();
+        g.yes = std::env::var("FERRAUS_AUTO_DOWNLOAD").map(|v| v == "1").unwrap_or(false);
+        g.offline = std::env::var("FERRAUS_OFFLINE").map(|v| v == "1").unwrap_or(false);
+        let mut ctx = ferraus_core::OpCtx::new(
+            "transcribe",
+            vec![],
+            g,
+            &ferraus_core::testing::SIMPLE_IO,
+            &ferraus_core::testing::NO_PROGRESS,
+        );
+        let (frames, onsets, contours) = ferraus_ml::basic_pitch_activations(&mut ctx, &mono)?;
+        if let Some(m) = ctx.models.first() {
+            if let Ok(mut slot) = self.model.lock() {
+                *slot = Some((m.name.clone(), m.version.clone(), m.sha256.clone()));
+            }
+        }
+        Ok(PolyActivations {
+            notes: Activation::from_rows(&frames)?,
+            onsets: Activation::from_rows(&onsets)?,
+            contours: Some(Activation::from_rows(&contours)?),
+            windowed: true,
+        })
+    }
+}
+
+fn basic_pitch_factory() -> Result<Box<dyn ferraus_midi::transcribe::poly::PolyTranscriber>> {
+    Ok(Box::new(BasicPitch { model: std::sync::Mutex::new(None) }))
+}
+
+/// Register the model-backed transcriber (called from [`install`]).
+pub fn install_transcription() {
+    ferraus_midi::transcribe::poly::register_poly_transcriber(basic_pitch_factory);
 }
