@@ -187,7 +187,8 @@ mod tests {
         let x = signal(10_000);
         let plan = ChunkPlan::new(2048, 0.25, 4).unwrap();
         let a = run_waveform_chunked(&s, &x, &plan, &mut |_, _| Ok(())).unwrap();
-        session::clear_cache();
+        // evict only this model: clearing the whole cache races with other tests' cache checks
+        session::evict(&p);
         let (s, _) = load(&p, &cpu()).unwrap();
         let b = run_waveform_chunked(&s, &x, &plan, &mut |_, _| Ok(())).unwrap();
         assert_eq!(a, b);
