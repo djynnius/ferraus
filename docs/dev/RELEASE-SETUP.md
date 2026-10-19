@@ -81,13 +81,14 @@ Enable GitHub Pages from the `gh-pages` branch (Settings → Pages).
 * scoop: `gh repo create djynnius/scoop-bucket --public` and
   `gh secret set SCOOP_BUCKET_TOKEN --env release` with contents write on it.
 
-## 8. Model hosting for the `quality`/`max` separation tiers
+## 8. Model hosting (recommended before 1.0)
 
-The RoFormer checkpoints the PRD targets must be exported (`tools/export/*.py`, parity-checked
-with `tools/export/parity.py`), license-reviewed, and uploaded as assets of a
-`djynnius/ferraus-models` release. Then add their URL, SHA-256, and size to
-`crates/ferraus-models/registry/registry.json` and set `status: verified`; `separate --tier
-auto` will pick them up.
+Every verified model in `crates/ferraus-models/registry/registry.json` downloads from its
+author's or exporter's repository (Hugging Face and GitHub releases), pinned by commit and
+SHA-256, so a deleted upstream file breaks that feature. To remove that risk, upload the same
+files as assets of a `djynnius/ferraus-models` release and put those URLs first in each entry's
+`urls` (the hashes stay the same). The only model still missing is a license-clean lead/backing
+vocal model for `separate --vocal-split`.
 
 ## 9. Legal review
 

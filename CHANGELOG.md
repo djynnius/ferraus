@@ -23,7 +23,10 @@ along the way).
   `dereverb`.
 - Noise reduction: profile spectral gating, adaptive mode, RNNoise and DeepFilterNet 3.
 - Separation: ONNX Runtime with execution-provider fallback, a signed model registry with
-  resumable verified downloads, Demucs `fast` tier, ensembles, TTA, sum-to-mix, cascades.
+  resumable verified downloads; tiers `fast`, `balanced` (fine-tuned Demucs), `quality`
+  (Mel-Band RoFormer vocals, the `auto` default), `max`, `--stems 6`, `--drum-split` (DrumSep);
+  ensembles, TTA, sum-to-mix, cascades; streaming separation with temp-file spill under
+  `--max-memory` (a 60-minute song peaks at 2.1 GB RSS on the `fast` tier).
 - Pitch and time: pYIN, CREPE, SwiftF0, key detection, tune, pitch, stretch.
 - MIDI: lossless JSON model, quantize, groove, editing utilities, transcribe (mono and Basic
   Pitch polyphonic), hum, render through the built-in synth, SF2, SFZ, or CLAP/VST3 plugins.

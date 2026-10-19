@@ -45,17 +45,24 @@ Research-only entries (e.g. RMVPE) are flagged and excluded.
 
 | Entry | License as recorded | Used by default |
 | --- | --- | --- |
-| separate/htdemucs (+ ft, 6s once verified) | MIT (Meta Demucs v4) | yes |
+| separate/htdemucs, htdemucs-ft-{drums,bass,other,vocals}, htdemucs-6s | MIT (Meta Demucs v4; ONNX exports by StemSplitio on Hugging Face, MIT cards) | yes (`fast`, `balanced`, `quality`, `max`, `--stems 6`) |
+| separate/mel-roformer-kj@2024.08 | MIT per the author's (Kimberley Jensen) weights repository and the export's LICENSE file; an unrelated OpenVINO conversion labels it GPL-3.0; training data undisclosed | yes (`quality`, `max`; `auto` picks `quality`) |
+| separate/drumsep-inagoy@2022 | MIT (inagoy/drumsep; ONNX export by gridshiftstudio) | `--drum-split` |
 | denoise/dfn3 | MIT OR Apache-2.0 (DeepFilterNet) | yes |
 | denoise/rnnoise | BSD-3-Clause | yes |
 | pitch/crepe, crepe-tiny | MIT | on request |
 | pitch/swiftf0 | MIT | on request |
 | transcribe/basic-pitch | Apache-2.0 (Spotify) | poly mode |
-| omr/oemer models | MIT (check per asset) | builtin OMR |
-| RoFormer/SCNet community checkpoints | unclear / mixed | excluded |
+| omr/oemer, omr/oemer-seg | MIT (BreezeWhite/oemer `checkpoints` release) | builtin OMR (`score read`) |
+| Other RoFormer/SCNet community checkpoints, mdx-kara-2 (lead/backing split) | unclear / none | excluded |
 
 Questions for counsel: whether model weights trained on datasets with research-only terms
-(e.g. MUSDB18-HQ) can be redistributed under the code license stated by their authors.
+(e.g. MUSDB18-HQ) can be redistributed under the code license stated by their authors; whether
+the Mel-Band RoFormer's MIT statement holds given the GPL-3.0 label on another conversion and
+its undisclosed training data (if not, set its registry status back to `unverified` and `auto`
+falls back to `balanced`); and whether downloading from third-party Hugging Face repositories
+(pinned by commit and SHA-256) is acceptable or the files should be mirrored to a
+`djynnius/ferraus-models` release first.
 
 ## Sounds registry
 
