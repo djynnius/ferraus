@@ -523,6 +523,18 @@ fn middle(
             )?
             .0;
     }
+    // saturation is asymmetric and can leave a small offset; remove it before the limiter
+    buf = sim
+        .run(
+            Stage::new(
+                "color",
+                "dc-remove",
+                vec![("freq", "0Hz".into())],
+                "remove any DC offset the color stage introduced (static mean)",
+            ),
+            buf,
+        )?
+        .0;
     Ok(Middle { buf, eq: eq_intent, release_base })
 }
 
