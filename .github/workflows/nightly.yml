@@ -1,0 +1,49 @@
+# Layer 2: model parity, benchmarks, and offline full-suite runs.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-suite:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ferraus/models
+          key: models-${{ hashFiles('models/registry.json') }}
+      - name: Pull models for tests
+        run: cargo run -q --release -p ferraus-cli -- models pull --all-for separate -y || true
+      - name: Full suite with network disabled
+        run: |
+          sudo unshare -n -- sudo -u "$USER" env PATH="$PATH" HOME="$HOME" FERRAUS_OFFLINE=1 \
+            cargo test --workspace --release --offline -- --include-ignored
+
+  bench:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Real-time factors (fails on >15% regression vs baseline)
+        run: cargo test --workspace --release -- --ignored bench
+
+  model-parity:
+    # Needs the PyTorch reference environment and licensed evaluation data.
+    runs-on: [self-hosted, gpu]
+    if: github.repository == 'djynnius/ferraus'
+    steps:
+      - uses: actions/checkout@v4
+      - name: ONNX vs PyTorch parity (max abs error < 1e-4)
+        run: python3 tools/export/parity.py --all
+      - name: Separation benchmark (MUSDB18-HQ)
+        run: python3 tools/eval/separation.py --musdb "$MUSDB_ROOT" --tiers fast,balanced,quality,max

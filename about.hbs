@@ -1,0 +1,18 @@
+# Third-party licenses
+
+ferraus is licensed under Apache-2.0 OR MIT. It includes the following third-party code.
+FFmpeg, LAME, CUDA, plugins, sound libraries, and model weights are not linked into ferraus;
+their licenses are shown when they are downloaded.
+
+{{#each licenses}}
+## {{name}}
+
+Used by:
+{{#each used_by}}
+- {{crate.name}} {{crate.version}}
+{{/each}}
+
+```
+{{text}}
+```
+{{/each}}

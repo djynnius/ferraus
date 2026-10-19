@@ -243,27 +243,31 @@ pub fn agent_catalog(registry: &Registry) -> Vec<(String, String)> {
     let mut ops: Vec<&OpSpec> = registry.ops().iter().collect();
     ops.sort_by_key(|o| (o.category, o.name));
     for o in ops {
-        let inputs = match (o.inputs.kind, o.inputs.min, o.inputs.max) {
-            (crate::op::InputKind::None, _, _) => String::new(),
-            (k, min, max) => {
-                let kind = match k {
-                    crate::op::InputKind::Audio => "audio",
-                    crate::op::InputKind::Midi => "midi",
-                    crate::op::InputKind::Score => "score",
-                    _ => "file",
-                };
-                match max {
-                    Some(1) => format!(" <{kind}>"),
-                    Some(m) if m == min => format!(" <{kind}>x{m}"),
-                    _ if min == 0 => format!(" [{kind}...]"),
-                    _ => format!(" <{kind}...>"),
+        let inputs = if let Some(pos) = o.positional {
+            format!(" [{pos}]")
+        } else {
+            match (o.inputs.kind, o.inputs.min, o.inputs.max) {
+                (crate::op::InputKind::None, _, _) => String::new(),
+                (k, min, max) => {
+                    let kind = match k {
+                        crate::op::InputKind::Audio => "audio",
+                        crate::op::InputKind::Midi => "midi",
+                        crate::op::InputKind::Score => "score",
+                        _ => "file",
+                    };
+                    match max {
+                        Some(1) => format!(" <{kind}>"),
+                        Some(m) if m == min => format!(" <{kind}>x{m}"),
+                        _ if min == 0 => format!(" [{kind}...]"),
+                        _ => format!(" <{kind}...>"),
+                    }
                 }
             }
         };
         let flags: Vec<String> = o
             .params
             .iter()
-            .filter(|p| !p.advanced)
+            .filter(|p| !p.advanced && Some(p.name) != o.positional)
             .take(3)
             .map(|p| format!("--{}", p.name))
             .collect();

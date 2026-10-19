@@ -1,0 +1,38 @@
+# Build the docs site from the command definitions and deploy it to GitHub Pages on tags.
+name: Docs
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -q --release -p ferraus-cli -- docs build-site --check --out target/docs-site
+      - uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: "0.4.40"
+      - run: mdbook build target/docs-site
+      - run: cp target/docs-site/src/llms.txt target/docs-site/src/llms-full.txt target/docs-site/book/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/docs-site/book
+  deploy:
+    needs: build
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
