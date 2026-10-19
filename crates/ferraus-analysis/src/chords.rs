@@ -174,7 +174,10 @@ pub fn chords_from_chromagram(cg: &Chromagram, opts: &ChordOptions) -> ChordResu
     // emissions
     let emis: Vec<Vec<f64>> = (0..t)
         .map(|i| {
-            let silent = cg.level_db[i] < -45.0 || cg.chroma[i].iter().all(|v| *v == 0.0);
+            // silence, or a single pitch class (a lone note is not a chord)
+            let cmax = cg.chroma[i].iter().copied().fold(0.0, f64::max);
+            let active = cg.chroma[i].iter().filter(|v| **v >= 0.25 * cmax && **v > 0.0).count();
+            let silent = cg.level_db[i] < -45.0 || active < 2;
             let mut e = vec![0.0f64; ns];
             if silent {
                 e[n_state] = 1.0;

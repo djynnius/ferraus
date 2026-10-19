@@ -74,8 +74,9 @@ pub fn low_correlation(buf: &AudioBuffer, cutoff_hz: f64) -> f64 {
         return 1.0;
     }
     let sr = buf.sample_rate as f64;
-    let l = util::lowpass4(&buf.data[0], sr, cutoff_hz);
-    let r = util::lowpass4(&buf.data[1], sr, cutoff_hz);
+    // band-limit to 20 Hz .. cutoff so DC offsets do not dominate
+    let l = util::highpass4(&util::lowpass4(&buf.data[0], sr, cutoff_hz), sr, 20.0);
+    let r = util::highpass4(&util::lowpass4(&buf.data[1], sr, cutoff_hz), sr, 20.0);
     correlation(&l, &r)
 }
 
@@ -108,7 +109,12 @@ pub fn stereo_analysis(buf: &AudioBuffer) -> StereoReport {
                 .collect(),
         };
     }
-    let (l, r) = (&buf.data[0], &buf.data[1]);
+    // remove DC so an offset on one channel does not skew the image metrics
+    let dc = |c: &[f32]| (c.iter().map(|v| *v as f64).sum::<f64>() / c.len().max(1) as f64) as f32;
+    let (dl, dr) = (dc(&buf.data[0]), dc(&buf.data[1]));
+    let l: Vec<f32> = buf.data[0].iter().map(|v| v - dl).collect();
+    let r: Vec<f32> = buf.data[1].iter().map(|v| v - dr).collect();
+    let (l, r) = (&l, &r);
     let n = buf.frames().max(1) as f64;
     let (mut el, mut er, mut em, mut es) = (0.0f64, 0.0, 0.0, 0.0);
     for (a, b) in l.iter().zip(r) {

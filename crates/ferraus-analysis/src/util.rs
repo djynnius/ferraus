@@ -373,15 +373,24 @@ pub fn pearson(a: &[f64], b: &[f64]) -> f64 {
 }
 
 /// Round to a tidy number of digits for JSON output: 4 decimals, or 4 significant digits
-/// for small magnitudes. Non-finite values pass through (they serialise as `null`).
+/// for small magnitudes, at most 7 decimals (so values below 5e-8 become 0). Non-finite
+/// values pass through (they serialise as `null`).
 pub fn tidy(x: f64) -> f64 {
-    if !x.is_finite() || x == 0.0 {
+    if !x.is_finite() {
         return x;
     }
+    if x == 0.0 {
+        return 0.0;
+    }
     let mag = x.abs().log10().floor() as i32;
-    let decimals = (3 - mag).clamp(4, 12);
+    let decimals = (3 - mag).clamp(4, 7);
     let f = 10f64.powi(decimals);
-    (x * f).round() / f
+    let r = (x * f).round() / f;
+    if r == 0.0 {
+        0.0
+    } else {
+        r
+    }
 }
 
 /// Recursively round every float in a JSON value with [`tidy`].
