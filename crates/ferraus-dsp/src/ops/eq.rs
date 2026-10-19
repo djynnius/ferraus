@@ -21,27 +21,35 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("order", ParamKind::Int).default("2").range("1..8").help("Filter order (2 = 12 dB/oct, 4 = 24 dB/oct)"))
             .param(param("q", ParamKind::Float).default("0.707").help("Resonance of an order-2 filter"))
             .example("ferraus highpass vox.wav -o vox_hp.wav", "Remove rumble below 80 Hz")
-            .example("ferraus highpass kick.wav --freq 30Hz --order 4 -o kick_clean.wav", "Steep sub-sonic filter"),
+            .example("ferraus highpass kick.wav --freq 30Hz --order 4 -o kick_clean.wav", "Steep sub-sonic filter")
+            .example("ferraus highpass guitar.wav --freq 120Hz --q 1.2 -o guitar_hp.wav", "Clear the low end for the bass, with a small bump at the corner")
+            .example("ferraus highpass episodes/*.wav --freq 70Hz --outdir hp/", "Remove desk thumps and air-conditioning rumble from a batch of recordings"),
         OpSpec::transform("lowpass", Category::Tone, "Low-pass filter", lowpass)
             .about("Removes content above --freq. --order 2 is 12 dB/oct; higher orders are Butterworth (6 dB/oct per order). --q shapes the corner of an order-2 filter.")
             .param(param("freq", ParamKind::Freq).default("12kHz").help("Corner frequency"))
             .param(param("order", ParamKind::Int).default("2").range("1..8").help("Filter order (2 = 12 dB/oct, 4 = 24 dB/oct)"))
             .param(param("q", ParamKind::Float).default("0.707").help("Resonance of an order-2 filter"))
             .example("ferraus lowpass hats.wav --freq 9kHz -o darker.wav", "Tame harsh highs")
-            .example("ferraus lowpass synth.wav --freq 800Hz --q 4 -o reso.wav", "Resonant low-pass"),
+            .example("ferraus lowpass synth.wav --freq 800Hz --q 4 -o reso.wav", "Resonant low-pass")
+            .example("ferraus lowpass bass.wav --freq 2kHz --order 4 -o bass_lp.wav", "Steep 24 dB/oct cut that keeps a bass out of the vocal range")
+            .example("ferraus lowpass voice.wav --freq 3.4kHz --order 6 -o phone.wav", "Telephone-style top cut"),
         OpSpec::transform("tilt", Category::Tone, "Tilt EQ: one-knob brighter or darker", tilt)
             .about("Raises one side of the spectrum and lowers the other around the pivot: positive --gain is brighter (highs up by gain/2, lows down by gain/2), negative is darker.")
             .param(param("pivot", ParamKind::Freq).default("1kHz").help("Frequency that stays unchanged"))
             .param(param("gain", ParamKind::Gain).default("+0dB").help("Total tilt: +4dB brightens, -4dB darkens"))
             .example("ferraus tilt mix.wav --gain +3dB -o brighter.wav", "Brighten a dull mix")
-            .example("ferraus tilt pad.wav --gain -4dB --pivot 600Hz -o warmer.wav", "Warm up a pad"),
+            .example("ferraus tilt pad.wav --gain -4dB --pivot 600Hz -o warmer.wav", "Warm up a pad")
+            .example("ferraus tilt vox.wav --gain +2dB --pivot 2kHz -o vox_air.wav", "A touch of air on a vocal while leaving its body alone")
+            .example("ferraus tilt master.wav --gain -1dB --mix 50% -o master_soft.wav", "Very subtle darkening of a harsh master"),
         OpSpec::transform("match-eq", Category::Tone, "Match the long-term spectrum of a reference", match_eq)
             .about("Measures the long-term average spectrum of the input and of --reference, smooths both (--smoothing, fractional octaves), and applies the difference as a linear-phase FIR. Only the spectral shape is matched (the broadband level difference is removed), boosts and cuts are capped at ±12 dB, and regions with no energy in either file are left alone. Useful for agents matching takes recorded on different days or microphones.")
             .param(param("reference", ParamKind::Path).required().help("Audio file whose tonal balance to match"))
             .param(param("amount", ParamKind::Percent).default("100%").help("How much of the measured correction to apply"))
             .param(param("smoothing", ParamKind::Str).default("1/3oct").help("Spectral smoothing width in octaves (1/3oct, 1/6oct, 1oct)"))
             .example("ferraus match-eq take2.wav --reference take1.wav -o take2_matched.wav", "Make take 2 sound like take 1")
-            .example("ferraus match-eq mix.wav --reference ref.wav --amount 50% --smoothing 1oct -o mix_m.wav", "Gentle, broad matching"),
+            .example("ferraus match-eq mix.wav --reference ref.wav --amount 50% --smoothing 1oct -o mix_m.wav", "Gentle, broad matching")
+            .example("ferraus match-eq pickup.wav --reference session.wav --smoothing 1/6oct -o pickup_matched.wav", "Match a pickup line recorded on another day, following finer detail")
+            .example("ferraus match-eq demo.wav --reference commercial.wav --amount 70% -o demo_ref.wav", "Move a demo 70% of the way toward a reference track's tonal balance"),
     ]
 }
 

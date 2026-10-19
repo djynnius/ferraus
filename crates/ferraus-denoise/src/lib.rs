@@ -212,6 +212,10 @@ fn merge_spec() -> OpSpec {
         "ferraus denoise profile merge day1.noiseprof day2.noiseprof day3.noiseprof --method mean -o room.noiseprof",
         "Average the room tone of three sessions",
     )
+    .example(
+        "ferraus denoise profile merge mic1.noiseprof mic2.noiseprof --method max -o both.noiseprof --json",
+        "One profile that covers the noisier of two microphones, with a JSON summary",
+    )
 }
 
 // ---------------------------------------------------------------------------------

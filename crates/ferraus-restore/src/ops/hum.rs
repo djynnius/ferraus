@@ -47,6 +47,14 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus dehum gtr.wav --freq 50Hz --harmonics 12 --residual hum.wav -o clean.wav",
                 "Remove 50 Hz hum and 12 harmonics and keep what was removed",
+            )
+            .example(
+                "ferraus dehum field.wav --freq 60Hz --track off --q 50 -o clean.wav",
+                "Very narrow, fixed 60 Hz notches for hum that does not drift",
+            )
+            .example(
+                "ferraus dehum amp.wav --depth -60dB --slope 0dB -o clean.wav",
+                "A deeper cut with the same depth on every harmonic, for a buzzy amplifier",
             ),
         OpSpec::transform("notch", Category::Tone, "Narrow notch filter, optionally with harmonics", notch)
             .about(
@@ -73,6 +81,14 @@ pub fn ops() -> Vec<OpSpec> {
             .example(
                 "ferraus notch in.wav --freq 60Hz --harmonics 4 --depth -60dB -o out.wav",
                 "Deep notches at 60, 120, 180, 240, and 300 Hz",
+            )
+            .example(
+                "ferraus notch lecture.wav --freq 15.75kHz --q 50 -o lecture_clean.wav",
+                "Remove the 15.75 kHz whine of an old CRT television",
+            )
+            .example(
+                "ferraus notch bass.wav --freq A1 --depth -12dB --q 10 -o bass_notch.wav",
+                "Tame a booming resonance at A1 (55 Hz) by 12 dB with a wider notch",
             ),
     ]
 }

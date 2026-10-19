@@ -30,7 +30,9 @@ pub fn ops() -> Vec<OpSpec> {
         .about("Shows every model in the active registry. Models whose license forbids commercial use, or that have no clear license, are flagged and never used by default tiers; unverified entries have no recorded checksum yet and are refused by downloads unless FERRAUS_ALLOW_UNVERIFIED=1.")
         .param(param("task", ParamKind::Str).help("Only models for this task (separate, denoise, pitch, transcribe, omr)"))
         .param(param("cached", ParamKind::Flag).help("Only models present in the local cache"))
-        .example("ferraus models list --task separate", "Separation models and the tiers that use them"),
+        .example("ferraus models list --task separate", "Separation models and the tiers that use them")
+        .example("ferraus models list --cached", "Only the models already downloaded to this machine")
+        .example("ferraus models list --task pitch --json", "Pitch-tracker models with size, license, and cache state as JSON"),
         OpSpec::custom(
             "models pull",
             Category::Models,
@@ -44,11 +46,14 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("tier", ParamKind::Str).help("With --all-for: only this tier"))
         .param(param("accept-license", ParamKind::Flag).help("Accept a research-only / non-commercial license for the named models"))
         .example("ferraus models pull separate/htdemucs", "Fetch the fast separation model")
-        .example("ferraus models pull --all-for separate --tier fast", "Everything the fast separation tier needs"),
+        .example("ferraus models pull --all-for separate --tier fast", "Everything the fast separation tier needs")
+        .example("ferraus models pull denoise/dfn3 pitch/crepe -y", "Fetch two models at once without the confirmation prompt"),
         OpSpec::custom("models rm", Category::Models, "Remove a cached model", rm)
             .positional("name")
             .param(param("name", ParamKind::Str).required().help("Model name[@version]; without a version every cached version is removed"))
-            .example("ferraus models rm separate/htdemucs", "Free the disk space"),
+            .example("ferraus models rm separate/htdemucs", "Free the disk space")
+            .example("ferraus models rm separate/htdemucs@v4-onnx.2026-05-21", "Remove one cached version and keep any others")
+            .example("ferraus models rm pitch/crepe --json", "Remove a model and report the bytes freed as JSON"),
         OpSpec::custom(
             "models prune",
             Category::Models,
@@ -56,11 +61,15 @@ pub fn ops() -> Vec<OpSpec> {
             prune,
         )
         .inputs(Inputs::NONE)
-        .example("ferraus models prune --dry-run", "Show what would be removed"),
+        .example("ferraus models prune --dry-run", "Show what would be removed")
+        .example("ferraus models prune", "Delete unused models and partial downloads, then enforce the cache budget")
+        .example("ferraus models prune --json", "Prune and list every removed file with its size as JSON"),
         OpSpec::custom("models verify", Category::Models, "Re-hash the model cache", verify)
             .positional("name")
             .param(param("name", ParamKind::Str).help("Only this model (default: every cached model)"))
-            .example("ferraus models verify", "Check every cached file against its recorded SHA-256"),
+            .example("ferraus models verify", "Check every cached file against its recorded SHA-256")
+            .example("ferraus models verify separate/htdemucs", "Re-hash one model, e.g. after a disk error")
+            .example("ferraus models verify --json", "Per-model verification results as JSON; exit code 9 on a mismatch"),
         OpSpec::custom(
             "models info",
             Category::Models,
@@ -69,11 +78,15 @@ pub fn ops() -> Vec<OpSpec> {
         )
         .positional("name")
         .param(param("name", ParamKind::Str).required().help("Model name[@version]"))
-        .example("ferraus models info separate/htdemucs", "Everything about the fast tier model"),
+        .example("ferraus models info separate/htdemucs", "Everything about the fast tier model")
+        .example("ferraus models info denoise/dfn3 --json", "License, source, size, and cache state of the speech denoiser as JSON")
+        .example("ferraus models info omr/homr", "Check a model's license (AGPL) before using it"),
         OpSpec::custom("models path", Category::Models, "Print the cached file path of a model", path)
             .positional("name")
             .param(param("name", ParamKind::Str).required().help("Model name[@version]"))
-            .example("ferraus models path transcribe/basic-pitch", "Where the ONNX file lives"),
+            .example("ferraus models path transcribe/basic-pitch", "Where the ONNX file lives")
+            .example("ferraus models path separate/htdemucs --json", "The cached path as JSON")
+            .example("ferraus models path pitch/crepe-tiny --offline", "Print the path without ever downloading; fails if the model is not cached"),
         OpSpec::custom(
             "models registry update",
             Category::Models,
@@ -86,7 +99,9 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("unpin", ParamKind::Flag).help("Remove a pinned snapshot"))
         .param(param("url", ParamKind::Str).help("Fetch the manifest from this URL (default: GitHub Releases, then Hugging Face)"))
         .example("ferraus models registry update", "See whether newer models are available")
-        .example("ferraus models registry update --pin registry.json", "Freeze a snapshot for a deployment"),
+        .example("ferraus models registry update --pin registry.json", "Freeze a snapshot for a deployment")
+        .example("ferraus models registry update --unpin", "Go back to following the live registry")
+        .example("ferraus models registry update --url https://example.com/ferraus/registry.json", "Fetch the signed manifest from a mirror"),
     ]
 }
 

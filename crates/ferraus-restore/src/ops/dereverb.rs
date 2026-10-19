@@ -49,6 +49,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus dereverb vocal.wav --rt60 1.2s --amount 80% --floor -12dB -o vocal.dry.wav",
             "Gentler removal for a known 1.2 s room",
+        )
+        .example(
+            "ferraus dereverb call.wav --amount 130% --late 30ms -o dry.wav",
+            "Aggressive removal for a very echoey video-call recording",
+        )
+        .example(
+            "ferraus dereverb two_mics.wav --link off --floor -10dB -o dry.wav",
+            "Give each channel its own gain (unrelated mics on left and right) and keep artifacts low",
         )]
 }
 

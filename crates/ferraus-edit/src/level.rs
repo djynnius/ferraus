@@ -363,6 +363,14 @@ pub fn resample_spec() -> OpSpec {
     .no_mix()
     .example("ferraus resample voice.wav --to 48k -o voice48.wav", "Convert to 48 kHz for video")
     .example("ferraus resample master96.flac --to 44.1kHz -o master44.flac", "Down-convert a 96 kHz master for CD")
+    .example(
+        "ferraus resample takes/*.wav --to 44.1k --quality fast --outdir takes44/",
+        "Quickly convert a folder of takes to 44.1 kHz for a rough mix",
+    )
+    .example(
+        "ferraus resample old22k.wav --to 48000 --bit-depth 24 -o old48.wav",
+        "Bring a 22.05 kHz file into a 48 kHz, 24-bit session (no new high frequencies are created)",
+    )
 }
 
 fn resample_op(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {

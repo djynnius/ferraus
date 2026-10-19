@@ -73,7 +73,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("lookahead", ParamKind::Time).default("5ms").help("Attack ramp length (latency is compensated)"))
             .param(param("oversample", ParamKind::Choice).choices(&["1x", "2x", "4x", "8x"]).default("4x").help("True-peak detection oversampling (1x = sample peak)"))
             .example("ferraus limit mix.wav -o limited.wav", "Limit to -1 dBTP")
-            .example("ferraus limit master.wav --ceiling -0.3dBTP --release 100ms -o hot.wav", "Hotter ceiling, slower release"),
+            .example("ferraus limit master.wav --ceiling -0.3dBTP --release 100ms -o hot.wav", "Hotter ceiling, slower release")
+            .example("ferraus limit podcast.wav --ceiling -2dBTP -o podcast_safe.wav", "Leave extra headroom for lossy encoding (MP3 and AAC can add peaks)")
+            .example("ferraus limit drums.wav --ceiling -1dB --oversample 1x --lookahead 1ms -o drums_lim.wav", "Fast sample-peak limiting with a short lookahead"),
         OpSpec::transform("gate", Category::Dynamics, "Noise gate with hysteresis and hold", gate)
             .about("Mutes the signal while it stays below the threshold. The gate opens at the threshold and closes 3 dB lower (hysteresis) after the hold time, so it does not chatter.")
             .param(param("threshold", ParamKind::Gain).default("-40dB").help("Opening level (closes 3 dB lower)"))
@@ -83,7 +85,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("range", ParamKind::Gain).default("-80dB").help("Attenuation when closed"))
             .param(param("sidechain-hpf", ParamKind::Freq).default("0Hz").help("High-pass on the detector (0Hz = off)"))
             .example("ferraus gate tom.wav --threshold -35dB -o tom_gated.wav", "Gate a tom mic")
-            .example("ferraus gate vo.wav --range -12dB --release 200ms -o vo_soft.wav", "Gentle gate that only dips the background"),
+            .example("ferraus gate vo.wav --range -12dB --release 200ms -o vo_soft.wav", "Gentle gate that only dips the background")
+            .example("ferraus gate kick.wav --threshold -30dB --hold 20ms --release 50ms -o kick_tight.wav", "Short, tight gate that cuts the spill between kick hits")
+            .example("ferraus gate snare.wav --threshold -28dB --sidechain-hpf 200Hz -o snare_gated.wav", "High-pass the detector so kick bleed does not open the gate, only snare hits do"),
         OpSpec::transform("expand", Category::Dynamics, "Downward expander", expand)
             .about("Turns quiet passages down further: every dB below the threshold becomes 'ratio' dB. The gentle alternative to a gate.")
             .param(param("threshold", ParamKind::Gain).default("-40dB").help("Level below which expansion starts"))
@@ -91,7 +95,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("attack", ParamKind::Time).default("5ms").help("Time to open when the level rises"))
             .param(param("release", ParamKind::Time).default("100ms").help("Time to close when the level falls"))
             .example("ferraus expand vo.wav -o vo_exp.wav", "Reduce room noise between phrases")
-            .example("ferraus expand drums.wav --threshold -30dB --ratio 3:1 -o tighter.wav", "Stronger expansion"),
+            .example("ferraus expand drums.wav --threshold -30dB --ratio 3:1 -o tighter.wav", "Stronger expansion")
+            .example("ferraus expand podcast.wav --threshold -45dB --ratio 1.5:1 --release 250ms -o podcast_exp.wav", "Very gentle, slow expansion that lowers room tone without chopping word endings")
+            .example("ferraus expand tom.wav --threshold -35dB --ratio 4:1 --attack 1ms -o tom_exp.wav", "Gate-like expansion with a fast attack so the tom's hit is not softened"),
         OpSpec::transform("deess", Category::Dynamics, "Reduce sibilance", deess)
             .about("A band-limited detector around the sibilance frequency drives a dynamic high shelf (split: only the highs are turned down, via a phase-matched crossover) or the whole signal (wideband).")
             .param(param("center", ParamKind::Freq).default("6.5kHz").help("Detector centre frequency"))
@@ -100,7 +106,9 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("range", ParamKind::Gain).default("6dB").help("Maximum reduction"))
             .param(param("mode", ParamKind::Choice).choices(&["split", "wideband"]).default("split").help("split: turn down only the highs; wideband: turn down everything"))
             .example("ferraus deess vox.wav -o vox_deessed.wav", "Default de-essing")
-            .example("ferraus deess vox.wav --center 5kHz --range 10dB --mode wideband -o vox_dw.wav", "Stronger wideband de-essing for a darker voice"),
+            .example("ferraus deess vox.wav --center 5kHz --range 10dB --mode wideband -o vox_dw.wav", "Stronger wideband de-essing for a darker voice")
+            .example("ferraus deess vox_bright.wav --center 8kHz --bandwidth 0.5oct --threshold -24dB -o vox_deessed.wav", "Narrow detector tuned higher, for a bright voice")
+            .example("ferraus deess vox.wav --range 4dB --mix 60% -o vox_light.wav", "Light touch: at most 4 dB of reduction, blended with the dry signal"),
         OpSpec::transform("multiband", Category::Dynamics, "Multiband compressor", multiband)
             .about("Splits the signal with 4th-order Linkwitz-Riley crossovers (bands sum flat), compresses each band, and sums them. Per-band --threshold, --ratio, --attack, --release accept one value for every band or a comma list (low to high; a short list repeats its last value). Defaults are a gentle 2:1 on each band, with slower times on lower bands. --bands 4 picks 120Hz,2kHz,10kHz crossovers; --limiter adds a true-peak limiter at the output.")
             .param(param("crossovers", ParamKind::List).default("150Hz,3kHz").help("Crossover frequencies, ascending; N crossovers make N+1 bands"))
@@ -113,20 +121,26 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("limiter", ParamKind::Flag).help("Add a true-peak output limiter"))
             .param(param("limiter-ceiling", ParamKind::Gain).default("-1dBTP").help("Ceiling of the output limiter"))
             .example("ferraus multiband mix.wav -o mb.wav", "Gentle three-band compression")
-            .example("ferraus multiband master.wav --bands 4 --limiter --threshold -24dB,-20dB,-20dB,-18dB --ratio 3:1,2:1 -o mb4.wav", "Audition-style 4 bands plus limiter"),
+            .example("ferraus multiband master.wav --bands 4 --limiter --threshold -24dB,-20dB,-20dB,-18dB --ratio 3:1,2:1 -o mb4.wav", "Audition-style 4 bands plus limiter")
+            .example("ferraus multiband vox.wav --crossovers 250Hz,4kHz --threshold -24dB,-18dB,-26dB --ratio 3:1,2:1,4:1 -o vox_mb.wav", "Three custom bands: hold down boominess and harsh highs harder than the mids")
+            .example("ferraus multiband bass.wav --bands 2 --ratio 4:1,1:1 --makeup 2dB -o bass_mb.wav", "Two bands split at 1 kHz: compress only the lows and leave the string noise alone"),
         OpSpec::transform("transient", Category::Dynamics, "Shape attack and sustain", transient)
             .about("Envelope-based transient shaper: positive --attack makes hits punchier, negative softens them; --sustain lengthens or shortens the ring after each hit. Works on drums and plucked instruments without a threshold.")
             .param(param("attack", ParamKind::Gain).default("+0dB").help("Gain applied to note onsets"))
             .param(param("sustain", ParamKind::Gain).default("+0dB").help("Gain applied to the decay after onsets"))
             .example("ferraus transient snare.wav --attack +4dB -o snare_punch.wav", "Punchier snare")
-            .example("ferraus transient room.wav --sustain -6dB -o drier.wav", "Shorten the room ring"),
+            .example("ferraus transient room.wav --sustain -6dB -o drier.wav", "Shorten the room ring")
+            .example("ferraus transient kick.wav --attack -3dB --sustain +3dB -o kick_boom.wav", "Softer click and a longer boom on a kick")
+            .example("ferraus transient gtr.wav --attack +2dB --mix 50% -o gtr_pluck.wav", "A little extra pluck definition on an acoustic guitar, blended in parallel"),
         OpSpec::transform("clip", Category::Dynamics, "Soft or hard clipper", clip)
             .about("Clips peaks at the ceiling, with 4x oversampling to limit aliasing. 'soft' rounds the top over a knee; 'hard' cuts flat. The right tool when 'louder and tighter' is the goal and a limiter sounds too smooth.")
             .param(param("ceiling", ParamKind::Gain).default("-0.3dB").help("Clip level (sample peak, dBFS)"))
             .param(param("mode", ParamKind::Choice).choices(&["soft", "hard"]).default("soft").help("Clip shape"))
             .param(param("knee", ParamKind::Gain).default("3dB").help("Soft-clip knee below the ceiling where rounding starts"))
             .example("ferraus clip drums.wav -o clipped.wav", "Soft clip at -0.3 dBFS")
-            .example("ferraus clip bass.wav --ceiling -6dB --mode hard -o fuzz.wav", "Hard clipping as an effect"),
+            .example("ferraus clip bass.wav --ceiling -6dB --mode hard -o fuzz.wav", "Hard clipping as an effect")
+            .example("ferraus clip mix.wav --ceiling -1dB --knee 6dB -o mix_clip.wav", "Shave peaks before a limiter with a wide, gentle knee")
+            .example("ferraus clip snare.wav --ceiling -3dB --mix 50% -o snare_crunch.wav", "Parallel soft clipping for a crunchier snare"),
     ]
 }
 

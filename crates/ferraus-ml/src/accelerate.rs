@@ -32,7 +32,8 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("provider", ParamKind::Choice).choices(&["auto", "cuda", "coreml", "directml"]).default("auto").help("Which provider to install (auto: CUDA on Linux/Windows, report CoreML on macOS)"))
         .param(param("accept-eula", ParamKind::Flag).help("Accept the NVIDIA EULA for the CUDA runtime libraries"))
         .example("ferraus accelerate install --accept-eula", "Fetch the CUDA provider on Linux or Windows")
-        .example("ferraus accelerate status", "Show which provider is active"),
+        .example("ferraus accelerate install --provider cuda -y", "Install the CUDA provider; -y also accepts the NVIDIA EULA")
+        .example("ferraus accelerate install --provider coreml --json", "On macOS: report that CoreML is built in (nothing to download)"),
         OpSpec::custom(
             "accelerate status",
             Category::Models,
@@ -40,7 +41,9 @@ pub fn ops() -> Vec<OpSpec> {
             status,
         )
         .inputs(Inputs::NONE)
-        .example("ferraus accelerate status --json", "Machine-readable provider report"),
+        .example("ferraus accelerate status --json", "Machine-readable provider report")
+        .example("ferraus accelerate status", "Show which execution providers are available and which is active")
+        .example("ferraus accelerate status --device cuda", "Check whether CUDA would be used when requested with --device"),
     ]
 }
 

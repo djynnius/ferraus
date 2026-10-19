@@ -317,3 +317,76 @@ fn prd_examples_parse() {
     assert!(checked > 20, "only {checked} PRD examples found");
     assert!(bad.is_empty(), "{} PRD examples do not parse:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// Every concrete `ferraus ...` command in the hand-written guides (tutorials, cookbook,
+/// concepts, getting started, troubleshooting) validates against the CLI.
+#[test]
+fn guide_examples_parse() {
+    fn md_files(dir: &Path, out: &mut Vec<PathBuf>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                md_files(&p, out);
+            } else if p.extension().map(|x| x == "md").unwrap_or(false) {
+                out.push(p);
+            }
+        }
+    }
+    let reg = ferraus_cli::registry();
+    let mut files = Vec::new();
+    md_files(&repo_root().join("docs/guides"), &mut files);
+    files.sort();
+    let mut bad = Vec::new();
+    let mut checked = 0;
+    for f in &files {
+        let text = std::fs::read_to_string(f).unwrap();
+        let mut candidates: Vec<String> = Vec::new();
+        let mut in_block = false;
+        let mut pending = String::new();
+        for line in text.lines() {
+            // code inside block quotes (test-file recipes) counts too
+            let line = line.trim_start().trim_start_matches('>').trim_start();
+            if line.starts_with("```") {
+                in_block = !in_block;
+                continue;
+            }
+            if in_block {
+                // join shell line continuations
+                if !pending.is_empty() {
+                    pending.push(' ');
+                    pending.push_str(line.trim_end_matches('\\').trim());
+                    if !line.ends_with('\\') {
+                        candidates.push(std::mem::take(&mut pending));
+                    }
+                } else if line.starts_with("ferraus ") {
+                    if line.ends_with('\\') {
+                        pending = line.trim_end_matches('\\').trim().to_string();
+                    } else {
+                        candidates.push(line.to_string());
+                    }
+                }
+            } else {
+                for span in line.split('`').skip(1).step_by(2) {
+                    if span.starts_with("ferraus ") {
+                        candidates.push(span.to_string());
+                    }
+                }
+            }
+        }
+        for c in candidates {
+            if c.contains('<') || c.contains("...") || c.contains('…') {
+                continue;
+            }
+            let second = c.split_whitespace().nth(1).unwrap_or("");
+            if second.starts_with('-') || second == "video" {
+                continue;
+            }
+            checked += 1;
+            if let Err(msg) = check_example(&reg, &c) {
+                bad.push(format!("{}: {msg}", f.strip_prefix(repo_root()).unwrap_or(f).display()));
+            }
+        }
+    }
+    assert!(checked > 100, "only {checked} guide examples found");
+    assert!(bad.is_empty(), "{} guide examples do not parse:\n{}", bad.len(), bad.join("\n"));
+}

@@ -23,19 +23,22 @@ pub fn ops() -> Vec<OpSpec> {
             .about("Prints tracks, note counts, pitch ranges, programs, tempo map, time and key signatures, and the length in seconds, beats, and bars. Writes nothing.")
             .inputs(Inputs::ONE_MIDI)
             .example("ferraus midi info song.mid --json", "Machine-readable summary of every track")
-            .example("ferraus midi info part.json", "Also reads the JSON form written by midi to-json"),
+            .example("ferraus midi info part.json", "Also reads the JSON form written by midi to-json")
+            .example("ferraus midi info hum.mid", "Check the notes, range, and tempo of a part written by hum or transcribe"),
         OpSpec::custom("midi to-json", Category::Midi, "Convert MIDI to editable JSON", midi_to_json)
             .about("Writes the agent-facing JSON form of a MIDI file: tracks, notes with onset and duration in ticks, beats, and seconds, pitch number and name, velocity, channel (1-16), tempo map, time and key signatures, controllers, program changes, pitch bends, sysex, and every other event, so 'midi from-json' reproduces the file's events exactly. When editing, change 'beat'/'duration_beats' (they win over ticks) or remove both tick and beat to position by 'time_s'.")
             .inputs(Inputs::ONE_MIDI)
             .param(param("compact", ParamKind::Flag).help("Write minified JSON instead of indented"))
             .example("ferraus midi to-json song.mid -o song.json", "Write the JSON model beside the file")
-            .example("ferraus midi to-json song.mid -o -", "Print the JSON model to stdout"),
+            .example("ferraus midi to-json song.mid -o -", "Print the JSON model to stdout")
+            .example("ferraus midi to-json part.mid --compact -o part.json", "Minified JSON for an agent to read with fewer tokens"),
         OpSpec::custom("midi from-json", Category::Midi, "Write a MIDI file from JSON", midi_from_json)
             .about("Builds a Standard MIDI File from the JSON model. Minimal JSON works: {\"tempo_map\":[{\"beat\":0,\"bpm\":100}],\"tracks\":[{\"notes\":[{\"beat\":0,\"duration_beats\":1,\"name\":\"C4\",\"velocity\":100}]}]}. Positions: beat wins over tick; time_s is used when neither is present.")
             .inputs(Inputs::exactly(1, InputKind::Any))
             .param(param("ppq", ParamKind::Int).range("24..32767").help("Ticks per quarter note of the written file; ticks are rescaled (default: the JSON's ppq, else 960)"))
             .example("ferraus midi from-json song.json -o song.mid", "Round-trip an edited JSON model back to MIDI")
-            .example("ferraus midi from-json idea.json -o idea.mid --ppq 960", "Write at 960 ticks per quarter note"),
+            .example("ferraus midi from-json idea.json -o idea.mid --ppq 960", "Write at 960 ticks per quarter note")
+            .example("ferraus midi from-json notes.json -o notes.mid --ppq 480", "Write a JSON part made by an agent at 480 ticks per quarter note"),
         OpSpec::custom("midi quantize", Category::Midi, "Snap notes to a grid", midi_quantize)
             .about("Maps notes to ticks against the file's tempo map and moves each note-on by strength × (nearest grid point − onset). The grid is ppq × 4 / subdivision ticks (1/8T triplets and 1/8D dotted supported); --swing delays every second grid point by swing × grid; --groove replaces the fixed grid with per-position offsets and velocity deltas from 'midi groove extract'. --humanize adds seeded Gaussian jitter afterwards (--seed).")
             .inputs(Inputs::ONE_MIDI)
@@ -56,7 +59,8 @@ pub fn ops() -> Vec<OpSpec> {
             .inputs(Inputs::ONE_MIDI)
             .param(param("grid", ParamKind::Grid).default("1/16").help("Grid the offsets are measured against (1/16, 1/8, 1/8T)"))
             .example("ferraus midi groove extract drums.mid -o groove.json", "Capture a drummer's sixteenth-note feel")
-            .example("ferraus midi groove extract ref.mid -o groove.json --grid 1/8", "Measure the feel on an eighth-note grid"),
+            .example("ferraus midi groove extract ref.mid -o groove.json --grid 1/8", "Measure the feel on an eighth-note grid")
+            .example("ferraus midi groove extract shuffle.mid --grid 1/8T -o shuffle_groove.json", "Capture a shuffle feel against an eighth-note triplet grid"),
         OpSpec::custom("midi transpose", Category::Midi, "Shift note pitches", midi_transpose)
             .about("Moves notes by whole semitones. Channel 10 (drums) is left alone unless --include-drums; notes pushed outside 0-127 are dropped with a warning.")
             .inputs(Inputs::ONE_MIDI)
@@ -64,7 +68,8 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("include-drums", ParamKind::Flag).help("Also transpose channel 10"))
             .param(tracks())
             .example("ferraus midi transpose song.mid --semitones +2 -o up2.mid", "Up a whole step")
-            .example("ferraus midi transpose bass.mid --semitones -12st -o low.mid", "Down an octave"),
+            .example("ferraus midi transpose bass.mid --semitones -12st -o low.mid", "Down an octave")
+            .example("ferraus midi transpose song.mid --semitones -3 --tracks 2,3 -o lower.mid", "Move only tracks 2 and 3 down a minor third; drums stay put"),
         OpSpec::custom("midi velocity", Category::Midi, "Scale, compress, or set velocities", midi_velocity)
             .about("Changes note velocities in this order: --set, --scale, --compress toward the mean, then --range remaps the current lowest..highest onto lo..hi. Results are clamped to 1-127.")
             .inputs(Inputs::ONE_MIDI)
@@ -74,40 +79,46 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("range", ParamKind::Str).help("Remap velocities onto lo..hi, e.g. 40..110"))
             .param(tracks())
             .example("ferraus midi velocity take.mid --scale 1.2 -o louder.mid", "Play 20% harder")
-            .example("ferraus midi velocity take.mid --compress 50% --range 60..110 -o even.mid", "Even out dynamics into 60-110"),
+            .example("ferraus midi velocity take.mid --compress 50% --range 60..110 -o even.mid", "Even out dynamics into 60-110")
+            .example("ferraus midi velocity drums.mid --set 100 -o flat.mid", "Every note at velocity 100, for a programmed feel"),
         OpSpec::custom("midi legato", Category::Midi, "Extend notes to the next onset", midi_legato)
             .about("Lengthens every note to the next note-on in its track and channel (chords move together), leaving --gap of space. The last notes keep their length.")
             .inputs(Inputs::ONE_MIDI)
             .param(param("gap", ParamKind::Time).default("0ms").help("Space left before the next note (10ms, or 0.05b in beats)"))
             .param(tracks())
             .example("ferraus midi legato lead.mid -o smooth.mid", "Connect every note to the next")
-            .example("ferraus midi legato pad.mid --gap 20ms -o pad-legato.mid", "Nearly legato with a 20 ms gap"),
+            .example("ferraus midi legato pad.mid --gap 20ms -o pad-legato.mid", "Nearly legato with a 20 ms gap")
+            .example("ferraus midi legato song.mid --gap 0.05b --tracks 1 -o song-legato.mid", "Legato on track 1 only, leaving a twentieth of a beat between notes"),
         OpSpec::custom("midi tempo", Category::Midi, "Set or scale the tempo", midi_tempo)
             .about("--set replaces the tempo map with one tempo; --scale multiplies every tempo. Notes keep their beat positions, so the part plays faster or slower.")
             .inputs(Inputs::ONE_MIDI)
             .param(param("set", ParamKind::Float).range("1..1000").help("New constant tempo in BPM (120)"))
             .param(param("scale", ParamKind::Float).help("Multiply every tempo (1.5 = 50% faster)"))
             .example("ferraus midi tempo song.mid --set 120 -o at120.mid", "Play the whole file at 120 BPM")
-            .example("ferraus midi tempo song.mid --scale 0.5 -o half.mid", "Half speed, keeping tempo changes"),
+            .example("ferraus midi tempo song.mid --scale 0.5 -o half.mid", "Half speed, keeping tempo changes")
+            .example("ferraus midi tempo hum.mid --set 92 -o hum92.mid", "Fix a hummed part at 92 BPM to match the song"),
         OpSpec::custom("midi split-tracks", Category::Midi, "One file per track or channel", midi_split)
             .about("Writes one MIDI file per note-bearing track (roles track1..N) or per channel (ch1..16). Tempo, time and key signatures are copied into every part.")
             .inputs(Inputs::ONE_MIDI)
             .param(param("by", ParamKind::Choice).choices(&["track", "channel"]).default("track").help("Split by track or by MIDI channel"))
             .example("ferraus midi split-tracks song.mid --outdir parts", "parts/song.track1.mid, parts/song.track2.mid, ...")
-            .example("ferraus midi split-tracks song.mid --by channel -o song.mid --outdir parts", "One file per channel"),
+            .example("ferraus midi split-tracks song.mid --by channel -o song.mid --outdir parts", "One file per channel")
+            .example("ferraus midi split-tracks band.mid --by track --outdir stems_midi --json", "Split by track and list the written files as JSON"),
         OpSpec::custom("midi merge", Category::Midi, "Combine MIDI files", midi_merge)
             .about("Merges several files into one format-1 file at the first file's PPQ, keeping each track (or everything in one track with --mode single). The first file's tempo map is used.")
             .inputs(MANY_MIDI)
             .param(param("mode", ParamKind::Choice).choices(&["tracks", "single"]).default("tracks").help("tracks: keep every track; single: merge all events into one track"))
             .example("ferraus midi merge drums.mid bass.mid keys.mid -o song.mid", "Stack parts into one multitrack file")
-            .example("ferraus midi merge a.mid b.mid --mode single -o one-track.mid", "Merge into a single track"),
+            .example("ferraus midi merge a.mid b.mid --mode single -o one-track.mid", "Merge into a single track")
+            .example("ferraus midi merge melody.mid chords.mid --mode tracks -o lead_sheet.mid", "Combine a hummed melody and a chord part for rendering or a score"),
         OpSpec::custom("midi trim", Category::Midi, "Keep a time range", midi_trim)
             .about("Keeps events inside --range (beats like 4b..12b are musical; seconds follow the tempo map). Notes crossing the edges are clipped; the tempo, signatures, programs, and controller values in effect at the start are kept.")
             .inputs(Inputs::ONE_MIDI)
             .param(param("range", ParamKind::Range).required().help("start..end in beats (8b..24b), seconds (10s..30s), or mm:ss; end = file end"))
             .param(param("shift", ParamKind::Switch).default("on").help("Move the range start to time zero"))
             .example("ferraus midi trim song.mid --range 16b..48b -o chorus.mid", "Keep beats 16 to 48 (bars 5-12 in 4/4)")
-            .example("ferraus midi trim song.mid --range 0:30..end -o tail.mid", "Drop the first 30 seconds"),
+            .example("ferraus midi trim song.mid --range 0:30..end -o tail.mid", "Drop the first 30 seconds")
+            .example("ferraus midi trim song.mid --range 10s..20s --shift off -o ten.mid", "Keep 10 to 20 seconds at their original position in time"),
     ]
 }
 

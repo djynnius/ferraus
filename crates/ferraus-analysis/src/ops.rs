@@ -14,61 +14,80 @@ pub fn ops() -> Vec<OpSpec> {
             .inputs(Inputs::ONE_AUDIO)
             .param(param("range", ParamKind::Str).default("60..200").help("Tempo search range in BPM, low..high"))
             .example("ferraus analyze tempo song.wav --json", "BPM, confidence, and beat times")
-            .example("ferraus analyze tempo dnb.wav --range 140..190", "Search only fast tempi"),
+            .example("ferraus analyze tempo dnb.wav --range 140..190", "Search only fast tempi")
+            .example("ferraus analyze tempo ballad.wav --range 50..100 --json", "Keep a slow ballad from being read at double time"),
         OpSpec::custom("analyze loudness", Category::Inspect, "EBU R128 loudness: integrated, short-term, momentary, range, true peak", analyze_loudness)
             .about("Integrated loudness with absolute (-70 LUFS) and relative (-10 LU) gates, maximum short-term (3 s) and momentary (400 ms) loudness, loudness range (EBU Tech 3342), 4x-oversampled true peak, and sample peak. --timeline adds the momentary and short-term curves, like a loudness meter or radar.")
             .inputs(Inputs::ONE_AUDIO)
             .param(param("timeline", ParamKind::Flag).help("Add momentary and short-term loudness curves"))
             .param(param("step", ParamKind::Time).default("100ms").advanced().help("Timeline resolution (multiples of 100 ms)"))
             .example("ferraus analyze loudness master.wav --json", "Integrated LUFS, LRA, and true peak")
-            .example("ferraus analyze loudness mix.wav --timeline --step 1s", "Loudness curve every second"),
+            .example("ferraus analyze loudness mix.wav --timeline --step 1s", "Loudness curve every second")
+            .example("ferraus analyze loudness episode.mp3 --json > loudness.json", "Save the loudness report of a podcast episode for a delivery check"),
         OpSpec::custom("analyze silence", Category::Inspect, "List silent regions with start, end, and floor level", analyze_silence)
             .inputs(Inputs::ONE_AUDIO)
             .param(param("threshold", ParamKind::Gain).default("-40dB").help("Level below which audio counts as silence (RMS, loudest channel)"))
             .param(param("min", ParamKind::Time).default("300ms").help("Shortest region reported"))
-            .example("ferraus analyze silence podcast.wav --threshold -50dB --min 1s", "Pauses longer than a second"),
+            .example("ferraus analyze silence podcast.wav --threshold -50dB --min 1s", "Pauses longer than a second")
+            .example("ferraus analyze silence take.wav --json", "Silent regions with the defaults (-40 dB, at least 300 ms)")
+            .example("ferraus analyze silence field.wav --threshold -60dB --min 100ms --json", "Short gaps in a quiet field recording"),
         OpSpec::custom("analyze spectrum", Category::Inspect, "Long-term average spectrum in fractional-octave bands or FFT bins", analyze_spectrum)
             .about("Welch-averaged spectrum of all channels. Band levels are in dB relative to a full-scale sine (a 0 dBFS sine in a band reads 0 dB). Also reports the spectral centroid, 85% rolloff, flatness, and strongest frequency.")
             .inputs(Inputs::ONE_AUDIO)
             .param(param("resolution", ParamKind::Choice).choices(&["1/3oct", "1/6oct", "bins"]).default("1/3oct").help("Band resolution"))
-            .example("ferraus analyze spectrum mix.wav --json", "Third-octave levels from 20 Hz to 20 kHz"),
+            .example("ferraus analyze spectrum mix.wav --json", "Third-octave levels from 20 Hz to 20 kHz")
+            .example("ferraus analyze spectrum vocal.wav --resolution 1/6oct --json", "Finer sixth-octave bands to find a resonance")
+            .example("ferraus analyze spectrum hum.wav --resolution bins --json", "Raw FFT bins, for example to locate a hum line exactly"),
         OpSpec::custom("analyze clipping", Category::Inspect, "Count and locate clipped runs", analyze_clipping)
             .about("A clipped run is at least --min-run consecutive samples at or above --threshold with the same polarity. Flat-topped runs below the threshold (audio clipped and then turned down) are reported with kind 'flat'.")
             .inputs(Inputs::ONE_AUDIO)
             .param(param("threshold", ParamKind::Gain).default("0dBFS").help("Clip level"))
             .param(param("min-run", ParamKind::Int).default("3").range("1..1000").help("Consecutive samples that count as a clipped run"))
-            .example("ferraus analyze clipping take.wav --json", "Clipped runs with channel and time"),
+            .example("ferraus analyze clipping take.wav --json", "Clipped runs with channel and time")
+            .example("ferraus analyze clipping master.wav --threshold -0.1dB --min-run 2 --json", "Count near-full-scale runs of two or more samples in a loud master")
+            .example("ferraus analyze clipping old_transfer.wav --min-run 1", "Report every sample at full scale, even single ones"),
         OpSpec::custom("analyze chords", Category::Inspect, "Chord sequence with times and confidence (best-effort)", analyze_chords)
             .about("Peak-picked chroma matched against harmonic-aware templates for major, minor, 7, maj7, m7, dim, sus4, and sus2 chords, with a bass-note cue for slash chords and Viterbi smoothing. Best-effort: reliable on clear harmonic material, approximate on dense mixes.")
             .inputs(Inputs::ONE_AUDIO)
             .best_effort()
             .param(param("change-penalty", ParamKind::Float).default("0.5").advanced().help("Smoothing: higher values change chord less often"))
             .param(param("min-duration", ParamKind::Time).default("250ms").advanced().help("Shortest chord segment kept"))
-            .example("ferraus analyze chords song.wav --json", "Chord labels such as C, Am7, G/B with times"),
+            .example("ferraus analyze chords song.wav --json", "Chord labels such as C, Am7, G/B with times")
+            .example("ferraus analyze chords guitar.wav --change-penalty 1.5 --json", "Fewer, steadier chord changes on a strummed part")
+            .example("ferraus analyze chords piano.wav --min-duration 500ms --json > chords.json", "Drop chord segments shorter than half a second and save the result"),
         OpSpec::custom("analyze similarity", Category::Inspect, "Spectral, cepstral, and loudness similarity between two files", analyze_similarity)
             .about("For agents checking whether a processed take drifted from the original: cosine similarity of the log third-octave spectra, MFCC distance, and loudness difference combined into a 0..1 score.")
             .inputs(Inputs::exactly(2, InputKind::Audio))
-            .example("ferraus analyze similarity original.wav processed.wav --json", "Score near 1 means the character is unchanged"),
+            .example("ferraus analyze similarity original.wav processed.wav --json", "Score near 1 means the character is unchanged")
+            .example("ferraus analyze similarity mix.wav master.wav --json", "Check that mastering kept the character of the mix")
+            .example("ferraus analyze similarity take1.wav take2.wav", "Compare two takes of the same part"),
         OpSpec::custom("compare", Category::Inspect, "Null test: align b to a and report RMS and peak difference and SI-SDR", compare_op)
             .about("b is aligned to a by FFT cross-correlation (within --max-offset), resampled and channel-matched if needed, then compared sample by sample: RMS and peak of the difference, null depth, best-fit gain, SI-SDR of b against a, and loudness difference. The agent's regression test.")
             .inputs(Inputs::exactly(2, InputKind::Audio))
             .param(param("max-offset", ParamKind::Time).default("1s").help("Largest alignment offset searched"))
             .param(param("no-align", ParamKind::Flag).help("Compare sample for sample without alignment"))
-            .example("ferraus compare mix.wav master_v1.wav --json", "Confirm nothing was damaged"),
+            .example("ferraus compare mix.wav master_v1.wav --json", "Confirm nothing was damaged")
+            .example("ferraus compare original.wav roundtrip.wav --no-align --json", "Sample-for-sample null test of a format round trip")
+            .example("ferraus compare stem_sum.wav mix.wav --max-offset 5s", "Allow up to five seconds of offset when the files start at different times"),
         OpSpec::custom("analyze problems", Category::Inspect, "Diagnose clipping, DC, clicks, hum, hiss, phase, silence, and more", analyze_problems)
             .about("Each problem has a severity (low, medium, high), details, and a suggested fix that is a runnable command or fx stage, e.g. 'dc-remove', 'declip', 'highpass:freq=30Hz', or 'silence trim --edges'.")
             .inputs(Inputs::ONE_AUDIO)
             .param(param("min-severity", ParamKind::Choice).choices(&["low", "medium", "high"]).default("low").help("Only list problems at or above this severity"))
             .example("ferraus analyze problems take.wav --json", "Diagnostics with suggested fixes")
-            .example("ferraus fx take.wav -o fixed.wav --fx dc-remove --fx \"highpass:freq=30Hz\"", "Apply two suggested fixes"),
+            .example("ferraus fx take.wav -o fixed.wav --fx dc-remove --fx \"highpass:freq=30Hz\"", "Apply two suggested fixes")
+            .example("ferraus analyze problems interview.wav --min-severity medium --json", "Only the medium and high severity problems"),
         OpSpec::custom("analyze stats", Category::Inspect, "Per-channel peak, true peak, RMS, DC, crest factor, dynamic range", analyze_stats)
             .inputs(Inputs::ONE_AUDIO)
             .param(param("histogram", ParamKind::Switch).default("off").help("Add a 61-bin dB histogram per channel (-60..0 dBFS)"))
-            .example("ferraus analyze stats take.wav --histogram on --json", "Amplitude statistics with histograms"),
+            .example("ferraus analyze stats take.wav --histogram on --json", "Amplitude statistics with histograms")
+            .example("ferraus analyze stats mix.wav --json", "Peak, true peak, RMS, DC offset, and crest factor per channel")
+            .example("ferraus analyze stats master.wav --json > stats.json", "Save the statistics of a master as JSON"),
         OpSpec::custom("analyze stereo", Category::Inspect, "Stereo image: correlation, width per band, mono compatibility", analyze_stereo)
             .about("L/R correlation broadband and below 120 Hz, mid/side balance, width and correlation per band, and a 0..1 mono-compatibility score.")
             .inputs(Inputs::ONE_AUDIO)
-            .example("ferraus analyze stereo mix.wav --json", "Check the mix folds to mono"),
+            .example("ferraus analyze stereo mix.wav --json", "Check the mix folds to mono")
+            .example("ferraus analyze stereo master.wav", "Correlation and width per band printed for a person")
+            .example("ferraus analyze stereo widened.wav --json > stereo.json", "Save the stereo report after widening to check mono compatibility"),
     ]
 }
 

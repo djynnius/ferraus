@@ -10,23 +10,31 @@ pub fn ops() -> Vec<OpSpec> {
         OpSpec::transform("reverse", Category::Edit, "Play the audio backwards", reverse)
             .about("Reverses every channel. Combine with reverb for the classic reverse-reverb swell: reverse, reverb with --tail, reverse again.")
             .example("ferraus reverse cymbal.wav -o swell.wav", "Reverse a cymbal")
-            .example("ferraus fx vox.wav -o pre.wav --fx reverse --fx \"reverb:mix=100%,tail=2s\" --fx reverse", "Reverse-reverb pre-swell"),
+            .example("ferraus fx vox.wav -o pre.wav --fx reverse --fx \"reverb:mix=100%,tail=2s\" --fx reverse", "Reverse-reverb pre-swell")
+            .example("ferraus reverse speech.wav --mix 50% -o ghost.wav", "Blend the forward and backward signal for a ghostly texture")
+            .example("ferraus reverse samples/*.wav --outdir reversed/", "Reverse every one-shot in a folder for a reversed sample pack"),
         OpSpec::transform("speed", Category::Edit, "Change speed and pitch together (varispeed)", speed)
             .about("Tape-style speed change: --factor 2.0 plays twice as fast, an octave higher, in half the time. Uses windowed-sinc resampling with automatic anti-aliasing. To change only duration or only pitch, use stretch or pitch.")
             .param(param("factor", ParamKind::Float).default("1.0").range("0.05..20").help("Playback speed multiplier (0.5 = half speed, an octave down)"))
             .no_mix()
             .example("ferraus speed loop.wav --factor 1.5 -o fast.wav", "Faster and higher")
-            .example("ferraus speed vox.wav --factor 0.5 -o slow.wav", "Half speed, an octave down"),
+            .example("ferraus speed vox.wav --factor 0.5 -o slow.wav", "Half speed, an octave down")
+            .example("ferraus speed song.wav --factor 1.0595 -o song_up.wav", "One semitone up and about 6% faster, like tape running fast")
+            .example("ferraus speed vinyl_rip.wav --factor 1.35 -o fixed.wav", "Fix a 45 rpm record that was digitised at 33 1/3 rpm"),
         OpSpec::transform("dc-remove", Category::Restoration, "Remove DC offset", dc_remove)
             .about("Removes DC offset with a gentle high-pass (default 5 Hz, inaudible), which also follows a drifting offset. --freq 0Hz subtracts each channel's mean instead (Audition's DC bias adjust).")
             .param(param("freq", ParamKind::Freq).default("5Hz").help("High-pass corner; 0Hz subtracts the mean"))
             .example("ferraus dc-remove take.wav -o take_dc.wav", "Remove DC offset")
-            .example("ferraus dc-remove old.wav --freq 0Hz -o old_dc.wav", "Subtract the static mean only"),
+            .example("ferraus dc-remove old.wav --freq 0Hz -o old_dc.wav", "Subtract the static mean only")
+            .example("ferraus dc-remove takes/*.wav --outdir clean/", "Remove DC offset from a whole folder before editing")
+            .example("ferraus dc-remove sub.wav --freq 2Hz -o sub_dc.wav", "A lower corner for bass-heavy material so the deepest sub stays untouched"),
         OpSpec::transform("invert-phase", Category::Edit, "Invert polarity", invert_phase)
             .about("Multiplies the signal by -1 (all channels, or only --channel left/right). Fixes a mic wired out of polarity or tests phase cancellation.")
             .param(param("channel", ParamKind::Choice).choices(&["all", "left", "right"]).default("all").help("Which channel(s) to invert"))
             .example("ferraus invert-phase snare_bottom.wav -o flipped.wav", "Flip the polarity of a bottom-snare mic")
-            .example("ferraus invert-phase stereo.wav --channel right -o r_flipped.wav", "Invert only the right channel"),
+            .example("ferraus invert-phase stereo.wav --channel right -o r_flipped.wav", "Invert only the right channel")
+            .example("ferraus invert-phase mic2.wav --json -o mic2_flipped.wav", "Flip a second microphone that cancels the first, and print the JSON result")
+            .example("ferraus invert-phase ambience.wav --channel left -o ambience_wide.wav", "Invert one side of a stereo ambience for an out-of-phase, extra-wide effect (it cancels in mono)"),
     ]
 }
 

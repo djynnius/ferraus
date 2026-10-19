@@ -84,7 +84,9 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus pitch-bend vox.wav --points 0s=0,1s=-1200cents --preserve-duration on -o low.wav",
             "Glide down an octave without changing the timing",
-        ),
+        )
+        .example("ferraus pitch-bend vinyl.wav --points 0s=0,1.5s=-1200cents --curve linear -o stop.wav", "Turntable stop: slow down an octave over 1.5 s (the file gets longer, like a real record)")
+        .example("ferraus pitch-bend speech.wav --points 0s=0,2s=+300cents,4s=0 --preserve-duration on -o rise.wav", "Lift a sentence three semitones and back without changing its timing"),
     ]
 }
 

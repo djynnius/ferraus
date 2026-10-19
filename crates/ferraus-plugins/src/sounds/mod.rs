@@ -279,13 +279,15 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("type", ParamKind::List).help("Only these types: clap, vst3, sf2, sfz, ir"))
             .param(param("license", ParamKind::Str).help("Only entries whose SPDX license contains this text (e.g. CC0, GPL, MIT)"))
             .example("ferraus sounds search piano", "Find piano sounds")
-            .example("ferraus sounds search reverb --type ir,clap --license CC0 --json", "CC0 reverbs and impulse responses as JSON"),
+            .example("ferraus sounds search reverb --type ir,clap --license CC0 --json", "CC0 reverbs and impulse responses as JSON")
+            .example("ferraus sounds search strings --type sfz", "String libraries in SFZ format"),
         OpSpec::custom("sounds info", Category::Plugins, "Show a registry entry's license, size, and downloads", sounds_info)
             .about("Prints the license text and download size before anything is downloaded, plus the files that would be fetched on this platform and whether they have pinned SHA-256 hashes.")
             .positional("id")
             .param(param("id", ParamKind::Str).required().help("Registry id or name (see 'sounds search')"))
             .example("ferraus sounds info salamander-grand-piano", "License and size of the Salamander piano")
-            .example("ferraus sounds info gm-basic --json", "Entry details as JSON"),
+            .example("ferraus sounds info gm-basic --json", "Entry details as JSON")
+            .example("ferraus sounds info surge-xt", "Version, license, and download size of the Surge XT synthesizer"),
         OpSpec::custom("sounds install", Category::Plugins, "Download, verify, and install a sound", sounds_install)
             .about("Downloads a registry entry (resuming partial downloads), verifies its SHA-256, refuses any mismatch, unpacks zip and tar archives, and places plugins in the per-user plugin folder and SoundFonts, SFZ libraries, and impulse responses in <data>/ferraus/sounds/, then rescans. The license is printed first. Downloads need --yes (or auto-download enabled in the config); --offline forbids them. Entries without a pinned hash are refused unless FERRAUS_ALLOW_UNVERIFIED=1. With --from, registers a bundle you downloaded yourself (for free-but-proprietary instruments whose vendors require their own installer); ferraus never runs installers or asks for administrator rights.")
             .positional("id")
@@ -293,33 +295,38 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("from", ParamKind::Path).help("Install a file or folder you downloaded yourself: a .clap/.vst3 bundle, .sf2, .sfz library folder, IR folder, or a zip/tar archive of those"))
             .param(param("name", ParamKind::Str).help("Name for a --from install (default: the file name)"))
             .example("ferraus sounds install gm-basic -y", "Download and install the default General MIDI SoundFont")
-            .example("ferraus sounds install vital --from ~/Downloads/VitalInstaller.zip", "Register a plugin downloaded from its vendor"),
+            .example("ferraus sounds install vital --from ~/Downloads/VitalInstaller.zip", "Register a plugin downloaded from its vendor")
+            .example("ferraus sounds install --from ~/Downloads/MyStrings.sf2 --name my-strings", "Install a SoundFont you already have under your own name"),
         OpSpec::custom("sounds list", Category::Plugins, "List installed sounds, or what a folder contains", sounds_list)
             .about("Without --path, lists installed sounds and everything in --sound-path folders. With --path, shows what that folder contains (CLAP/VST3 plugins, SF2, SFZ, impulse responses) with the category ferraus inferred for each: keys, strings, guitar, bass, drums, synth, pad, brass, winds, vocal, fx.")
             .inputs(Inputs::NONE)
             .param(param("path", ParamKind::Path).help("Folder to inspect instead of the installed sounds"))
             .param(param("category", ParamKind::Str).help("Only sounds in this category (keys, strings, guitar, bass, drums, synth, pad, brass, winds, vocal, fx)"))
             .example("ferraus sounds list", "Installed sounds and sound-path folders")
-            .example("ferraus sounds list --path ~/Samples --json", "What a folder holds, with inferred categories, as JSON"),
+            .example("ferraus sounds list --path ~/Samples --json", "What a folder holds, with inferred categories, as JSON")
+            .example("ferraus sounds list --category keys", "Only installed keyboard sounds (pianos, electric pianos, organs)"),
         OpSpec::custom("sounds remove", Category::Plugins, "Remove an installed sound", sounds_remove)
             .about("Deletes the files an install created (only inside ferraus' sounds folder and the per-user plugin folders) and updates the plugin scan cache.")
             .positional("id")
             .param(param("id", ParamKind::Str).required().help("Installed sound id (see 'sounds list')"))
             .example("ferraus sounds remove gm-basic", "Uninstall the GM SoundFont")
-            .example("ferraus sounds remove dexed --json", "Uninstall a plugin and report the removed paths"),
+            .example("ferraus sounds remove dexed --json", "Uninstall a plugin and report the removed paths")
+            .example("ferraus sounds remove salamander-grand-piano", "Free the disk space used by the Salamander piano"),
         OpSpec::custom("sounds update", Category::Plugins, "Fetch the latest signed sounds registry", sounds_update)
             .about("Downloads the newest registry manifest and its signature, verifies the Ed25519 signature against the key built into ferraus, and caches it when it is newer than the built-in one. Also reports installed sounds whose registry version changed.")
             .inputs(Inputs::NONE)
             .param(param("url", ParamKind::Str).help("Manifest URL (default: the project's published registry, or FERRAUS_SOUNDS_REGISTRY_URL)").advanced())
             .example("ferraus sounds update", "Refresh the registry")
-            .example("ferraus sounds update --json", "Refresh and report changes as JSON"),
+            .example("ferraus sounds update --json", "Refresh and report changes as JSON")
+            .example("ferraus sounds update --url https://example.com/sounds/registry.json", "Use a mirror or private registry instead of the published one"),
         OpSpec::custom("sounds alias", Category::Plugins, "Set what an instrument name resolves to", sounds_alias)
             .about("Writes [aliases] in <config>/sounds/aliases.toml so --instrument piano or --to piano picks the sound you chose. The target is an installed sound id, a registry id, or an explicit source such as plugin:\"Surge XT\" or sf2:/path/gm.sf2. With no arguments, lists the aliases.")
             .positional("assignment")
             .param(param("assignment", ParamKind::Str).repeatable().help("name=target pairs, e.g. piano=salamander-grand-piano"))
             .param(param("remove", ParamKind::List).help("Alias names to delete"))
             .example("ferraus sounds alias piano=salamander-grand-piano", "Make 'piano' mean the Salamander Grand Piano")
-            .example("ferraus sounds alias strings=sfz:/libs/vsco/Strings.sfz pad='plugin:\"Surge XT\"'", "Point two names at explicit sources"),
+            .example("ferraus sounds alias strings=sfz:/libs/vsco/Strings.sfz pad='plugin:\"Surge XT\"'", "Point two names at explicit sources")
+            .example("ferraus sounds alias --remove piano,pad", "Delete two aliases so the names resolve to their defaults again"),
         OpSpec::custom("sounds scan", Category::Plugins, "Index a folder of sounds", sounds_scan)
             .about("Indexes a folder once (plugins are probed in a host subprocess) and caches the result in <cache>/sounds/index/. With --watch, keeps running and re-indexes whenever files in the folder change (polling every --interval).")
             .positional("dir")
@@ -328,7 +335,8 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("interval", ParamKind::Time).default("2s").help("Polling interval for --watch"))
             .param(param("watch-cycles", ParamKind::Int).help("Stop --watch after this many polls (for scripts and tests)").advanced())
             .example("ferraus sounds scan ~/Samples", "Index a sample folder")
-            .example("ferraus sounds scan ~/Samples --watch --interval 5s", "Re-index whenever the folder changes"),
+            .example("ferraus sounds scan ~/Samples --watch --interval 5s", "Re-index whenever the folder changes")
+            .example("ferraus sounds scan /Volumes/Libraries/SFZ --json", "Index an external drive of SFZ libraries and report what was found"),
     ]
 }
 

@@ -64,13 +64,15 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("hop", ParamKind::Time).default("10ms").help("Time between frames"))
             .param(param("range", ParamKind::Str).default("60Hz..1.2kHz").help("Pitch range searched, low..high (Hz, kHz or note names)"))
             .example("ferraus analyze pitch vocal.wav --json", "Pitch curve and notes as JSON")
-            .example("ferraus analyze pitch hum.wav --hop 5ms --range 80Hz..800Hz -o curve.csv", "Write a 5 ms pitch curve as CSV"),
+            .example("ferraus analyze pitch hum.wav --hop 5ms --range 80Hz..800Hz -o curve.csv", "Write a 5 ms pitch curve as CSV")
+            .example("ferraus analyze pitch bass.wav --range E1..G3 -o bass_pitch.json", "Track a bass line with a low range and save the JSON"),
         OpSpec::custom("analyze key", Category::Inspect, "Key and scale with confidence", analyze_key)
             .inputs(Inputs::ONE_AUDIO)
             .about("Estimates the key and mode by correlating a chroma profile (from an STFT with tuning estimation) with Krumhansl-Schmuckler major and minor profiles. Reports the confidence (normalised margin over the best key with a different scale), the top-3 alternatives, the tuning offset and the chroma. --method notes uses a duration-weighted histogram of the tracked notes instead, which suits monophonic vocals.")
             .param(param("method", ParamKind::Choice).choices(&["chroma", "notes"]).default("chroma").help("chroma: STFT chroma (any material); notes: pitch-tracked notes (monophonic)"))
             .example("ferraus analyze key song.wav --json", "Key, mode, confidence and alternatives")
-            .example("ferraus analyze key vocal.wav --method notes", "Key of a solo vocal from its notes"),
+            .example("ferraus analyze key vocal.wav --method notes", "Key of a solo vocal from its notes")
+            .example("ferraus analyze key loop.wav --method chroma -o key.json", "Key of a loop from its chroma, saved as JSON"),
     ]
 }
 

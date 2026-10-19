@@ -73,21 +73,24 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("reference", ParamKind::Path).help("Reference track for the tonal-balance comparison"))
             .param(param("genre", ParamKind::Choice).choices(GENRE_CHOICES).default("auto").help("Genre curve for the tonal-balance comparison (auto guesses)"))
             .example("ferraus master analyze mix.wav --reference ref.wav --json > report.json", "Read the numbers and the problem list")
-            .example("ferraus master analyze mix.wav --genre hiphop --target apple --json", "Compare with the hip-hop curve and the Apple target"),
+            .example("ferraus master analyze mix.wav --genre hiphop --target apple --json", "Compare with the hip-hop curve and the Apple target")
+            .example("ferraus master analyze mix.wav --target custom --lufs -12LUFS --true-peak -1dBTP -o report.json", "Measure against a custom -12 LUFS target and save the report"),
         OpSpec::custom("master plan", Category::Mastering, "The exact chain master would apply, every parameter resolved, editable", master_plan)
             .inputs(Inputs::ONE_AUDIO)
             .about("Plans the master without writing audio: the planner simulates the chain on this mix and records every stage with all of its parameters resolved, as JSON ({\"version\":1, \"target\":..., \"stages\":[{\"op\":\"multiband\",\"args\":{...}}, ...]}). Edit any value and run it with 'master <mix> --plan plan.json'. Stage args are ordinary command parameters (see 'ferraus schema <op>'); 'stage' and 'why' fields are informational. -o writes the plan file.")
             .params(target_params())
             .params(chain_params())
             .example("ferraus master plan mix.wav --target streaming --json > plan.json", "See the proposed chain and edit any value")
-            .example("ferraus master plan mix.wav --target cd --genre rock -o plan.json", "Plan a CD master for a rock mix and save it"),
+            .example("ferraus master plan mix.wav --target cd --genre rock -o plan.json", "Plan a CD master for a rock mix and save it")
+            .example("ferraus master plan mix.wav --intensity light --warmth 0% --no-widen -o plan.json", "A gentle plan with no color or stereo stage"),
         OpSpec::custom("master verify", Category::Mastering, "Pass or fail against a delivery spec", master_verify)
             .inputs(Inputs::ONE_AUDIO)
             .about("Checks a file against a delivery target: integrated loudness within --tolerance, true peak at or below the ceiling (4x oversampled), no clipping, DC offset at most 0.001, no out-of-phase bass (correlation below 120 Hz at least 0.5), no more than 1 s of head silence, broadband correlation not negative (below 0.3 warns), and for cd 44.1 kHz 16-bit. Exit code 9 (verification failed) when any check fails, with the failed checks in the message; the full list with a runnable fix per check is in the result.")
             .params(target_params())
             .param(param("tolerance", ParamKind::Str).default("0.5LU").help("Allowed distance from the target loudness (LU)"))
             .example("ferraus master verify master_v1.wav --target streaming --json", "Pass or fail per spec")
-            .example("ferraus master verify spot.wav --target broadcast --standard atsc --tolerance 1LU", "Check an ATSC A/85 broadcast deliverable"),
+            .example("ferraus master verify spot.wav --target broadcast --standard atsc --tolerance 1LU", "Check an ATSC A/85 broadcast deliverable")
+            .example("ferraus master verify release.wav --target cd", "Check loudness, true peak, and 44.1 kHz 16-bit for a CD master"),
         OpSpec::custom("master deliver", Category::Mastering, "Write the deliverable set", master_deliver)
             .inputs(Inputs::ONE_AUDIO)
             .about("Writes one file per --formats entry from a finished master: wav24 (24-bit, original rate), wav16 (16-bit 44.1 kHz with TPDF dither), mp3 (320 kbps, 44.1 kHz), flac (24-bit), aac (256 kbps .m4a, 44.1 kHz; needs FFmpeg). Resampling re-limits any new inter-sample peaks to the master's true peak. --tags and --isrc are written into every file; --loudness-sheet also writes a JSON and a CSV loudness sheet (integrated loudness, LRA, true peak, PLR per deliverable). Output names: <output>.wav24.wav, <output>.wav16.wav, <output>.mp3, <output>.flac, <output>.m4a.")
@@ -96,7 +99,8 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("isrc", ParamKind::Str).help("ISRC code written to every deliverable (CC-XXX-YY-NNNNN)"))
             .param(param("loudness-sheet", ParamKind::Flag).help("Also write a loudness sheet (<output>.loudness.json and .csv)"))
             .example("ferraus master deliver master.wav --tags title=Song,artist=Me --isrc US-RC1-76-07839 --loudness-sheet -o release/song.wav", "WAV 24, WAV 16, and MP3 with tags and a loudness sheet")
-            .example("ferraus master deliver master.wav --formats wav24,flac,aac -o release/song.wav", "Lossless and AAC deliverables"),
+            .example("ferraus master deliver master.wav --formats wav24,flac,aac -o release/song.wav", "Lossless and AAC deliverables")
+            .example("ferraus master deliver episode.wav --formats mp3 --tags title=Episode1,artist=Show -o out/episode1.wav", "A single tagged MP3 for a podcast feed"),
     ]
 }
 

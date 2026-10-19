@@ -27,7 +27,7 @@ Every command accepts these. Command-specific options are listed on each command
 | `--config <path>` | Alternate config file | platform default |
 | `--sound-path <dir>` | Extra instrument/sound folder (repeatable; also `FERRAUS_SOUND_PATH`) | registry + standard plugin dirs |
 | `--bpm <n>` | Tempo for beat-based values | detected when needed |
-| `--async` | Run in the background and print a job id (see `ferraus jobs`) | off |
+| `--async` | Run in the background and print a job id (see `ferraus jobs list` and `ferraus jobs wait`) | off |
 | `--timeout <time>` | Cancel after this long (exit code 8) | none |
 | `--max-memory <size>` | Memory budget before offline stages spill to disk | 2GB |
 

@@ -23,7 +23,8 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("http", ParamKind::Str).help("Serve streamable HTTP on this address (e.g. 127.0.0.1:8765) instead of stdio"))
         .param(param("allow", ParamKind::Path).repeatable().help("Directory the server may read and write (repeatable); default: current directory"))
         .example("claude mcp add ferraus -- ferraus mcp serve --allow ~/music", "Register ferraus with Claude Code")
-        .example("ferraus mcp serve --http 127.0.0.1:8765 --allow ~/music", "Serve several clients over HTTP")]
+        .example("ferraus mcp serve --http 127.0.0.1:8765 --allow ~/music", "Serve several clients over HTTP")
+        .example("ferraus mcp serve --allow ~/music --allow ~/podcasts", "Stdio server that may read and write two folders; outputs go to ~/music/ferraus-out/")]
 }
 
 fn serve(a: &Args, ctx: &mut OpCtx) -> Result<Value> {

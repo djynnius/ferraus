@@ -44,6 +44,14 @@ pub fn ops() -> Vec<OpSpec> {
         .example(
             "ferraus declip take.wav --threshold -0.3dB --headroom 6dB -o fixed.wav",
             "Treat everything above -0.3 dBFS as clipped and leave 6 dB of room",
+        )
+        .example(
+            "ferraus declip interview.wav --max-gap 4ms -o fixed.wav",
+            "Repair only short clipped runs (up to 4 ms) and leave longer ones untouched",
+        )
+        .example(
+            "ferraus declip live.wav --threshold 0.95x --order 64 -o fixed.wav",
+            "Treat samples above 95% of full scale as clipped and use a higher model order for dense music",
         ),
         OpSpec::transform("declick", Category::Restoration, "Remove clicks, pops, and crackle", declick)
             .about(

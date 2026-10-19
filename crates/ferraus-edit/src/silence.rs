@@ -122,6 +122,14 @@ pub fn detect_spec() -> OpSpec {
         "ferraus silence detect lecture.mp3 --threshold -50dB --min 2s --markers -o pauses.csv",
         "Write long pauses to a CSV marker file",
     )
+    .example(
+        "ferraus silence detect podcast.wav --min 1s --markers --markers-format json",
+        "Write pauses of a second or more to a JSON marker file next to the input",
+    )
+    .example(
+        "ferraus silence detect take.wav --threshold -60dB --min 100ms --json",
+        "Find even short, very quiet gaps, such as the breaths between words of a clean studio take",
+    )
 }
 
 fn detect(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -226,6 +234,14 @@ pub fn trim_spec() -> OpSpec {
         "ferraus silence trim podcast.wav --all --threshold -50dB --max-gap 700ms -o tight.wav",
         "Also shorten every pause longer than 1 s to 700 ms",
     )
+    .example(
+        "ferraus silence trim sample.wav --threshold -50dB --keep 0ms -o sample_tight.wav",
+        "Cut a one-shot sample right at its first and last sound so it plays instantly",
+    )
+    .example(
+        "ferraus silence trim lecture.wav --all --min 3s --max-gap 1s -o lecture_tight.wav",
+        "Keep natural pauses but shorten any silence over 3 s down to 1 s",
+    )
 }
 
 fn silence_trim(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {
@@ -288,6 +304,8 @@ pub fn pad_spec() -> OpSpec {
         .no_mix()
         .example("ferraus silence pad song.wav --start 1s --end 2s -o song_padded.wav", "One second of lead-in, two of tail")
         .example("ferraus silence pad loop.wav --end 4b --bpm 90 -o loop_tail.wav", "Add one bar of silence at 90 BPM for a reverb tail")
+        .example("ferraus silence pad episode.wav --start 500ms -o episode_lead.wav", "Half a second of lead-in so players do not swallow the first word")
+        .example("ferraus silence pad tracks/*.wav --end 2s --outdir spaced/", "Add two seconds of tail to every track of an album")
 }
 
 fn silence_pad(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> {

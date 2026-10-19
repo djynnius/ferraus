@@ -55,7 +55,8 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(param("rescan", ParamKind::Flag).help("Probe every bundle again instead of trusting the cache"))
             .param(watchdog_param())
             .example("ferraus plugin scan", "Scan the standard plugin folders")
-            .example("ferraus plugin scan --paths ~/plugins,/opt/clap --format clap --rescan --json", "Re-probe CLAP plugins in two extra folders and print the result as JSON"),
+            .example("ferraus plugin scan --paths ~/plugins,/opt/clap --format clap --rescan --json", "Re-probe CLAP plugins in two extra folders and print the result as JSON")
+            .example("ferraus plugin scan --paths ./build/MyPlugin.clap --watchdog 120s", "Scan one freshly built bundle, giving a slow plugin two minutes to load"),
         OpSpec::custom("plugin list", Category::Plugins, "List cached plugins", plugin_list)
             .about("Lists the plugins found by the last scan (running one first if nothing is cached), plus any in --sound-path folders. Filter by kind or format.")
             .inputs(Inputs::NONE)
@@ -63,14 +64,16 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(param("effects", ParamKind::Flag).help("Only audio and note effects"))
             .param(param("format", ParamKind::List).help("Only these formats: clap, vst3"))
             .example("ferraus plugin list --instruments", "Show instrument plugins")
-            .example("ferraus plugin list --effects --format clap --json", "CLAP effects as JSON"),
+            .example("ferraus plugin list --effects --format clap --json", "CLAP effects as JSON")
+            .example("ferraus plugin list", "Every cached plugin, instruments and effects, in every format"),
         OpSpec::custom("plugin info", Category::Plugins, "Show a plugin's parameters, presets, ports, latency, and MIDI support", plugin_info)
             .about("Loads the plugin in a host process (never opening its GUI) and reports every parameter with its stable id, name, range, default, and unit, the presets it exposes, its audio and note ports, the latency it reports at 48 kHz, and whether it accepts MIDI.")
             .positional("name")
             .param(plugin_name_param())
             .param(watchdog_param())
             .example("ferraus plugin info \"Surge XT\"", "Parameters and presets of Surge XT")
-            .example("ferraus plugin info ./MyPlugin.clap#com.acme.reverb --json", "One plugin from a bundle, as JSON"),
+            .example("ferraus plugin info ./MyPlugin.clap#com.acme.reverb --json", "One plugin from a bundle, as JSON")
+            .example("ferraus plugin info dragonfly-reverb --json", "Parameter names, ranges, and the reported tail of an installed reverb"),
         OpSpec::custom("plugin run", Category::Plugins, "Run an effect plugin over audio", plugin_run)
             .about("Processes the input through an effect plugin in a separate host process, offline in fixed blocks. The plugin's reported latency is compensated so every sample stays at its original position; --tail keeps processing after the input ends so reverbs and delays can ring out. The resolved parameters, preset, and native state are written to the sidecar so the run can be reproduced.")
             .inputs(Inputs::ONE_AUDIO)
@@ -84,14 +87,16 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(watchdog_param())
             .no_mix()
             .example("ferraus plugin run vocal.wav --plugin \"Dragonfly Room Reverb\" --tail 3s --mix 30% -o vocal.verb.wav", "Add 30% room reverb and let it ring for 3 s")
-            .example("ferraus plugin run in.wav --plugin com.acme.eq --param \"Low Gain=-3dB\" --param cutoff=2.5kHz -o out.wav", "Set parameters in display units"),
+            .example("ferraus plugin run in.wav --plugin com.acme.eq --param \"Low Gain=-3dB\" --param cutoff=2.5kHz -o out.wav", "Set parameters in display units")
+            .example("ferraus plugin run guitar.wav --plugin \"Surge XT Effects\" --preset \"Clean Chorus\" --state fx.state.json -o guitar.fx.wav", "Restore a saved state, then load a preset, and process a guitar"),
         OpSpec::custom("plugin presets list", Category::Plugins, "List a plugin's presets", plugin_presets_list)
             .about("Discovers presets through the plugin's own preset-discovery interface (CLAP) or program lists (VST3). Use a name with --preset.")
             .positional("name")
             .param(plugin_name_param())
             .param(watchdog_param())
             .example("ferraus plugin presets list \"Surge XT\"", "List Surge XT's presets")
-            .example("ferraus plugin presets list Dexed --json", "Presets as JSON"),
+            .example("ferraus plugin presets list Dexed --json", "Presets as JSON")
+            .example("ferraus plugin presets list ./MyPlugin.clap#com.acme.reverb", "Presets of one plugin inside a multi-plugin bundle"),
         OpSpec::custom("plugin state save", Category::Plugins, "Save a plugin's native state as base64 JSON", plugin_state_save)
             .about("Loads the plugin, applies --state, --preset, and --param values, and writes the plugin's native state blob (base64) with the resolved parameters to a JSON file. Pass that file to --state on 'plugin run' or 'render' to reproduce a sound exactly.")
             .positional("name")
@@ -101,7 +106,8 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(state_param())
             .param(watchdog_param())
             .example("ferraus plugin state save \"Surge XT\" --preset \"Warm Pad\" -o pad.state.json", "Save a preset as a reusable state file")
-            .example("ferraus plugin state save com.acme.eq --param cutoff=2.5kHz -o eq.json", "Save state after setting a parameter"),
+            .example("ferraus plugin state save com.acme.eq --param cutoff=2.5kHz -o eq.json", "Save state after setting a parameter")
+            .example("ferraus plugin state save Dexed --state base.state.json --param \"Cutoff=norm:0.4\" -o dark.state.json", "Start from a saved state, darken it with a normalized value, and save a new state"),
         OpSpec::custom("plugin state load", Category::Plugins, "Load a saved state into a plugin and show the resulting parameters", plugin_state_load)
             .about("Checks that a state file loads into the plugin and reports every parameter value afterwards. Useful to inspect a state before rendering with it.")
             .positional("name")
@@ -109,7 +115,8 @@ fn plugin_ops() -> Vec<OpSpec> {
             .param(param("state", ParamKind::Path).required().help("State file from 'plugin state save' (or a sidecar with a plugin stage)"))
             .param(watchdog_param())
             .example("ferraus plugin state load \"Surge XT\" --state pad.state.json", "Show the parameters stored in a state file")
-            .example("ferraus plugin state load Dexed --state song.wav.json --json", "Read the plugin state recorded in a sidecar"),
+            .example("ferraus plugin state load Dexed --state song.wav.ferraus.json --json", "Read the plugin state recorded in a sidecar")
+            .example("ferraus plugin state load dragonfly-reverb --state room.state.json --watchdog 30s", "Check a reverb state file, stopping the host if it hangs for 30 s"),
     ]
 }
 
