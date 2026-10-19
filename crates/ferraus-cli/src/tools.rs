@@ -135,7 +135,7 @@ fn man_page(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let reg = ctx.registry.ok_or_else(|| Error::internal("no registry"))?;
     let mut s = String::new();
     s.push_str(&format!(".TH FERRAUS 1 \"\" \"ferraus {}\" \"User Commands\"\n", ferraus_core::FERRAUS_VERSION));
-    s.push_str(".SH NAME\nferraus \\- music editing CLI for people and AI agents\n");
+    s.push_str(".SH NAME\nferraus \\- command-line audio workstation for scripts and AI agents\n");
     s.push_str(
         ".SH SYNOPSIS\n.B ferraus\n\\fIcommand\\fR [\\fIinputs\\fR] [\\fIoptions\\fR] [\\fB\\-o\\fR \\fIoutput\\fR]\n",
     );

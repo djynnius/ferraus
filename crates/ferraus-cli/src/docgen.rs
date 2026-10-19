@@ -271,7 +271,7 @@ pub fn error_catalog() -> String {
 
 /// `llms.txt`: a site index for models.
 pub fn llms_txt(reg: &Registry, base_url: &str) -> String {
-    let mut s = String::from("# ferraus\n\n> A cross-platform music editing CLI for people and AI agents: editing, effects, restoration, noise reduction, stem separation, pitch correction, MIDI, notation, plugin hosting, and mastering. Every command has --json output, a JSON Schema, and an MCP tool.\n\n");
+    let mut s = String::from("# ferraus\n\n> A command-line audio workstation for scripts and AI agents: editing, effects, restoration, noise reduction, stem separation, pitch correction, MIDI, notation, plugin hosting, and mastering. Every command has --json output, a JSON Schema, and an MCP tool.\n\n");
     let _ = writeln!(s, "## Start here\n\n- [Agent guide]({base_url}/agents.html): compact catalog of every command\n- [Getting started]({base_url}/getting-started.html)\n- [Error catalog]({base_url}/errors.html)\n- [Full reference as one file]({base_url}/llms-full.txt)\n");
     let mut by_cat: BTreeMap<_, Vec<&OpSpec>> = BTreeMap::new();
     for op in reg.ops() {
@@ -379,7 +379,7 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
     if !intro_written {
         std::fs::write(
             src.join("README.md"),
-            "# ferraus\n\nA cross-platform music editing CLI for people and AI agents.\n",
+            "# ferraus\n\nA command-line audio workstation for scripts and AI agents.\n",
         )?;
     }
     let _ = writeln!(summary, "\n# Command reference\n");

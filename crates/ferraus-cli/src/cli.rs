@@ -49,7 +49,7 @@ pub const GLOBAL_FLAGS: &[&str] = &[
     "max-memory",
 ];
 
-const ABOUT: &str = "ferraus: a complete music-editing toolkit for people and AI agents.\n\nEvery command accepts --json for a structured result, --dry-run to plan without processing, and writes a provenance sidecar next to each output. Run 'ferraus describe --agent' for a compact catalog or 'ferraus docs <command>' for full help.";
+const ABOUT: &str = "ferraus: a command-line audio workstation for scripts and AI agents.\n\nEvery command accepts --json for a structured result, --dry-run to plan without processing, and writes a provenance sidecar next to each output. Run 'ferraus describe --agent' for a compact catalog or 'ferraus docs <command>' for full help.";
 
 fn global_args() -> Vec<Arg> {
     let g = |a: Arg| a.global(true).help_heading("Global options");

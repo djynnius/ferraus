@@ -1,7 +1,10 @@
 # ferraus
 
-A complete music-editing toolkit in one cross-platform binary, for people at a terminal and
-for AI agents. (The *au* is for audio.)
+**A command-line audio workstation for scripts and AI agents.**
+
+One cross-platform binary that edits, repairs, separates, tunes, transcribes, notates, and
+masters audio. Every command returns JSON and records how each file was made, so scripts and
+agents can chain it without a GUI and reproduce any result. (The *au* is for audio.)
 
 ```bash
 ferraus separate song.mp3                         # vocals, drums, bass, other

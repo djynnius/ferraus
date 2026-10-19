@@ -1,6 +1,6 @@
 # Using ferraus from an AI agent
 
-ferraus is a music-editing CLI built to be driven by agents. This file is the short
+ferraus is a command-line audio workstation built to be driven by scripts and agents. This file is the short
 operating manual; `ferraus describe --agent` prints the full command catalog (one line per
 command, generated from the binary, also in [docs/agents/catalog.md](docs/agents/catalog.md)),
 and `ferraus docs <command>` prints any command's full reference page.

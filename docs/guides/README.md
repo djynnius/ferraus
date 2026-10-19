@@ -1,9 +1,8 @@
 # ferraus
 
-ferraus is one cross-platform binary that gives people and AI agents a complete
-music-editing toolkit from the command line: conversion and editing, effects, Audition-class
-restoration, noise reduction, stem separation, pitch correction, MIDI, notation in both
-directions, CLAP/VST3 instrument hosting, and mastering.
+**A command-line audio workstation for scripts and AI agents.** One cross-platform binary
+covers conversion and editing, effects, restoration, noise reduction, stem separation, pitch
+correction, MIDI, notation in both directions, CLAP/VST3 instrument hosting, and mastering.
 
 * **New here?** Start with [Getting started](getting-started.md), then pick a tutorial:
   [clean a podcast](tutorials/clean-a-podcast.md), [tune a vocal](tutorials/tune-a-vocal.md),

@@ -1,7 +1,7 @@
 [package]
 name = "ferraus"
 default-run = "ferraus"
-description = "ferraus: a cross-platform music editing CLI for people and AI agents"
+description = "A command-line audio workstation for scripts and AI agents"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -66,10 +66,9 @@ maintainer = "Sunday Ikpe <ikakke.ikpe@gmail.com>"
 copyright = "2026, Sunday Ikpe and the ferraus contributors"
 license-file = ["../../LICENSE-MIT", "0"]
 extended-description = """\
-ferraus is one binary that gives people and AI agents a complete music-editing toolkit \
-from the command line: conversion and editing, effects, restoration, noise reduction, stem \
-separation, pitch correction, MIDI, notation, plugin hosting, and mastering. Model weights \
-download on first use."""
+A command-line audio workstation for scripts and AI agents: one binary for conversion and \
+editing, effects, restoration, noise reduction, stem separation, pitch correction, MIDI, \
+notation, plugin hosting, and mastering. Model weights download on first use."""
 depends = "$auto"
 section = "sound"
 priority = "optional"
