@@ -218,3 +218,29 @@ fn quantizing_counts_clips() {
     let (_, rep) = write_bytes(&b, &opts("wav", Some(16))).unwrap();
     assert!(rep.clipped > 0);
 }
+
+#[test]
+fn float_source_to_flac_uses_24_bits() {
+    let td = TempDir::new("f2flac");
+    let p = td.path("a.flac");
+    let rep = write_file(&p, &sine(8000, 440.0, 0.2, 0.5), &opts("flac", Some(32))).unwrap();
+    assert_eq!(rep.bit_depth, Some(24));
+    assert_eq!(read_path(&p, None).unwrap().1.bit_depth, Some(24));
+}
+
+#[test]
+fn flac_above_96k_uses_bridge_or_errors() {
+    let td = TempDir::new("flac192");
+    let p = td.path("hi.flac");
+    let src = int_signal(192000, 1, 0.05, 24);
+    match write_file(&p, &src, &opts("flac", Some(24))) {
+        Ok(_) => {
+            assert!(ffmpeg().is_some());
+            assert_eq!(read_path(&p, None).unwrap().0, src, "bridge FLAC is lossless too");
+        }
+        Err(e) => {
+            assert!(ffmpeg().is_none());
+            assert_eq!(e.exit_code, 4);
+        }
+    }
+}

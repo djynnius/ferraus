@@ -1,12 +1,17 @@
 [package]
 name = "ferraus-media"
+description = "The ferraus media bridge: FFmpeg pass-through, container jobs (info, streams, extract/replace audio, remux), stream inventory, and the managed FFmpeg installer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 ferraus-core.workspace = true
+ferraus-codec.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true

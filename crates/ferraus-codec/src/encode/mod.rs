@@ -71,12 +71,19 @@ impl Format {
         }
     }
 
+    /// Highest sample rate the native encoder supports (`flacenc` stops at 96 kHz).
+    pub fn native_max_rate(&self) -> u32 {
+        match self {
+            Format::Flac => 96_000,
+            _ => u32::MAX,
+        }
+    }
+
     /// Sample rate the encoder needs for input at `sr`.
     pub fn target_rate(&self, sr: u32) -> u32 {
         match self {
             Format::Opus => 48000,
             Format::Mp3 if sr > 48000 => 48000,
-            Format::Flac if sr > 655_350 => 192_000,
             _ => sr,
         }
     }
@@ -178,10 +185,17 @@ pub fn native_encoder(
         }
         Format::Aiff => Box::new(aiff::AiffEncoder::new(sink, spec, pcm_bits(opts), dither, opts.seed)?),
         Format::Flac => {
-            let bits = match pcm_bits(opts) {
-                b @ (8 | 16 | 24) => b,
-                b if b > 24 => 24,
-                b => b.max(8),
+            // NOTE: written as if/else on purpose: rustc 1.97.1 miscompiles the equivalent
+            // `match { b @ (8 | 16 | 24) => b, b if b > 24 => 24, .. }` at opt-level >= 1.
+            let raw = pcm_bits(opts);
+            let bits = if raw > 24 {
+                24
+            } else if raw <= 8 {
+                8
+            } else if raw <= 16 {
+                16
+            } else {
+                24
             };
             Box::new(flac::FlacEncoder::new(sink, spec, bits, dither, opts.seed)?)
         }

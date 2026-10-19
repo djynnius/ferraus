@@ -142,7 +142,18 @@ fn resolve_format(path: Option<&Path>, opts: &EncodeOptions) -> Result<Format> {
 }
 
 /// True when the native encoder can't be used and FFmpeg must encode.
-fn needs_bridge(fmt: &Format) -> Result<bool> {
+fn needs_bridge(fmt: &Format, sample_rate: u32) -> Result<bool> {
+    if sample_rate > fmt.native_max_rate() {
+        if ffmpeg_bridge::locate().is_some() {
+            return Ok(true);
+        }
+        return Err(Error::unsupported(format!(
+            "the native {} encoder supports up to {} Hz; {sample_rate} Hz needs the FFmpeg bridge",
+            fmt.name(),
+            fmt.native_max_rate()
+        ))
+        .with_hint(ffmpeg_bridge::INSTALL_HINT));
+    }
     match fmt {
         Format::Bridge(e) => {
             if ffmpeg_bridge::locate().is_none() {
@@ -178,7 +189,7 @@ fn prepare_buffer<'a>(fmt: &Format, buf: &'a AudioBuffer) -> std::borrow::Cow<'a
 /// Encode a whole buffer to a file. Returns what the encoder reports.
 pub fn write_file(path: &Path, buf: &AudioBuffer, opts: &EncodeOptions) -> Result<EncodeReport> {
     let fmt = resolve_format(Some(path), opts)?;
-    if needs_bridge(&fmt)? {
+    if needs_bridge(&fmt, fmt.target_rate(buf.sample_rate))? {
         let mut o = opts.clone();
         o.format = Some(fmt.name().to_string());
         ffmpeg_bridge::encode_file(buf, path, &o)?;
@@ -199,7 +210,7 @@ pub fn write_file(path: &Path, buf: &AudioBuffer, opts: &EncodeOptions) -> Resul
 /// Encode a whole buffer to bytes (stdout).
 pub fn write_bytes(buf: &AudioBuffer, opts: &EncodeOptions) -> Result<(Vec<u8>, EncodeReport)> {
     let fmt = resolve_format(None, opts)?;
-    if needs_bridge(&fmt)? {
+    if needs_bridge(&fmt, fmt.target_rate(buf.sample_rate))? {
         let tmp = std::env::temp_dir().join(format!("ferraus-{}-{}.{}", std::process::id(), nanos(), fmt.name()));
         let r = write_file(&tmp, buf, opts);
         let bytes = std::fs::read(&tmp);
@@ -239,6 +250,7 @@ pub struct StreamStats {
 /// True when `convert` can stream `src_rate` audio to `fmt` (no resampling, native encoder).
 pub fn can_stream(fmt: &Format, src_rate: u32, out_rate: Option<u32>) -> bool {
     fmt.native_available()
+        && src_rate <= fmt.native_max_rate()
         && out_rate.is_none_or(|r| r == src_rate)
         && fmt.target_rate(src_rate) == src_rate
 }
