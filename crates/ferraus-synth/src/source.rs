@@ -692,6 +692,17 @@ pub fn sounds_summary(r: &Resolver) -> Value {
     })
 }
 
+/// Resolves names the synth cannot see itself (installed CLAP/VST3 plugins, registry sounds)
+/// to a source string such as `plugin:/path/Foo.clap#id`. Registered by the application.
+pub type ExternalResolver = fn(&str) -> ferraus_core::Result<Option<String>>;
+
+static EXTERNAL_RESOLVER: std::sync::OnceLock<ExternalResolver> = std::sync::OnceLock::new();
+
+/// Register the external instrument resolver (once per process).
+pub fn set_external_resolver(f: ExternalResolver) -> bool {
+    EXTERNAL_RESOLVER.set(f).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -755,15 +766,4 @@ mod tests {
         assert_eq!(builtin_program("strings"), Some(Some(48)));
         assert_eq!(builtin_program("gm:5"), Some(Some(5)));
     }
-}
-
-/// Resolves names the synth cannot see itself (installed CLAP/VST3 plugins, registry sounds)
-/// to a source string such as `plugin:/path/Foo.clap#id`. Registered by the application.
-pub type ExternalResolver = fn(&str) -> ferraus_core::Result<Option<String>>;
-
-static EXTERNAL_RESOLVER: std::sync::OnceLock<ExternalResolver> = std::sync::OnceLock::new();
-
-/// Register the external instrument resolver (once per process).
-pub fn set_external_resolver(f: ExternalResolver) -> bool {
-    EXTERNAL_RESOLVER.set(f).is_ok()
 }
