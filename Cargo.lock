@@ -538,6 +538,9 @@ name = "ferraus-dsp"
 version = "0.1.0"
 dependencies = [
  "ferraus-core",
+ "midly",
+ "realfft",
+ "rustfft",
  "serde",
  "serde_json",
 ]
