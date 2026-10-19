@@ -1,0 +1,798 @@
+{
+  "schema": 1,
+  "updated": "2026-10-19",
+  "entries": [
+    {
+      "id": "surge-xt",
+      "name": "Surge XT",
+      "type": "clap",
+      "formats": [
+        "clap",
+        "vst3"
+      ],
+      "version": "1.3.4",
+      "homepage": "https://surge-synthesizer.github.io/",
+      "description": "Hybrid synthesizer (wavetable, FM, subtractive, effects) by the Surge Synth Team.",
+      "license": {
+        "spdx": "GPL-3.0-or-later",
+        "text": "Surge XT is free and open-source software by the Surge Synth Team, released under the GNU General Public Licence v3 or later. The VST3 builds include the Steinberg VST3 SDK under its GPLv3 option.",
+        "url": "https://github.com/surge-synthesizer/surge/blob/main/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "linux",
+          "url": "https://github.com/surge-synthesizer/releases-xt/releases/download/1.3.4/surge-xt-linux-1.3.4-pluginsonly.tar.gz",
+          "archive": "tar.gz",
+          "size_bytes": 97294804,
+          "sha256": null
+        },
+        {
+          "platform": "macos",
+          "url": "https://github.com/surge-synthesizer/releases-xt/releases/download/1.3.4/surge-xt-macos-1.3.4-pluginsonly.zip",
+          "archive": "zip",
+          "size_bytes": 186958216,
+          "sha256": null,
+          "contents": "Surge XT.clap/, Surge XT.vst3/, Surge XT Effects.clap/, Surge XT Effects.vst3/ at the zip root"
+        },
+        {
+          "platform": "windows",
+          "url": "https://github.com/surge-synthesizer/releases-xt/releases/download/1.3.4/surge-xt-win64-1.3.4-pluginsonly.zip",
+          "archive": "zip",
+          "size_bytes": 49093875,
+          "sha256": null,
+          "contents": "Surge XT.clap, Surge XT.vst3/ at the zip root"
+        }
+      ],
+      "status": "unverified",
+      "category": "synth",
+      "tags": [
+        "synth",
+        "hybrid",
+        "wavetable",
+        "fm",
+        "subtractive",
+        "effects",
+        "open-source"
+      ],
+      "aliases": [
+        "synth",
+        "lead",
+        "pad",
+        "surge"
+      ],
+      "install_from": null,
+      "notes": "Factory presets and wavetables ship separately as surge-xt-portable-content-1.3.4.tar.gz (about 253 MB)."
+    },
+    {
+      "id": "dexed",
+      "name": "Dexed",
+      "type": "clap",
+      "formats": [
+        "clap",
+        "vst3"
+      ],
+      "version": "1.0.1",
+      "homepage": "https://asb2m10.github.io/dexed/",
+      "description": "DX7-style FM synthesizer.",
+      "license": {
+        "spdx": "GPL-3.0-or-later",
+        "text": "Dexed, a DX7-style FM synthesizer by Pascal Gauthier (asb2m10) and contributors, is released under GPL v3 or later. Its bundled msfa engine component is Apache-2.0.",
+        "url": "https://github.com/asb2m10/dexed/blob/master/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "linux",
+          "url": "https://github.com/asb2m10/dexed/releases/download/v1.0.1/Dexed-1.0.1-lnx.zip",
+          "archive": "zip",
+          "size_bytes": 7725160,
+          "sha256": "2bac3d0c4237e8c22c4274b6d5b59fe6329fcae72864f81b5830393eff354fc1",
+          "contents": "Dexed.clap, Dexed.vst3/ at the zip root"
+        },
+        {
+          "platform": "macos",
+          "url": "https://github.com/asb2m10/dexed/releases/download/v1.0.1/Dexed-1.0.1-macOS.zip",
+          "archive": "zip",
+          "size_bytes": 16939688,
+          "sha256": "4269448bc1312424cafd29aff615d891bc5905ebfc54b42ce70c56b9b10dc401",
+          "contents": "Dexed.clap/, Dexed.vst3/ at the zip root"
+        },
+        {
+          "platform": "windows",
+          "url": "https://github.com/asb2m10/dexed/releases/download/v1.0.1/Dexed-1.0.1-win.zip",
+          "archive": "zip",
+          "size_bytes": 9742538,
+          "sha256": "1f118445f2c5c411636bb41ddf8b456db09af74cd38f9ede8a93a01020505f05",
+          "contents": "Dexed.clap, Dexed.vst3/ at the zip root"
+        }
+      ],
+      "status": "verified",
+      "category": "keys",
+      "tags": [
+        "synth",
+        "fm",
+        "dx7",
+        "electric-piano",
+        "bells",
+        "open-source"
+      ],
+      "aliases": [
+        "electric-piano",
+        "epiano",
+        "fm",
+        "dx7",
+        "bells"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "odin2",
+      "name": "Odin 2",
+      "type": "clap",
+      "formats": [
+        "clap",
+        "vst3"
+      ],
+      "version": "2.4.1",
+      "homepage": "https://thewavewarden.com/pages/odin-2",
+      "description": "Analog-style subtractive synthesizer by TheWaveWarden.",
+      "license": {
+        "spdx": "GPL-3.0-or-later",
+        "text": "Odin 2 by TheWaveWarden is free software under GPL v3 or later. The bundled Aldrich font is under SIL OFL 1.1.",
+        "url": "https://github.com/TheWaveWarden/odin2/blob/master/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "linux",
+          "url": "https://www.dropbox.com/scl/fi/eshk5a54xirgi4fshuyh5/Odin2.4.1Linux.zip?rlkey=e4d4eqqecep0cr98cfyso4ty7&st=00ebtald&dl=1",
+          "archive": "zip",
+          "size_bytes": 66588004,
+          "sha256": null,
+          "contents": "Odin2.clap, Odin2.vst3/ at the zip root"
+        },
+        {
+          "platform": "macos",
+          "url": "https://www.dropbox.com/scl/fi/qonadn6d5t3azpjne5a4l/Odin2.4.0MacInstaller.pkg?rlkey=z8soys4s579w6c4cpjp1iq61r&st=lybmxi7y&dl=1",
+          "archive": "pkg",
+          "size_bytes": 132362390,
+          "sha256": null
+        },
+        {
+          "platform": "windows",
+          "url": "https://www.dropbox.com/scl/fi/ry724e80orl3sb2kam8h7/Odin2.4.0WinInstaller.exe?rlkey=eek7d00l6rbu9fzgpm93wgzdx&st=1sohdfiw&dl=1",
+          "archive": "exe",
+          "size_bytes": 40947816,
+          "sha256": null
+        }
+      ],
+      "status": "unverified",
+      "category": "synth",
+      "tags": [
+        "synth",
+        "subtractive",
+        "analog",
+        "open-source"
+      ],
+      "aliases": [
+        "lead",
+        "bass-synth"
+      ],
+      "install_from": {
+        "url": "https://thewavewarden.com/pages/odin-2",
+        "note": "macOS and Windows builds are installers; install them yourself, then run 'ferraus plugin scan'."
+      },
+      "notes": "The vendor hosts stable builds on Dropbox; links may change."
+    },
+    {
+      "id": "cardinal",
+      "name": "Cardinal",
+      "type": "clap",
+      "formats": [
+        "clap",
+        "vst3"
+      ],
+      "version": "26.02",
+      "homepage": "https://cardinal.kx.studio/",
+      "description": "Self-contained modular synthesizer based on VCV Rack, as a plugin.",
+      "license": {
+        "spdx": "GPL-3.0-or-later",
+        "text": "Cardinal by DISTRHO (based on VCV Rack) is GPLv3+. All bundled modules have GPLv3+-compatible code licenses; some module panel artwork has separate licenses.",
+        "url": "https://github.com/DISTRHO/Cardinal/blob/main/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "linux",
+          "url": "https://github.com/DISTRHO/Cardinal/releases/download/26.02/Cardinal-linux-x86_64-26.02.tar.gz",
+          "archive": "tar.gz",
+          "size_bytes": 1113893699,
+          "sha256": null
+        },
+        {
+          "platform": "macos",
+          "url": "https://github.com/DISTRHO/Cardinal/releases/download/26.02/Cardinal-macOS-universal-26.02.pkg",
+          "archive": "pkg",
+          "size_bytes": 974061970,
+          "sha256": null
+        },
+        {
+          "platform": "windows",
+          "url": "https://github.com/DISTRHO/Cardinal/releases/download/26.02/Cardinal-win64-26.02.zip",
+          "archive": "zip",
+          "size_bytes": 1146920345,
+          "sha256": null,
+          "contents": "Cardinal.vst3/, CardinalFX.vst3/, CardinalSynth.vst3/ at the zip root"
+        }
+      ],
+      "status": "unverified",
+      "category": "synth",
+      "tags": [
+        "modular",
+        "synth",
+        "effects",
+        "vcv-rack",
+        "open-source"
+      ],
+      "aliases": [
+        "modular",
+        "eurorack"
+      ],
+      "install_from": null,
+      "notes": "About 1.1 GB per platform; macOS is installer-only."
+    },
+    {
+      "id": "dragonfly-reverb",
+      "name": "Dragonfly Reverb",
+      "type": "clap",
+      "formats": [
+        "clap",
+        "vst3"
+      ],
+      "version": "3.2.10",
+      "homepage": "https://michaelwillis.github.io/dragonfly-reverb/",
+      "description": "Hall, room, plate, and early-reflections reverbs.",
+      "license": {
+        "spdx": "GPL-3.0-or-later",
+        "text": "Dragonfly Reverb (Hall, Room, Plate, Early Reflections) by Michael Willis and Rob van den Berg is free software under GPL version 3 or any later version.",
+        "url": "https://github.com/michaelwillis/dragonfly-reverb/blob/master/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "linux",
+          "url": "https://github.com/michaelwillis/dragonfly-reverb/releases/download/3.2.10/dragonfly-reverb-3.2.10-linux-x86_64.tar.xz",
+          "archive": "tar.xz",
+          "size_bytes": 2267368,
+          "sha256": "59f1593120de82e31dd194e2ab1536af14fec2b3ec6ec45abf6d9c8ac02ef430",
+          "contents": "dragonfly-reverb-3.2.10/*.clap and *.vst3/"
+        },
+        {
+          "platform": "macos",
+          "url": "https://github.com/michaelwillis/dragonfly-reverb/releases/download/3.2.10/dragonfly-reverb-3.2.10-macos-universal.dmg",
+          "archive": "dmg",
+          "size_bytes": 24954281,
+          "sha256": "e0b854b92a4e51ce5851320fb1a9f91ab1a4309f997de070e175b3e5cab4adaf"
+        },
+        {
+          "platform": "windows",
+          "url": "https://github.com/michaelwillis/dragonfly-reverb/releases/download/3.2.10/dragonfly-reverb-3.2.10-win64.zip",
+          "archive": "zip",
+          "size_bytes": 22447365,
+          "sha256": "ca5f35f9dcd9a33f06490d3c92f04061a1a798cb81257d5ca5851bdda0824c66",
+          "contents": "dragonfly-reverb-3.2.10/*.clap and *.vst3/"
+        }
+      ],
+      "status": "verified",
+      "category": "fx",
+      "tags": [
+        "reverb",
+        "hall",
+        "room",
+        "plate",
+        "effect",
+        "open-source"
+      ],
+      "aliases": [
+        "reverb",
+        "hall-reverb",
+        "plate-reverb",
+        "room-reverb"
+      ],
+      "install_from": null,
+      "notes": "Four reverb plugins in one archive. The macOS build is a disk image, which ferraus does not open."
+    },
+    {
+      "id": "sfizz",
+      "name": "sfizz",
+      "type": "vst3",
+      "formats": [
+        "vst3",
+        "lv2",
+        "au"
+      ],
+      "version": "1.2.3",
+      "homepage": "https://sfz.tools/sfizz/",
+      "description": "SFZ sample player plugin.",
+      "license": {
+        "spdx": "BSD-2-Clause",
+        "text": "sfizz, an SFZ sample player by the SFZTools team (Paul Ferrand and contributors), is licensed under the BSD 2-Clause license. The VST3 build uses the Steinberg VST3 SDK.",
+        "url": "https://github.com/sfztools/sfizz/blob/develop/LICENSE"
+      },
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "downloads": [
+        {
+          "platform": "macos",
+          "url": "https://github.com/sfztools/sfizz-ui/releases/download/1.2.3/sfizz-1.2.3-macos.pkg",
+          "archive": "pkg",
+          "size_bytes": 11872790,
+          "sha256": null
+        },
+        {
+          "platform": "windows",
+          "url": "https://github.com/sfztools/sfizz-ui/releases/download/1.2.3/sfizz-1.2.3-win64.exe",
+          "archive": "exe",
+          "size_bytes": 3626650,
+          "sha256": "56f57dfe443018e947b82b8e2bf4c9d824a9c961ff2b8eb6c5e929030b71b937"
+        }
+      ],
+      "status": "unverified",
+      "category": "synth",
+      "tags": [
+        "sampler",
+        "sfz",
+        "player",
+        "open-source"
+      ],
+      "aliases": [
+        "sfz-player",
+        "sampler"
+      ],
+      "install_from": {
+        "url": "https://sfz.tools/sfizz/",
+        "note": "Plugin builds are installers on macOS and Windows; Linux users install distribution packages. ferraus renders SFZ directly without it."
+      }
+    },
+    {
+      "id": "fluidr3-gm",
+      "name": "FluidR3 GM",
+      "type": "sf2",
+      "version": "3.1",
+      "homepage": "https://packages.debian.org/sid/fluid-soundfont-gm",
+      "description": "Full General MIDI SoundFont (about 141 MB unpacked).",
+      "license": {
+        "spdx": "MIT",
+        "text": "Fluid (R3) General MIDI SoundFont, Copyright (c) Frank Wen and contributors, distributed under the MIT license.",
+        "url": "https://metadata.ftp-master.debian.org/changelogs/main/f/fluid-soundfont/unstable_copyright"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://ftp.osuosl.org/pub/musescore/soundfont/fluid-soundfont.zip",
+          "archive": "zip",
+          "size_bytes": 131834190,
+          "sha256": null,
+          "contents": "FluidR3_GM.sf2"
+        }
+      ],
+      "status": "unverified",
+      "category": "keys",
+      "tags": [
+        "general-midi",
+        "gm",
+        "soundfont",
+        "full"
+      ],
+      "aliases": [
+        "gm",
+        "general-midi"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "generaluser-gs",
+      "name": "GeneralUser GS",
+      "type": "sf2",
+      "version": "2.0.3",
+      "homepage": "https://www.schristiancollins.com/generaluser.php",
+      "description": "Compact General MIDI / GS SoundFont: 261 presets and 13 drum kits.",
+      "license": {
+        "spdx": "LicenseRef-GeneralUser-GS-2.0",
+        "text": "GeneralUser GS v2.0.3 by S. Christian Collins (License v2.0): free to use without restriction for private or commercial music creation, and may be used, modified and repackaged in software projects. Link to the author's website or host your own copy rather than hotlinking his download files.",
+        "url": "https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/LICENSE.txt"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/684543d5e5efaef08d02be50dcda8d552478fa60/GeneralUser-GS.sf2",
+          "archive": "sf2",
+          "size_bytes": 32319396,
+          "sha256": "9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe"
+        }
+      ],
+      "status": "verified",
+      "category": "keys",
+      "tags": [
+        "general-midi",
+        "gm",
+        "gs",
+        "soundfont",
+        "small"
+      ],
+      "aliases": [
+        "gm",
+        "general-midi",
+        "gs"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "salamander-grand-piano",
+      "name": "Salamander Grand Piano",
+      "type": "sfz",
+      "version": "V3+20161209",
+      "homepage": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html",
+      "description": "Yamaha C5 grand piano, 16 velocity layers (SFZ + 44.1 kHz/16-bit WAV).",
+      "license": {
+        "spdx": "CC-BY-3.0",
+        "text": "Salamander Grand Piano by Alexander Holm (Yamaha C5 samples), licensed under Creative Commons Attribution 3.0. Credit the author when redistributing.",
+        "url": "https://creativecommons.org/licenses/by/3.0/"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://freepats.zenvoid.org/Piano/SalamanderGrandPiano/SalamanderGrandPianoV3+20161209_44khz16bit.tar.xz",
+          "archive": "tar.xz",
+          "size_bytes": 412313804,
+          "sha256": null
+        }
+      ],
+      "status": "unverified",
+      "category": "keys",
+      "tags": [
+        "piano",
+        "grand-piano",
+        "acoustic",
+        "sfz"
+      ],
+      "aliases": [
+        "piano",
+        "grand-piano",
+        "acoustic-piano"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "vsco2-ce",
+      "name": "VSCO 2 Community Edition",
+      "type": "sfz",
+      "version": "1.1.0",
+      "homepage": "https://github.com/sgossner/VSCO-2-CE",
+      "description": "Chamber orchestra: strings, brass, woodwinds, keys, percussion (SFZ).",
+      "license": {
+        "spdx": "CC0-1.0",
+        "text": "Versilian Studios Chamber Orchestra 2 Community Edition by Sam Gossner / Versilian Studios, dedicated to the public domain under CC0 1.0.",
+        "url": "https://github.com/sgossner/VSCO-2-CE/blob/master/LICENSE"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://github.com/sgossner/VSCO-2-CE/archive/refs/tags/1.1.0.zip",
+          "archive": "zip",
+          "size_bytes": null,
+          "sha256": null,
+          "contents": "Brass/, Keys/, Percussion/, Strings/, Woodwinds/"
+        }
+      ],
+      "status": "unverified",
+      "category": "strings",
+      "tags": [
+        "orchestra",
+        "strings",
+        "brass",
+        "woodwinds",
+        "percussion",
+        "sfz"
+      ],
+      "aliases": [
+        "orchestra",
+        "strings",
+        "violin",
+        "cello",
+        "brass",
+        "trumpet",
+        "flute",
+        "clarinet"
+      ],
+      "install_from": null,
+      "notes": "GitHub tag archive (several GB, no fixed hash)."
+    },
+    {
+      "id": "virtual-playing-orchestra",
+      "name": "Virtual Playing Orchestra",
+      "type": "sfz",
+      "version": "3.3",
+      "homepage": "https://virtualplaying.com/virtual-playing-orchestra/",
+      "description": "Full orchestra in SFZ: wave files plus standard and performance scripts.",
+      "license": {
+        "spdx": "LicenseRef-VPO-mixed-CC",
+        "text": "Virtual Playing Orchestra by Paul Battersby, built from samples under CC Sampling Plus 1.0, CC BY-SA 3.0 and CC0 (Philharmonia, University of Iowa, Stamperadam and others). No restrictions on making music, including commercially; redistribution needs credit to the sources and must stay free.",
+        "url": "https://virtualplaying.com/virtual-playing-orchestra/#licensing"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://drive.usercontent.google.com/download?id=17bY90ybtA5CyNJMnQ4KK9i5YO3tCN7HR&export=download&confirm=t",
+          "archive": "zip",
+          "size_bytes": 616114842,
+          "sha256": null,
+          "contents": "wave files"
+        },
+        {
+          "platform": "any",
+          "url": "https://virtualplaying.com/vp-downloads/Virtual-Playing-Orchestra3-3-standard-scripts.zip",
+          "archive": "zip",
+          "size_bytes": 544010,
+          "sha256": "f0f2bf0e42d2a39c5f49401addcffa840fd8f5525670f5945bf5093a5442bda5"
+        },
+        {
+          "platform": "any",
+          "url": "https://virtualplaying.com/vp-downloads/Virtual-Playing-Orchestra3-3-performance-scripts.zip",
+          "archive": "zip",
+          "size_bytes": 361503,
+          "sha256": "7543e64585ef28022bcf9759f127d12ee2d51a831f3bfba9fbb584a8bb993bfd"
+        }
+      ],
+      "status": "unverified",
+      "category": "strings",
+      "tags": [
+        "orchestra",
+        "strings",
+        "brass",
+        "woodwinds",
+        "percussion",
+        "ensemble",
+        "sfz"
+      ],
+      "aliases": [
+        "orchestra",
+        "ensemble"
+      ],
+      "install_from": null,
+      "notes": "Three parts extracted into one folder; the wave files are hosted on Google Drive."
+    },
+    {
+      "id": "scream-surrey-rirs",
+      "name": "SCReAM Surrey room impulse responses",
+      "type": "ir",
+      "version": "1.0",
+      "homepage": "https://zenodo.org/records/15691239",
+      "description": "About 30 synthetic room impulse responses (small, medium, large rooms) from a DAFx 2022 paper.",
+      "license": {
+        "spdx": "CC0-1.0",
+        "text": "Room impulse responses and stimuli from the University of Surrey SCReAM paper 'Higher-order Scattering Delay Networks for Artificial Reverberation' (DAFx 2022), dedicated to the public domain under CC0 1.0.",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://zenodo.org/api/records/15691239/files/SCReAM-Surrey/DAFx2022-RIRs-and-Stimuli-v1.0.zip/content",
+          "archive": "zip",
+          "size_bytes": 67610932,
+          "sha256": null,
+          "contents": "RIRs/{small,medium,large}/*.wav"
+        }
+      ],
+      "status": "unverified",
+      "category": "fx",
+      "tags": [
+        "impulse-response",
+        "reverb",
+        "room",
+        "cc0"
+      ],
+      "aliases": [
+        "room-ir"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "gm-basic",
+      "name": "GM Basic (GeneralUser GS)",
+      "type": "sf2",
+      "version": "2.0.3",
+      "homepage": "https://www.schristiancollins.com/generaluser.php",
+      "description": "The default General MIDI bank: GeneralUser GS, 32 MB.",
+      "license": {
+        "spdx": "LicenseRef-GeneralUser-GS-2.0",
+        "text": "GeneralUser GS v2.0.3 by S. Christian Collins: free to use without restriction for private or commercial music, and may be modified and repackaged in software projects.",
+        "url": "https://github.com/mrbumpy409/GeneralUser-GS/blob/main/documentation/LICENSE.txt"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/684543d5e5efaef08d02be50dcda8d552478fa60/GeneralUser-GS.sf2",
+          "archive": "sf2",
+          "size_bytes": 32319396,
+          "sha256": "9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe"
+        }
+      ],
+      "status": "verified",
+      "category": "keys",
+      "tags": [
+        "general-midi",
+        "gm",
+        "soundfont",
+        "default",
+        "small"
+      ],
+      "aliases": [
+        "gm",
+        "default"
+      ],
+      "install_from": null
+    },
+    {
+      "id": "ir-pack-basic",
+      "name": "IR Pack Basic (Kajahdus)",
+      "type": "ir",
+      "version": "0.1",
+      "homepage": "https://github.com/lehtoroni/kajahdus",
+      "description": "Nine small CC0 impulse responses (hall, stairwell, cafe) recorded at the Helsinki Conservatory of Music.",
+      "license": {
+        "spdx": "CC0-1.0",
+        "text": "Kajahdus by Roni Lehto (lehtoroni): DIY impulse responses dedicated to the public domain under CC0 1.0.",
+        "url": "https://github.com/lehtoroni/kajahdus/blob/0.1/LICENSE"
+      },
+      "platforms": [
+        "any"
+      ],
+      "downloads": [
+        {
+          "platform": "any",
+          "url": "https://github.com/lehtoroni/kajahdus/archive/refs/tags/0.1.zip",
+          "archive": "zip",
+          "size_bytes": 4466414,
+          "sha256": "1904e630f8e0cc004e4a3555d3f76ca2d2dded5bf5048cb843a15a7c8fc0f79c",
+          "contents": "kajahdus-0.1/konsa/KONSA_*.wav"
+        }
+      ],
+      "status": "verified",
+      "category": "fx",
+      "tags": [
+        "impulse-response",
+        "reverb",
+        "hall",
+        "stairwell",
+        "cc0",
+        "small"
+      ],
+      "aliases": [
+        "reverb-ir",
+        "hall-ir"
+      ],
+      "install_from": null,
+      "notes": "GitHub tag archive; the hash would change if GitHub regenerated it."
+    },
+    {
+      "id": "vital",
+      "name": "Vital",
+      "type": "vst3",
+      "formats": [
+        "vst3",
+        "clap",
+        "au"
+      ],
+      "version": null,
+      "homepage": "https://vital.audio/",
+      "description": "Spectral warping wavetable synthesizer (free Basic tier).",
+      "license": {
+        "spdx": "LicenseRef-Vital-EULA",
+        "text": "Vital by Matt Tytel / Vital Audio. The free Basic tier is distributed under the vendor's End User License Agreement and requires a vital.audio account; official binaries are not redistributable.",
+        "url": "https://vital.audio/"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [],
+      "status": "vendor",
+      "category": "synth",
+      "tags": [
+        "synth",
+        "wavetable",
+        "free-proprietary"
+      ],
+      "aliases": [
+        "wavetable"
+      ],
+      "install_from": {
+        "url": "https://vital.audio/",
+        "note": "Download from the vendor (free account), then: ferraus sounds install vital --from <file>"
+      }
+    },
+    {
+      "id": "decent-sampler",
+      "name": "Decent Sampler",
+      "type": "vst3",
+      "formats": [
+        "vst3",
+        "au"
+      ],
+      "version": "1.38.0",
+      "homepage": "https://www.decentsamples.com/product/decent-sampler-plugin/",
+      "description": "Free sample player for .dspreset libraries.",
+      "license": {
+        "spdx": "LicenseRef-DecentSamples-EULA",
+        "text": "Decent Sampler by Decent Samples LLC is free proprietary software under the Decent Samples End User License Agreement; not open source and not redistributable.",
+        "url": "https://www.decentsamples.com/product/decent-sampler-plugin/"
+      },
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "downloads": [],
+      "status": "vendor",
+      "category": "synth",
+      "tags": [
+        "sampler",
+        "player",
+        "free-proprietary"
+      ],
+      "aliases": [
+        "dspreset-player"
+      ],
+      "install_from": {
+        "url": "https://www.decentsamples.com/product/decent-sampler-plugin/",
+        "note": "Free download behind the vendor's form, then: ferraus sounds install decent-sampler --from <file>"
+      }
+    }
+  ]
+}

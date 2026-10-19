@@ -1,12 +1,44 @@
 [package]
 name = "ferraus-plugins"
+description = "CLAP and VST3 plugin scanning, the out-of-process plugin host protocol, and the installable sounds registry for ferraus"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = ["ops"]
+# Everything except the wire protocol and the host-side runtime: the IPC client, scanner,
+# resolver, ops, and the sounds registry (network, archives, signatures). The host binaries
+# depend on this crate with `default-features = false` so they only link the protocol.
+ops = [
+    "dep:ferraus-core",
+    "dep:sha2",
+    "dep:hex",
+    "dep:toml",
+    "dep:ureq",
+    "dep:ed25519-dalek",
+    "dep:zip",
+    "dep:tar",
+    "dep:flate2",
+    "dep:lzma-rust2",
+]
+
 [dependencies]
-ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+memmap2 = "0.9"
+base64 = "0.22"
+libc = "0.2"
+
+ferraus-core = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
+ed25519-dalek = { version = "2", optional = true }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+tar = { version = "0.4", optional = true }
+flate2 = { version = "1", optional = true }
+lzma-rust2 = { version = "0.15", default-features = false, features = ["std", "xz"], optional = true }
