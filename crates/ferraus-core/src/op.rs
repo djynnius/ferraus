@@ -524,6 +524,11 @@ impl Args {
             let entry = explicit.entry(name.clone()).or_default();
             if p.repeatable {
                 entry.push(v);
+            } else if p.kind == ParamKind::List && !entry.is_empty() {
+                // a JSON/YAML array (pipeline files, MCP arguments) arrives as one pair per
+                // item; a list parameter keeps all of them, not just the last
+                let joined = format!("{},{}", entry[0], v);
+                *entry = vec![joined];
             } else {
                 *entry = vec![v];
             }
@@ -900,6 +905,14 @@ mod tests {
             .unwrap();
         assert_eq!(a.db("threshold").unwrap(), -20.0);
         assert_eq!(a.ratio("ratio").unwrap(), 2.0);
+    }
+
+    #[test]
+    fn json_array_keeps_every_list_item() {
+        let s = OpSpec::transform("mix", Category::Edit, "Mix", dummy).param(param("gains", ParamKind::List));
+        let pairs = json_to_pairs(&serde_json::json!({"gains": ["0dB", "-6dB"]})).unwrap();
+        let a = Args::build(&s, pairs, &|_, _| None).unwrap();
+        assert_eq!(a.list("gains"), vec!["0dB".to_string(), "-6dB".to_string()]);
     }
 
     #[test]
