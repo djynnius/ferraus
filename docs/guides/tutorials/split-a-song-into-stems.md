@@ -12,9 +12,9 @@ the model, and a network connection the first time.
 
 Separation uses neural-network models from the ferraus model registry, and every tier has a
 verified download. The default tier, `auto`, picks `quality` (a Mel-Band RoFormer for the
-vocals plus fine-tuned Demucs for drums, bass, and other: about 960 MB of models, about 16
+vocals plus fine-tuned Demucs for drums, bass, and other: about 960 MB of models, about 7
 minutes for a 4-minute song on a laptop CPU). The commands below use **`--tier fast`** (Demucs
-v4 `htdemucs`, 166 MB, MIT license, about 2 minutes for a 4-minute song) to keep the first run
+v4 `htdemucs`, 166 MB, MIT license, under a minute for a 4-minute song) to keep the first run
 quick; drop `--tier fast` for the cleanest vocals. See
 [Stems and separation tiers](../concepts/stems.md) for all tiers and their measured quality.
 
@@ -60,7 +60,7 @@ warning: downloading separate/htdemucs@v4-onnx.2026-05-21 (165.6 MB, license MIT
 ```
 
 The model is cached after the first run (`ferraus models list --cached`), and later runs work
-offline. On an Apple-silicon laptop the 21-second song took about 11 seconds on the CPU.
+offline. On an Apple-silicon laptop a 21-second song takes about 5 seconds on the CPU.
 
 **Listen to each stem:**
 
@@ -118,10 +118,11 @@ the extra outputs before anything runs.
 ## 5. Long songs, agents, and batches
 
 Separation is the slowest command in ferraus. Memory does not grow with the song: models run
-one at a time over the song window by window, and an hour-long input spills its intermediate
-signals to temporary files (removed afterwards) so it stays under 4 GB. `--max-memory 8GB`
-lets ferraus keep everything in memory and load models in their fastest mode when you have the
-RAM. Run long jobs in the background and collect the result later:
+one at a time over the song window by window, the song is decoded and the stems are written
+block by block, and an hour-long input spills its intermediate signals to temporary files
+(removed afterwards) so it stays under 4 GB (measured on a laptop: 1.5 GB for `fast`, 2.8 GB for `quality`). A larger `--max-memory` keeps
+everything in memory, which on a laptop CPU is no faster. Run long jobs in the background and
+collect the result later:
 
 ```bash
 ferraus separate song.wav --tier fast --outdir stems --async --json
