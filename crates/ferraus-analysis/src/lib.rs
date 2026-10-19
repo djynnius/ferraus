@@ -8,6 +8,8 @@ pub mod chords;
 pub mod compare;
 pub mod levels;
 pub mod loudness;
+pub mod mastering;
+pub mod problems;
 pub mod spectrum;
 pub mod stereo;
 pub mod tempo;
