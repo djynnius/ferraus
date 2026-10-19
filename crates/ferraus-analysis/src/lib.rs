@@ -5,9 +5,11 @@
 //! reuse the same numbers the `analyze` commands print.
 
 pub mod loudness;
+pub mod tempo;
 pub mod util;
 
 pub use ferraus_core::AudioBuffer;
+pub use tempo::{detect_tempo, TempoOptions, TempoResult};
 pub use loudness::{loudness, loudness_with, true_peak, LoudnessReport, LoudnessTimeline};
 
 use ferraus_core::OpSpec;
