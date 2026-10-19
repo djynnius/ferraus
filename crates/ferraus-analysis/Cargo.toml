@@ -1,5 +1,6 @@
 [package]
 name = "ferraus-analysis"
+description = "Audio analysis for ferraus: tempo, loudness (EBU R128), spectrum, chords, diagnostics, comparison"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +11,8 @@ authors.workspace = true
 ferraus-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+realfft.workspace = true
+rustfft.workspace = true
+
+[dev-dependencies]
+ebur128 = "0.1"
