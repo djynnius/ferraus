@@ -691,6 +691,8 @@ name = "ferraus-denoise"
 version = "0.1.0"
 dependencies = [
  "ferraus-core",
+ "ferraus-ml",
+ "ferraus-models",
  "nnnoiseless",
  "realfft",
  "serde",

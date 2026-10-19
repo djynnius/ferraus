@@ -2,19 +2,23 @@
 //!
 //! Noise reduction: learn a noise fingerprint from a region of the recording, then remove
 //! it from the whole file with a soft spectral gate; or track the noise floor adaptively;
-//! or run a speech model (RNNoise built in, DeepFilterNet 3 through its model slot).
+//! or run a speech model (DeepFilterNet 3 through ONNX Runtime by default, RNNoise built in).
 //!
 //! Commands: `denoise`, `denoise profile`, `denoise profile merge`.
 //!
 //! ## DeepFilterNet 3
 //!
-//! The crates.io `deep_filter` crate (0.2.x) ships no inference code; the runtime with the
-//! bundled DF3 model lives only in the upstream repository and needs tract pinned to
-//! 0.21.4. A git dependency is not allowed by the workspace source policy, so `--model
-//! dfn3` resolves through the model slot `denoise/dfn3` and fails explicitly (exit 5 with a
-//! `ferraus models pull` hint, or "no runtime in this build" when cached). It never falls
-//! back to another model silently.
+//! `--model dfn3` (the default, ADR 0006) runs the upstream ONNX export (`denoise/dfn3`:
+//! encoder, ERB decoder, DF decoder) on ONNX Runtime through `ferraus-ml`, with the STFT,
+//! feature normalization, ERB gains and deep filtering implemented in [`dfn3`] after the
+//! reference `libDF`/`enhance.py` (output matches the reference to about 1e-6). The model
+//! comes from the model cache under the download policy of ADR 0004: when it is missing and
+//! downloads are off, the command fails with exit 5 and `ferraus models pull denoise/dfn3`.
+//! It never falls back to another model silently; `--model rnnoise` is the built-in,
+//! download-free alternative. Builds without the `dfn3` feature default to RNNoise.
 
+#[cfg(feature = "dfn3")]
+pub mod dfn3;
 pub mod engine;
 pub mod metrics;
 pub mod ml;
@@ -101,8 +105,8 @@ fn denoise_spec() -> OpSpec {
     .param(
         param("model", ParamKind::Choice)
             .choices(&["dfn3", "rnnoise", "music"])
-            .default("rnnoise")
-            .help("ml/hybrid modes: dfn3 = DeepFilterNet 3 (48 kHz, speech; model slot denoise/dfn3), rnnoise = RNNoise (fast, light, built in, speech), music = music-aware slot denoise/music-*"),
+            .default(if cfg!(feature = "dfn3") { "dfn3" } else { "rnnoise" })
+            .help("ml/hybrid modes: dfn3 = DeepFilterNet 3 (48 kHz, speech, best quality; model denoise/dfn3, 8 MB download), rnnoise = RNNoise (fast, light, built in, no download, speech), music = music-aware slot denoise/music-*"),
     )
     .param(param("strength", ParamKind::Percent).default("100%").help(
         "ml/hybrid modes: how much of the model's change to apply",
@@ -130,8 +134,12 @@ fn denoise_spec() -> OpSpec {
         "Follow a changing background (traffic, wind) with no profile",
     )
     .example(
+        "ferraus denoise call.wav --mode ml -y -o clean.wav",
+        "Speech denoising with DeepFilterNet 3 (downloads the 8 MB model once with -y)",
+    )
+    .example(
         "ferraus denoise call.wav --mode ml --model rnnoise -o clean.wav",
-        "Speech denoising with the built-in RNNoise model",
+        "Speech denoising with the built-in RNNoise model (no download)",
     )
 }
 
@@ -379,7 +387,7 @@ fn model_pass(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffe
             ctx.model_used(ml::RNNOISE_NAME, ml::RNNOISE_VERSION, ml::RNNOISE_SHA256);
             y
         }
-        "dfn3" => return Err(ml::dfn3_unavailable()),
+        "dfn3" => ml::dfn3(buf, ctx)?,
         "music" => {
             return Err(ml::unavailable_slot(
                 "denoise/music-",
