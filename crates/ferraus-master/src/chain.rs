@@ -5,7 +5,7 @@
 //! audio (so `master` does not have to run the chain twice).
 
 use crate::genres::{self, GenreData};
-use crate::plan::{run_stage, run_stage_filtered,GenreChoice, IntensityChoice, Plan, Stage, StageTrace, PLAN_VERSION};
+use crate::plan::{run_stage, run_stage_filtered, GenreChoice, IntensityChoice, Plan, Stage, StageTrace, PLAN_VERSION};
 use crate::targets::Target;
 use crate::util::{fmt_db, fmt_freq, fmt_pct, round_to};
 use ferraus_analysis::spectrum::{self, BandLevel};
@@ -171,7 +171,9 @@ pub fn build(ctx: &mut OpCtx, input: AudioBuffer, m: &MasteringAnalysis, opts: &
     // 1. pre-flight
     let (pre, declip) = preflight(&mut sim, input, m, opts, &mut notes)?;
     if !loudness::integrated_lufs(&pre).is_finite() {
-        return Err(Error::input("the mix is silent or shorter than 400 ms after trimming; there is nothing to master"));
+        return Err(Error::input(
+            "the mix is silent or shorter than 400 ms after trimming; there is nothing to master",
+        ));
     }
     let n_pre = sim.stages.len();
 
@@ -261,23 +263,24 @@ fn preflight(
     }
     if let Some(sr) = opts.target.sample_rate {
         if sr != buf.sample_rate {
-            let why = format!("the {} target delivers at {sr} Hz; resampling first keeps the limiter's true-peak guarantee", opts.target.name);
+            let why = format!(
+                "the {} target delivers at {sr} Hz; resampling first keeps the limiter's true-peak guarantee",
+                opts.target.name
+            );
             buf = sim.run(Stage::new("preflight", "resample", vec![("to", sr.to_string())], why), buf)?.0;
         }
     }
     buf = sim
-        .run(Stage::new("preflight", "dc-remove", vec![("freq", "5Hz".into())], "remove DC offset (5 Hz high-pass)"), buf)?
+        .run(
+            Stage::new("preflight", "dc-remove", vec![("freq", "5Hz".into())], "remove DC offset (5 Hz high-pass)"),
+            buf,
+        )?
         .0;
     if let Some(t) = opts.trim_db {
         let why = format!("trim head and tail silence below {t} dBFS");
         buf = sim
             .run(
-                Stage::new(
-                    "preflight",
-                    "silence trim",
-                    vec![("threshold", fmt_db(t)), ("keep", "10ms".into())],
-                    why,
-                ),
+                Stage::new("preflight", "silence trim", vec![("threshold", fmt_db(t)), ("keep", "10ms".into())], why),
                 buf,
             )?
             .0;
@@ -362,8 +365,11 @@ fn middle(
             );
             buf = sim.run(Stage::new("corrective_eq", "eq", args, why), buf)?.0;
         }
-        let rumble =
-            m.problems.problems.iter().any(|p| p.problem == "rumble" && p.severity >= ferraus_analysis::Severity::Medium);
+        let rumble = m
+            .problems
+            .problems
+            .iter()
+            .any(|p| p.problem == "rumble" && p.severity >= ferraus_analysis::Severity::Medium);
         let hp = if rumble { 30.0 } else { 20.0 };
         let why = if rumble {
             "sub-sonic rumble found by analyze problems: 30 Hz high-pass (24 dB/oct)".to_string()
@@ -371,7 +377,10 @@ fn middle(
             "20 Hz high-pass (24 dB/oct) removes inaudible sub-sonic energy that wastes limiter headroom".to_string()
         };
         buf = sim
-            .run(Stage::new("corrective_eq", "highpass", vec![("freq", fmt_freq(hp)), ("order", "4".into())], why), buf)?
+            .run(
+                Stage::new("corrective_eq", "highpass", vec![("freq", fmt_freq(hp)), ("order", "4".into())], why),
+                buf,
+            )?
             .0;
     } else {
         notes.push("--no-eq: corrective EQ skipped".into());
@@ -380,7 +389,9 @@ fn middle(
     // speech chain
     if speech {
         if sim.has_op("leveler") {
-            buf = sim.run(Stage::new("speech", "leveler", vec![], "speech chain: even out the level of the voice"), buf)?.0;
+            buf = sim
+                .run(Stage::new("speech", "leveler", vec![], "speech chain: even out the level of the voice"), buf)?
+                .0;
         } else {
             let msg = "speech chain: leveler is not available in this build; skipped";
             sim.ctx.warn("leveler_unavailable", msg);
@@ -464,18 +475,15 @@ fn middle(
     // 4. stereo
     if buf.channels() >= 2 && !opts.no_widen {
         let (amount, mono_below, guard) = stereo_settings(&buf, opts.width, opts.bass_mono);
-        let mut why = format!("width {} with the side signal collapsed below {}", fmt_pct(amount), fmt_freq(mono_below));
+        let mut why =
+            format!("width {} with the side signal collapsed below {}", fmt_pct(amount), fmt_freq(mono_below));
         if let Some(g) = guard {
             why = format!("{why}; {g}");
             sim.ctx.warn("correlation_guard", g.clone());
             notes.push(g);
         }
-        let st = Stage::new(
-            "stereo",
-            "widen",
-            vec![("amount", fmt_pct(amount)), ("mono-below", fmt_freq(mono_below))],
-            why,
-        );
+        let st =
+            Stage::new("stereo", "widen", vec![("amount", fmt_pct(amount)), ("mono-below", fmt_freq(mono_below))], why);
         buf = sim.run(st, buf)?.0;
     } else if opts.no_widen {
         notes.push("--no-widen: stereo stage skipped".into());
@@ -489,7 +497,12 @@ fn middle(
                 Stage::new(
                     "color",
                     "saturate",
-                    vec![("type", "tape".into()), ("drive", fmt_db(drive)), ("tone", "0".into()), ("mix", "100%".into())],
+                    vec![
+                        ("type", "tape".into()),
+                        ("drive", fmt_db(drive)),
+                        ("tone", "0".into()),
+                        ("mix", "100%".into()),
+                    ],
                     format!("tape warmth at {} (drive {drive} dB)", fmt_pct(opts.warmth)),
                 ),
                 buf,
@@ -673,7 +686,7 @@ fn graphic_eq_stage(intent: &EqIntent, rate: f64, label: &str, amount: f64) -> O
     for (c, g) in centers.iter().zip(&gains) {
         let g = round_to(*g, 1);
         if g.abs() >= 0.1 {
-            args.push(("band", format!("peak:{}:{}:q=4.32", fmt_freq(spectrum::nominal_hz(*c)), fmt_db(g))));
+            args.push(("band", format!("peak:{}:{}:q=4.32", fmt_freq(crate::util::nominal(*c)), fmt_db(g))));
         }
     }
     if args.is_empty() {

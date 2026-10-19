@@ -49,7 +49,14 @@ impl VerifyReport {
 }
 
 fn check(check: &'static str, ok: bool, value: Value, limit: String, details: String, fix: &str) -> Check {
-    Check { check, status: if ok { "pass" } else { "fail" }, value, limit, details, fix: if ok { String::new() } else { fix.into() } }
+    Check {
+        check,
+        status: if ok { "pass" } else { "fail" },
+        value,
+        limit,
+        details,
+        fix: if ok { String::new() } else { fix.into() },
+    }
 }
 
 /// Run every check on `buf`. `info` (from the decoder) enables the format checks.
@@ -66,7 +73,11 @@ pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tol
         jnum(li, 2),
         format!("{} LUFS ± {} LU", target.lufs, tolerance_lu),
         if li.is_finite() {
-            format!("integrated loudness {li:.2} LUFS is {:+.2} LU from the {} LUFS target", li - target.lufs, target.lufs)
+            format!(
+                "integrated loudness {li:.2} LUFS is {:+.2} LU from the {} LUFS target",
+                li - target.lufs,
+                target.lufs
+            )
         } else {
             "integrated loudness cannot be measured (silent or shorter than 400 ms)".into()
         },
@@ -81,7 +92,11 @@ pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tol
         ok,
         jnum(tp, 2),
         format!("<= {} dBTP (4x oversampled)", target.true_peak_dbtp),
-        format!("true peak {tp:.2} dBTP {} the {} dBTP ceiling", if ok { "is within" } else { "exceeds" }, target.true_peak_dbtp),
+        format!(
+            "true peak {tp:.2} dBTP {} the {} dBTP ceiling",
+            if ok { "is within" } else { "exceeds" },
+            target.true_peak_dbtp
+        ),
         &format!("limit:ceiling={}TP,oversample=4x", fmt_db(target.true_peak_dbtp)),
     ));
 
@@ -126,7 +141,10 @@ pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tol
             !(low_share > 0.01 && lc < 0.5),
             jnum(lc, 3),
             "L/R correlation below 120 Hz >= 0.5".into(),
-            format!("L/R correlation below 120 Hz is {lc:.2} ({:.0}% of the energy is below 120 Hz)", low_share * 100.0),
+            format!(
+                "L/R correlation below 120 Hz is {lc:.2} ({:.0}% of the energy is below 120 Hz)",
+                low_share * 100.0
+            ),
             "widen:amount=100%,mono-below=120Hz",
         );
         if c.status == "pass" && low_share > 0.01 && lc < 0.8 {
@@ -188,14 +206,26 @@ pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tol
                 target.sample_rate.map(|s| format!("{s} Hz")).unwrap_or_default(),
                 target.bit_depth.map(|b| format!(", {b}-bit")).unwrap_or_default()
             ),
-            format!("{} Hz, {}", buf.sample_rate, bd.map(|b| format!("{b}-bit")).unwrap_or_else(|| "unknown bit depth".into())),
+            format!(
+                "{} Hz, {}",
+                buf.sample_rate,
+                bd.map(|b| format!("{b}-bit")).unwrap_or_else(|| "unknown bit depth".into())
+            ),
             "ferraus master deliver master.wav --formats wav16",
         ));
     }
 
     let failed: Vec<String> = checks.iter().filter(|c| c.status == "fail").map(|c| c.check.to_string()).collect();
-    let warnings: Vec<String> = checks.iter().filter(|c| c.status == "warn").map(|c| format!("{}: {}", c.check, c.details)).collect();
-    VerifyReport { pass: failed.is_empty(), target: target.clone(), tolerance_lu: round_to(tolerance_lu, 3), checks, failed, warnings }
+    let warnings: Vec<String> =
+        checks.iter().filter(|c| c.status == "warn").map(|c| format!("{}: {}", c.check, c.details)).collect();
+    VerifyReport {
+        pass: failed.is_empty(),
+        target: target.clone(),
+        tolerance_lu: round_to(tolerance_lu, 3),
+        checks,
+        failed,
+        warnings,
+    }
 }
 
 /// Parse `0.5LU`, `0.5`, `1lu`.

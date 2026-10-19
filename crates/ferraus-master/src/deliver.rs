@@ -82,7 +82,14 @@ pub fn parse_isrc(s: &str) -> Result<String> {
 }
 
 /// Loudness measurements of one deliverable.
-pub fn measure_row(key: &str, path: &Path, buf: &AudioBuffer, bit_depth: Option<u16>, bitrate: Option<u32>, measured: &str) -> Value {
+pub fn measure_row(
+    key: &str,
+    path: &Path,
+    buf: &AudioBuffer,
+    bit_depth: Option<u16>,
+    bitrate: Option<u32>,
+    measured: &str,
+) -> Value {
     let l = loudness::loudness(buf);
     json!({
         "format": key,

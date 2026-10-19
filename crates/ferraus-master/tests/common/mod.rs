@@ -34,7 +34,12 @@ pub fn invoke(command: &str, inputs: &[&Path], args: &[(&str, &str)], output: Op
         presets: &|_, _| None,
         cancel: Default::default(),
     };
-    let globals = Globals { output: output.map(|p| p.display().to_string()), overwrite: true, sidecar: false, ..Default::default() };
+    let globals = Globals {
+        output: output.map(|p| p.display().to_string()),
+        overwrite: true,
+        sidecar: false,
+        ..Default::default()
+    };
     rt.invoke(Invocation {
         command: command.into(),
         args: args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
@@ -80,12 +85,102 @@ pub struct Style {
 
 pub fn styles() -> Vec<Style> {
     vec![
-        Style { name: "pop", sr: 48000, secs: 8.0, bpm: 120.0, kick: 0.5, snare: 0.3, hats: 0.08, bass: 0.25, chords: 0.08, lead: 0.12, bright: 0.5, spread: 0.6, gain_db: -6.0, seed: 1 },
-        Style { name: "hiphop", sr: 44100, secs: 8.0, bpm: 90.0, kick: 0.7, snare: 0.35, hats: 0.06, bass: 0.45, chords: 0.05, lead: 0.08, bright: 0.3, spread: 0.5, gain_db: -3.0, seed: 2 },
-        Style { name: "edm", sr: 48000, secs: 8.0, bpm: 128.0, kick: 0.8, snare: 0.25, hats: 0.15, bass: 0.35, chords: 0.1, lead: 0.1, bright: 0.9, spread: 0.9, gain_db: -1.0, seed: 3 },
-        Style { name: "rock", sr: 48000, secs: 8.0, bpm: 140.0, kick: 0.45, snare: 0.45, hats: 0.1, bass: 0.2, chords: 0.2, lead: 0.1, bright: 1.0, spread: 0.7, gain_db: -8.0, seed: 4 },
-        Style { name: "acoustic", sr: 44100, secs: 8.0, bpm: 100.0, kick: 0.0, snare: 0.12, hats: 0.04, bass: 0.12, chords: 0.18, lead: 0.15, bright: 0.2, spread: 0.5, gain_db: -14.0, seed: 5 },
-        Style { name: "ambient", sr: 48000, secs: 8.0, bpm: 70.0, kick: 0.0, snare: 0.0, hats: 0.0, bass: 0.15, chords: 0.15, lead: 0.1, bright: 0.1, spread: 0.8, gain_db: -20.0, seed: 6 },
+        Style {
+            name: "pop",
+            sr: 48000,
+            secs: 8.0,
+            bpm: 120.0,
+            kick: 0.5,
+            snare: 0.3,
+            hats: 0.08,
+            bass: 0.25,
+            chords: 0.08,
+            lead: 0.12,
+            bright: 0.5,
+            spread: 0.6,
+            gain_db: -6.0,
+            seed: 1,
+        },
+        Style {
+            name: "hiphop",
+            sr: 44100,
+            secs: 8.0,
+            bpm: 90.0,
+            kick: 0.7,
+            snare: 0.35,
+            hats: 0.06,
+            bass: 0.45,
+            chords: 0.05,
+            lead: 0.08,
+            bright: 0.3,
+            spread: 0.5,
+            gain_db: -3.0,
+            seed: 2,
+        },
+        Style {
+            name: "edm",
+            sr: 48000,
+            secs: 8.0,
+            bpm: 128.0,
+            kick: 0.8,
+            snare: 0.25,
+            hats: 0.15,
+            bass: 0.35,
+            chords: 0.1,
+            lead: 0.1,
+            bright: 0.9,
+            spread: 0.9,
+            gain_db: -1.0,
+            seed: 3,
+        },
+        Style {
+            name: "rock",
+            sr: 48000,
+            secs: 8.0,
+            bpm: 140.0,
+            kick: 0.45,
+            snare: 0.45,
+            hats: 0.1,
+            bass: 0.2,
+            chords: 0.2,
+            lead: 0.1,
+            bright: 1.0,
+            spread: 0.7,
+            gain_db: -8.0,
+            seed: 4,
+        },
+        Style {
+            name: "acoustic",
+            sr: 44100,
+            secs: 8.0,
+            bpm: 100.0,
+            kick: 0.0,
+            snare: 0.12,
+            hats: 0.04,
+            bass: 0.12,
+            chords: 0.18,
+            lead: 0.15,
+            bright: 0.2,
+            spread: 0.5,
+            gain_db: -14.0,
+            seed: 5,
+        },
+        Style {
+            name: "ambient",
+            sr: 48000,
+            secs: 8.0,
+            bpm: 70.0,
+            kick: 0.0,
+            snare: 0.0,
+            hats: 0.0,
+            bass: 0.15,
+            chords: 0.15,
+            lead: 0.1,
+            bright: 0.1,
+            spread: 0.8,
+            gain_db: -20.0,
+            seed: 6,
+        },
     ]
 }
 
@@ -113,10 +208,14 @@ pub fn song(s: &Style) -> AudioBuffer {
     let mut rng = Rng(s.seed.wrapping_mul(0x9E3779B97F4A7C15) | 1);
     let beat = 60.0 / s.bpm;
     // progression: I - vi - IV - V in C (roots as MIDI), 2 s per chord
-    let prog: [(f64, [f64; 3]); 4] =
-        [(48.0, [60.0, 64.0, 67.0]), (45.0, [57.0, 60.0, 64.0]), (41.0, [57.0, 60.0, 65.0]), (43.0, [59.0, 62.0, 67.0])];
+    let prog: [(f64, [f64; 3]); 4] = [
+        (48.0, [60.0, 64.0, 67.0]),
+        (45.0, [57.0, 60.0, 64.0]),
+        (41.0, [57.0, 60.0, 65.0]),
+        (43.0, [59.0, 62.0, 67.0]),
+    ];
     let melody = [72.0, 74.0, 76.0, 79.0, 76.0, 74.0, 72.0, 69.0];
-    let (mut hp_state, mut lp_state) = (0.0f64, 0.0f64);
+    let mut lp_state = 0.0f64;
     let mut snare_lp = 0.0f64;
     for i in 0..n {
         let t = i as f64 / sr;
@@ -142,7 +241,7 @@ pub fn song(s: &Style) -> AudioBuffer {
         let mut hat = 0.0;
         if s.hats > 0.0 {
             let et = ((bpos * 2.0) - (bpos * 2.0).floor()) * beat / 2.0;
-            hp_state = noise - lp_state;
+            let hp_state = noise - lp_state;
             lp_state += 0.6 * (noise - lp_state);
             hat = s.hats * hp_state * (-et * 60.0).exp();
         }

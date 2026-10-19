@@ -72,7 +72,79 @@ fn streaming_acceptance_set() {
             s.name, env["result"]["loudness"]["limiter_gain_reduction_db"], env["result"]["genre"]["name"]
         ));
     }
+    // stereo problem variants of the full-length songs
+    for s in [style("edm"), style("rock")] {
+        for (tag, b) in [("very-wide", very_wide(&song(&s))), ("oop-bass", out_of_phase_bass(&song(&s)))] {
+            let name = format!("{}-{tag}", s.name);
+            let inp = td.path(&format!("{name}.wav"));
+            write(&inp, &b);
+            let out = td.path(&format!("{name}.master.wav"));
+            let o = invoke("master", &[&inp], &[], Some(&out));
+            assert!(o.envelope.ok, "{name}: {:?}", o.envelope.error);
+            let (l, tp, c, cl) = check_streaming(&name, &read_wav(&out));
+            lines.push(format!("{name:15} {l:7.2} LUFS {tp:6.2} dBTP corr {c:.2} low {cl:.2}"));
+        }
+    }
+    // every clean master passes verify
+    for s in &set {
+        let out = td.path(&format!("{}.master.wav", s.name));
+        let v = verify(&out, &[("target", "streaming")]);
+        assert_eq!(v["ok"], true, "{}: {v}", s.name);
+    }
     println!("{}", lines.join("\n"));
+}
+
+/// A mix whose side signal is louder than its mid (correlation well below 0.3).
+fn very_wide(b: &AudioBuffer) -> AudioBuffer {
+    let mut out = b.clone();
+    let s = ferraus_core::testing::noise(b.sample_rate, b.duration_s(), 0.12, 77);
+    let s = ferraus_analysis::util::highpass4(&s.data[0], b.sample_rate as f64, 300.0);
+    let (l, r) = out.data.split_at_mut(1);
+    for ((a, b), v) in l[0].iter_mut().zip(r[0].iter_mut()).zip(&s) {
+        *a += v;
+        *b -= v;
+    }
+    out
+}
+
+/// A mix whose right-channel bass is out of polarity.
+fn out_of_phase_bass(b: &AudioBuffer) -> AudioBuffer {
+    let mut out = b.clone();
+    // zero-phase low band (forward-backward), so subtracting it twice flips its polarity
+    let sr = out.sample_rate as f64;
+    let mut low = ferraus_analysis::util::lowpass4(&out.data[1], sr, 150.0);
+    low.reverse();
+    let mut low = ferraus_analysis::util::lowpass4(&low, sr, 150.0);
+    low.reverse();
+    for (v, l) in out.data[1].iter_mut().zip(&low) {
+        *v -= 2.0 * l;
+    }
+    out
+}
+
+#[test]
+fn correlation_guard_and_mono_bass() {
+    let td = TempDir::new("m-corr");
+    let base = song(&short(style("pop"), 5.0));
+    for (name, b) in [("wide", very_wide(&base)), ("oop", out_of_phase_bass(&base))] {
+        let before = stereo::stereo_analysis(&b);
+        let inp = td.path(&format!("{name}.wav"));
+        write(&inp, &b);
+        let out = td.path(&format!("{name}.master.wav"));
+        let o = invoke("master", &[&inp], &[("width", "130%")], Some(&out));
+        assert!(o.envelope.ok, "{:?}", o.envelope.error);
+        let (_, _, c, cl) = check_streaming(name, &read_wav(&out));
+        println!(
+            "{name}: correlation {:.2} -> {c:.2}, below 120 Hz {:.2} -> {cl:.2}",
+            before.correlation, before.correlation_below_120hz
+        );
+        if name == "wide" {
+            assert!(before.correlation < 0.3);
+            assert!(o.envelope.warnings.iter().any(|w| w.code == "correlation_guard"));
+        } else {
+            assert!(before.correlation_below_120hz < 0.0);
+        }
+    }
 }
 
 #[test]
@@ -87,21 +159,12 @@ fn reference_match_at_100_percent() {
     let o = invoke(
         "eq",
         &[&inp],
-        &[
-            ("band", "lowshelf:150Hz:-3dB"),
-            ("band", "peak:1kHz:+2dB:q=0.7"),
-            ("band", "highshelf:5kHz:+3.5dB"),
-        ],
+        &[("band", "lowshelf:150Hz:-3dB"), ("band", "peak:1kHz:+2dB:q=0.7"), ("band", "highshelf:5kHz:+3.5dB")],
         Some(&refp),
     );
     assert!(o.envelope.ok, "{:?}", o.envelope.error);
     let out = td.path("matched.wav");
-    let o = invoke(
-        "master",
-        &[&inp],
-        &[("reference", refp.to_str().unwrap()), ("match-amount", "100%")],
-        Some(&out),
-    );
+    let o = invoke("master", &[&inp], &[("reference", refp.to_str().unwrap()), ("match-amount", "100%")], Some(&out));
     assert!(o.envelope.ok, "{:?}", o.envelope.error);
     let m = read_wav(&out);
     let r = read_wav(&refp);
@@ -218,7 +281,9 @@ fn ab_pair_is_loudness_matched() {
     let (_, out, env) = master_song(&td, &s, &[("ab", "true")]);
     let outputs = env["outputs"].as_array().unwrap();
     let find = |role: &str| -> PathBuf {
-        PathBuf::from(outputs.iter().find(|o| o["role"] == role).unwrap_or_else(|| panic!("no {role}"))["path"].as_str().unwrap())
+        PathBuf::from(
+            outputs.iter().find(|o| o["role"] == role).unwrap_or_else(|| panic!("no {role}"))["path"].as_str().unwrap(),
+        )
     };
     let before = read_wav(&find("ab-before"));
     let after = read_wav(&find("ab-after"));
@@ -361,7 +426,8 @@ fn broadcast_atsc_and_custom_targets() {
     assert!(l.true_peak_dbtp <= -2.0);
     let v = verify(&out, &[("target", "broadcast"), ("standard", "atsc")]);
     assert_eq!(v["ok"], true, "{v}");
-    let o = invoke("master plan", &[&out], &[("target", "custom"), ("lufs", "-12LUFS"), ("true-peak", "-0.5dBTP")], None);
+    let o =
+        invoke("master plan", &[&out], &[("target", "custom"), ("lufs", "-12LUFS"), ("true-peak", "-0.5dBTP")], None);
     assert!(o.envelope.ok);
     assert_eq!(o.envelope.result["target"]["lufs"], -12.0);
     let o = invoke("master plan", &[&out], &[("target", "custom")], None);
@@ -378,7 +444,16 @@ fn analyze_reports_every_section() {
     let o = invoke("master analyze", &[&p], &[("genre", "rock")], None);
     assert!(o.envelope.ok, "{:?}", o.envelope.error);
     let r = &o.envelope.result;
-    for k in ["integrated_lufs", "short_term_max_lufs", "momentary_max_lufs", "loudness_range_lu", "true_peak_dbtp", "sample_peak_dbfs", "crest_factor_db", "plr_db"] {
+    for k in [
+        "integrated_lufs",
+        "short_term_max_lufs",
+        "momentary_max_lufs",
+        "loudness_range_lu",
+        "true_peak_dbtp",
+        "sample_peak_dbfs",
+        "crest_factor_db",
+        "plr_db",
+    ] {
         assert!(r["loudness"].get(k).is_some(), "loudness.{k}");
     }
     assert_eq!(r["tonal_balance"]["largest_deviations"].as_array().unwrap().len(), 3);
@@ -389,7 +464,9 @@ fn analyze_reports_every_section() {
     for k in ["correlation", "correlation_below_120hz", "side_to_mid_db", "mono_compatibility", "bands"] {
         assert!(r["stereo"].get(k).is_some(), "stereo.{k}");
     }
-    for k in ["tempo_bpm", "key", "duration_s", "sample_rate", "bit_depth", "looks_mastered", "master_default_intensity"] {
+    for k in
+        ["tempo_bpm", "key", "duration_s", "sample_rate", "bit_depth", "looks_mastered", "master_default_intensity"]
+    {
         assert!(r["context"].get(k).is_some(), "context.{k}");
     }
     let dc = r["problems"].as_array().unwrap().iter().find(|p| p["problem"] == "dc_offset").expect("dc problem");
@@ -423,7 +500,8 @@ fn deliver_writes_the_set_with_tags_and_loudness_sheet() {
     for r in ["wav24", "wav16", "loudness-sheet", "loudness-sheet-csv"] {
         assert!(roles.iter().any(|x| x == r), "{r} missing: {roles:?}");
     }
-    let path_of = |role: &str| o.envelope.outputs.iter().find(|x| x.role.as_deref() == Some(role)).unwrap().path.clone();
+    let path_of =
+        |role: &str| o.envelope.outputs.iter().find(|x| x.role.as_deref() == Some(role)).unwrap().path.clone();
     let (b16, bits, _) = ferraus_core::wav::decode(&std::fs::read(path_of("wav16")).unwrap()).unwrap();
     assert_eq!((b16.sample_rate, bits), (44100, 16));
     let (b24, bits, _) = ferraus_core::wav::decode(&std::fs::read(path_of("wav24")).unwrap()).unwrap();

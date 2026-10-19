@@ -49,6 +49,22 @@ pub fn fmt_pct(x: f64) -> String {
     format!("{}%", num(x * 100.0))
 }
 
+/// ISO 266 preferred 1/3-octave frequencies.
+const ISO_THIRD_OCTAVE: [f64; 31] = [
+    20.0, 25.0, 31.5, 40.0, 50.0, 63.0, 80.0, 100.0, 125.0, 160.0, 200.0, 250.0, 315.0, 400.0, 500.0, 630.0, 800.0,
+    1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0, 6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0,
+];
+
+/// The ISO nominal label of a 1/3-octave band centre (63.1 → 63, 396.9 → 400).
+pub fn nominal(f: f64) -> f64 {
+    ISO_THIRD_OCTAVE
+        .iter()
+        .copied()
+        .min_by(|a, b| (f / a).log2().abs().partial_cmp(&(f / b).log2().abs()).unwrap_or(std::cmp::Ordering::Equal))
+        .filter(|n| (f / n).log2().abs() < 1.0 / 6.0)
+        .unwrap_or_else(|| f.round())
+}
+
 /// JSON-friendly number: non-finite values become null.
 pub fn jnum(x: f64, digits: i32) -> serde_json::Value {
     if x.is_finite() {

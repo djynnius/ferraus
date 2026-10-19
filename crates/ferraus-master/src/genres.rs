@@ -311,19 +311,22 @@ pub fn guess(m: &MasteringAnalysis) -> GenreGuess {
             f.crest_factor_db, f.transient_density_per_s
         ));
         "classical"
-    } else if rhythmic && (118.0..=150.0).contains(&bpm) && f.low_share >= 0.35 {
+    } else if rhythmic && (118.0..=150.0).contains(&bpm) && f.low_share >= 0.6 {
         reasons.push(format!(
             "steady {bpm:.0} BPM four-on-the-floor range with a heavy low end ({:.0}% below 120 Hz)",
             f.low_share * 100.0
         ));
         "edm"
-    } else if f.low_share >= 0.35 && ((60.0..=105.0).contains(&bpm) || (140.0..=180.0).contains(&bpm)) {
+    } else if f.low_share >= 0.6
+        && f.spectral_tilt_db_per_oct <= -3.0
+        && ((60.0..=105.0).contains(&bpm) || (140.0..=185.0).contains(&bpm))
+    {
         reasons.push(format!(
             "{bpm:.0} BPM (hip-hop tempo or half-time) with a heavy low end ({:.0}% below 120 Hz)",
             f.low_share * 100.0
         ));
         "hiphop"
-    } else if f.crest_factor_db >= 15.0 && f.low_share < 0.3 {
+    } else if f.crest_factor_db >= 15.0 && f.low_share < 0.45 {
         if rhythmic {
             reasons.push(format!(
                 "high crest factor ({:.1} dB), light low end, steady pulse: acoustic",
@@ -337,7 +340,7 @@ pub fn guess(m: &MasteringAnalysis) -> GenreGuess {
             ));
             "jazz"
         }
-    } else if f.spectral_tilt_db_per_oct > -3.0 && f.crest_factor_db < 15.0 && f.low_share < 0.35 {
+    } else if f.spectral_tilt_db_per_oct > -3.0 && f.crest_factor_db < 16.0 && f.low_share < 0.7 {
         reasons.push(format!(
             "bright, mid-dense spectrum (tilt {:.1} dB/oct) with moderate crest factor",
             f.spectral_tilt_db_per_oct

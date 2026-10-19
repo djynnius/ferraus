@@ -138,9 +138,8 @@ pub fn resolve(a: &Args, channels: usize) -> Result<Target> {
             notes: "custom target from --lufs/--true-peak".into(),
         }
     } else {
-        let r = row(&name).ok_or_else(|| {
-            Error::usage(format!("unknown --target '{name}'; one of: {}", TARGET_NAMES.join(", ")))
-        })?;
+        let r = row(&name)
+            .ok_or_else(|| Error::usage(format!("unknown --target '{name}'; one of: {}", TARGET_NAMES.join(", "))))?;
         let mut lufs = r.lufs;
         let mut tp = r.true_peak_dbtp;
         let mut notes = r.notes.to_string();

@@ -73,7 +73,7 @@ pub fn fix_to_stage(registry: Option<&Registry>, fix: &str) -> (String, bool) {
 
 fn tone_json(label: &str, t: &ToneBalance) -> Value {
     let band = |b: &ferraus_analysis::spectrum::BandDelta| {
-        json!({"center_hz": spectrum::nominal_hz(b.center_hz), "level_db": jnum(b.level_db, 1),
+        json!({"center_hz": crate::util::nominal(b.center_hz), "level_db": jnum(b.level_db, 1),
                "reference_db": jnum(b.reference_db, 1), "delta_db": jnum(b.delta_db, 1)})
     };
     json!({
@@ -210,7 +210,7 @@ pub fn summary(m: &MasteringAnalysis, tone: &ToneBalance) -> Value {
         "mono_compatibility": jnum(m.stereo.mono_compatibility, 3),
         "tonal_rms_deviation_db": jnum(tone.rms_deviation_db, 2),
         "largest_tonal_deviations": tone.largest_deviations.iter().map(|b| json!({
-            "center_hz": spectrum::nominal_hz(b.center_hz), "delta_db": jnum(b.delta_db, 1)})).collect::<Vec<_>>(),
+            "center_hz": crate::util::nominal(b.center_hz), "delta_db": jnum(b.delta_db, 1)})).collect::<Vec<_>>(),
         "problems": m.problems.problems.iter().map(|p| json!({"problem": p.problem, "severity": p.severity})).collect::<Vec<_>>(),
         "duration_s": jnum(m.context.duration_s, 3),
     })

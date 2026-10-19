@@ -90,7 +90,7 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus master verify spot.wav --target broadcast --standard atsc --tolerance 1LU", "Check an ATSC A/85 broadcast deliverable"),
         OpSpec::custom("master deliver", Category::Mastering, "Write the deliverable set", master_deliver)
             .inputs(Inputs::ONE_AUDIO)
-            .about("Writes one file per --formats entry from a finished master: wav24 (24-bit, original rate), wav16 (16-bit 44.1 kHz with TPDF dither), mp3 (320 kbps, 44.1 kHz), flac (24-bit), aac (256 kbps .m4a, 44.1 kHz; needs FFmpeg). Resampling re-limits any new inter-sample peaks to the master's true peak. --tags and --isrc are written into every file; --loudness-sheet also writes a JSON and a CSV loudness sheet (integrated loudness, LRA, true peak, PLR per deliverable). Output names: <output>.<format>.<ext>.")
+            .about("Writes one file per --formats entry from a finished master: wav24 (24-bit, original rate), wav16 (16-bit 44.1 kHz with TPDF dither), mp3 (320 kbps, 44.1 kHz), flac (24-bit), aac (256 kbps .m4a, 44.1 kHz; needs FFmpeg). Resampling re-limits any new inter-sample peaks to the master's true peak. --tags and --isrc are written into every file; --loudness-sheet also writes a JSON and a CSV loudness sheet (integrated loudness, LRA, true peak, PLR per deliverable). Output names: <output>.wav24.wav, <output>.wav16.wav, <output>.mp3, <output>.flac, <output>.m4a.")
             .param(param("formats", ParamKind::List).default("wav24,wav16,mp3").help("Comma list of wav24, wav16, mp3, flac, aac"))
             .param(param("tags", ParamKind::Str).repeatable().help("Metadata key=value (title, artist, album, date, genre, track, ...); repeat or comma-separate"))
             .param(param("isrc", ParamKind::Str).help("ISRC code written to every deliverable (CC-XXX-YY-NNNNN)"))
@@ -150,7 +150,8 @@ fn options_from_args(a: &Args, ctx: &mut OpCtx, channels: usize) -> Result<Optio
     let trim_db = match trim.trim().to_ascii_lowercase().as_str() {
         "off" | "none" | "false" | "no" => None,
         t => {
-            let v = units::parse_db(t).map_err(|e| Error::usage(format!("--trim-silence: {} (or 'off')", e.message)))?;
+            let v =
+                units::parse_db(t).map_err(|e| Error::usage(format!("--trim-silence: {} (or 'off')", e.message)))?;
             if v > -20.0 {
                 return Err(Error::usage("--trim-silence must be -20dB or lower (it trims silence, not music)"));
             }
@@ -183,6 +184,21 @@ fn role_path(ctx: &OpCtx, role: &str, ext: &str) -> Result<PathBuf> {
             Ok(p.with_file_name(format!("{stem}.{ext}")))
         }
         _ => Ok(p),
+    }
+}
+
+/// Deliverable path: `<base>.wav24.wav` / `<base>.wav16.wav` for the WAV formats (they share
+/// an extension), `<base>.mp3`, `<base>.flac`, `<base>.m4a` for the others.
+fn deliverable_path(ctx: &OpCtx, f: &deliver::DeliveryFormat) -> Result<PathBuf> {
+    let p = role_path(ctx, f.key, f.ext)?;
+    if f.ext == "wav" || ctx.globals.output.as_deref().map(|o| o.contains('{')).unwrap_or(false) {
+        return Ok(p);
+    }
+    let name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let suffix = format!(".{}.{}", f.key, f.ext);
+    match name.strip_suffix(&suffix) {
+        Some(base) => Ok(p.with_file_name(format!("{base}.{}", f.ext))),
+        None => Ok(p),
     }
 }
 
@@ -272,7 +288,10 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         plan.validate(registry)?;
         for name in ["target", "genre", "intensity", "reference", "match-amount", "width", "warmth", "stems"] {
             if a.is_explicit(name) {
-                ctx.warn("plan_overrides", format!("--{name} is ignored because --plan fixes every stage; edit the plan instead"));
+                ctx.warn(
+                    "plan_overrides",
+                    format!("--{name} is ignored because --plan fixes every stage; edit the plan instead"),
+                );
             }
         }
         let reference = match &plan.reference {
@@ -303,7 +322,9 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         declip = built.declip.clone();
         let mut plan = built.plan;
         if !stems_info.is_null() {
-            plan.notes.push("stem-aware: the stages below ran on the re-summed stems; --plan reruns them on the plain mix".into());
+            plan.notes.push(
+                "stem-aware: the stages below ran on the re-summed stems; --plan reruns them on the plain mix".into(),
+            );
         }
         (plan, built.output, built.trace, built.loudness, opts.reference, m)
     };
@@ -502,11 +523,7 @@ fn master_verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             target.name,
             r.failure_lines().join("; ")
         ))
-        .with_hint(format!(
-            "ferraus master {} --target {} -o fixed.wav",
-            input_path.display(),
-            target.name
-        )));
+        .with_hint(format!("ferraus master {} --target {} -o fixed.wav", input_path.display(), target.name)));
     }
     Ok(v)
 }
@@ -522,9 +539,8 @@ fn master_deliver(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     let mut fmts = Vec::new();
     for k in &keys {
-        let f = deliver::format(&k.to_ascii_lowercase()).ok_or_else(|| {
-            Error::usage(format!("unknown delivery format '{k}'; use wav24, wav16, mp3, flac, aac"))
-        })?;
+        let f = deliver::format(&k.to_ascii_lowercase())
+            .ok_or_else(|| Error::usage(format!("unknown delivery format '{k}'; use wav24, wav16, mp3, flac, aac")))?;
         if !fmts.iter().any(|x: &&deliver::DeliveryFormat| x.key == f.key) {
             fmts.push(f);
         }
@@ -560,7 +576,7 @@ fn master_deliver(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         if let Some(n) = &note {
             ctx.note(&format!("{}_resample", f.key), n);
         }
-        let path: PathBuf = role_path(ctx, f.key, f.ext)?;
+        let path: PathBuf = deliverable_path(ctx, f)?;
         let eo = deliver::encode_options(f, ctx, &tags);
         ctx.write_audio_with(&path, &buf, Some(f.key), &eo)?;
         let (measured, how) = if !ctx.globals.dry_run {

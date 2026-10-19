@@ -251,20 +251,15 @@ pub fn run_plan_guarded(
     }
     let n = plan.stages.len();
     let head = Plan { stages: plan.stages[..n - 1].to_vec(), ..plan.clone() };
-    let (pre, mut trace) =
-        if head.stages.is_empty() { (buf, Vec::new()) } else { run_plan(ctx, &head, buf)? };
+    let (pre, mut trace) = if head.stages.is_empty() { (buf, Vec::new()) } else { run_plan(ctx, &head, buf)? };
     let mut stage = plan.stages[n - 1].clone();
     let want = plan.target.true_peak_dbtp;
     let mut note = None;
     for attempt in 0..4 {
         let (out, metrics) = run_stage(ctx, &stage, pre.clone())?;
         let tp = ferraus_analysis::loudness::true_peak_db(&out);
-        let ceiling = stage
-            .args
-            .get("ceiling")
-            .and_then(|v| v.as_str())
-            .and_then(|s| units::parse_db(s).ok())
-            .unwrap_or(want);
+        let ceiling =
+            stage.args.get("ceiling").and_then(|v| v.as_str()).and_then(|s| units::parse_db(s).ok()).unwrap_or(want);
         if tp <= want || attempt == 3 {
             trace.push(StageTrace { op: stage.op.clone(), metrics });
             return Ok((out, trace, note));
@@ -273,7 +268,10 @@ pub fn run_plan_guarded(
         note = Some(format!(
             "true-peak guard: the limiter at {ceiling:.2} dBTP left a {tp:.2} dBTP peak on the 4x meter, so it re-ran at {lowered:.2} dBTP"
         ));
-        stage.args.insert("ceiling".into(), Value::String(format!("{}TP", crate::util::fmt_db(crate::util::round_to(lowered, 2)))));
+        stage.args.insert(
+            "ceiling".into(),
+            Value::String(format!("{}TP", crate::util::fmt_db(crate::util::round_to(lowered, 2)))),
+        );
     }
     unreachable!()
 }
@@ -287,7 +285,11 @@ mod tests {
         let s = Stage::new(
             "corrective_eq",
             "eq",
-            vec![("band", "peak:1kHz:+1dB:q=4.3".into()), ("band", "peak:2kHz:-1dB".into()), ("linear-phase", "true".into())],
+            vec![
+                ("band", "peak:1kHz:+1dB:q=4.3".into()),
+                ("band", "peak:2kHz:-1dB".into()),
+                ("linear-phase", "true".into()),
+            ],
             "",
         );
         let p = s.pairs().unwrap();
