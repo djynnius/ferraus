@@ -50,12 +50,13 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 | Homebrew | `brew install djynnius/tap/ferraus` |
 | Debian / Ubuntu | `sudo apt install ./ferraus_<version>_amd64.deb` |
 | Fedora / RHEL | `sudo dnf install ./ferraus-<version>.x86_64.rpm` |
-| Windows package managers | `winget install djynnius.ferraus` |
+| Windows | the MSI from the [releases page](https://github.com/djynnius/ferraus/releases) |
 | From source | `cargo install ferraus` |
 
-Release artifacts are built, signed, and attested only by this repository's GitHub Actions
-workflows. Model weights are not in the package; they download on first use (with `-y` or
-`models.auto_download = true`) and are verified by SHA-256.
+Builds: macOS on Apple silicon, Linux with glibc 2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+)
+on x86-64 and ARM64, Windows on x86-64 and ARM64. Release artifacts are built and attested
+only by this repository's GitHub Actions workflows. Model weights are not in the package; they
+download on first use (with `-y` or `models.auto_download = true`) and are verified by SHA-256.
 
 Run `ferraus doctor` after installing.
 
