@@ -44,7 +44,7 @@ pub fn ops() -> Vec<OpSpec> {
         .param(param("name", ParamKind::Str).repeatable().help("Model name[@version]; several allowed"))
         .param(param("all-for", ParamKind::Str).help("Pull every model the tiers of this command need (e.g. separate)"))
         .param(param("tier", ParamKind::Str).help("With --all-for: only this tier"))
-        .param(param("accept-license", ParamKind::Flag).help("Accept a research-only / non-commercial license for the named models"))
+        .param(param("accept-license", ParamKind::Flag).help("Accept a research-only, non-commercial, or unclear license for the named models"))
         .example("ferraus models pull separate/htdemucs", "Fetch the fast separation model")
         .example("ferraus models pull --all-for separate --tier fast", "Everything the fast separation tier needs")
         .example("ferraus models pull denoise/dfn3 pitch/crepe -y", "Fetch two models at once without the confirmation prompt"),

@@ -146,27 +146,37 @@ pub fn ensure_model_with(ctx: &mut OpCtx, name: &str, opts: &EnsureOptions) -> R
     Ok(CachedModel { path: cache.root.join(&rec.path), spec: ModelSpec::from_entry(&entry), entry })
 }
 
-/// Research-only licenses need `--accept-license` once; unclear licenses warn.
+/// Research-only and unclear licenses need `--accept-license` once (remembered per model);
+/// an accepted unclear license still warns on every use.
 pub fn check_license(ctx: &mut OpCtx, cache: &Cache, e: &Entry, accept: bool) -> Result<()> {
-    if e.license.research_only() {
-        if accept {
-            if !ctx.globals.dry_run {
-                cache.accept_license(&e.id())?;
-            }
-        } else if !cache.license_accepted(&e.id()) {
-            return Err(Error::new(
-                ErrorKind::Usage,
-                "license_not_accepted",
-                format!(
-                    "{} is licensed {} and is not for commercial use; read {} and accept it explicitly",
-                    e.id(),
-                    e.license.label(),
-                    e.license.url.as_deref().unwrap_or("its model card")
-                ),
-            )
-            .with_hint(format!("ferraus models pull {} --accept-license", e.id())));
+    let research = e.license.research_only();
+    let unclear = !research && e.license.unclear();
+    if !research && !unclear {
+        return Ok(());
+    }
+    if accept {
+        if !ctx.globals.dry_run {
+            cache.accept_license(&e.id())?;
         }
-    } else if e.license.unclear() {
+    } else if !cache.license_accepted(&e.id()) {
+        let message = if research {
+            format!(
+                "{} is licensed {} and is not for commercial use; read {} and accept it explicitly",
+                e.id(),
+                e.license.label(),
+                e.license.url.as_deref().unwrap_or("its model card")
+            )
+        } else {
+            format!(
+                "{} has no clear license (its weights state none); check {} and accept the risk explicitly",
+                e.id(),
+                e.source.weights.as_deref().unwrap_or("its source")
+            )
+        };
+        return Err(Error::new(ErrorKind::Usage, "license_not_accepted", message)
+            .with_hint(format!("ferraus models pull {} --accept-license", e.id())));
+    }
+    if unclear {
         ctx.warn(
             "model_license_unclear",
             format!(
@@ -401,5 +411,27 @@ mod tests {
         opts.accept_license = false;
         let err = ensure_model_with(&mut ctx, "separate/test-model", &opts).unwrap_err();
         assert_eq!(err.exit_code, 5);
+    }
+
+    #[test]
+    fn unclear_license_needs_accept_license() {
+        let dir = ferraus_core::testing::TempDir::new("ensure-license-unclear");
+        let mut ctx = ferraus_core::testing::ctx();
+        let mut e = test_entry(vec!["http://127.0.0.1:9/x".into()], b"abc");
+        e.license.spdx = None;
+        e.license.commercial_use = None;
+        assert!(e.license.unclear());
+        let mut opts = EnsureOptions {
+            cache: Some(Cache::new(dir.0.clone())),
+            manifest: Some(manifest_with(e)),
+            ..Default::default()
+        };
+        let err = ensure_model_with(&mut ctx, "separate/test-model", &opts).unwrap_err();
+        assert_eq!(err.code, "license_not_accepted");
+        assert!(err.message.contains("no clear license"), "{}", err.message);
+        opts.accept_license = true;
+        let err = ensure_model_with(&mut ctx, "separate/test-model", &opts).unwrap_err();
+        assert_eq!(err.exit_code, 5);
+        assert!(ctx.warnings.iter().any(|w| w.code == "model_license_unclear"));
     }
 }

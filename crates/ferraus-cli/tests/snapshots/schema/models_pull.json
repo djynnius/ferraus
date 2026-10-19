@@ -58,7 +58,7 @@
             ]
           }
         ],
-        "description": "Accept a research-only / non-commercial license for the named models Type: flag.",
+        "description": "Accept a research-only, non-commercial, or unclear license for the named models Type: flag.",
         "x-ferraus-kind": "flag"
       }
     },

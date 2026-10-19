@@ -101,8 +101,10 @@ Every verified model in `crates/ferraus-models/registry/registry.json` downloads
 author's or exporter's repository (Hugging Face and GitHub releases), pinned by commit and
 SHA-256, so a deleted upstream file breaks that feature. To remove that risk, upload the same
 files as assets of a `djynnius/ferraus-models` release and put those URLs first in each entry's
-`urls` (the hashes stay the same). The only model still missing is a license-clean lead/backing
-vocal model for `separate --vocal-split`.
+`urls` (the hashes stay the same). No lead/backing vocal model has a clear license, so
+`separate --vocal-split` uses the built-in melody mask (`separate/melody-mask`); the UVR karaoke
+model `separate/mdx-kara-2` (no license stated) is verified but opt-in only and should not be
+mirrored without a license.
 
 ## 9. Legal review
 

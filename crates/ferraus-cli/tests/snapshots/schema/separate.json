@@ -111,8 +111,19 @@
             ]
           }
         ],
-        "description": "Second stage on the vocals: lead and backing Type: flag.",
+        "description": "Second stage on the vocals: lead and backing (built in: a mask that follows the lead's pitch; best effort) Type: flag.",
         "x-ferraus-kind": "flag"
+      },
+      "vocal_split_tracker": {
+        "type": "string",
+        "enum": [
+          "pyin",
+          "crepe",
+          "swiftf0"
+        ],
+        "description": "Pitch tracker of the built-in vocal split: pyin (built in) or a model tracker (needs 'ferraus models pull pitch/<name>' or -y) Type: choice.",
+        "default": "pyin",
+        "x-ferraus-kind": "choice"
       },
       "drum_split": {
         "oneOf": [
@@ -207,7 +218,7 @@
             ]
           }
         ],
-        "description": "Accept a research-only model license (with --model) Type: flag.",
+        "description": "Accept a research-only or unclear model license (with --model or --cascade-models) Type: flag.",
         "x-ferraus-kind": "flag"
       },
       "cascade_models": {

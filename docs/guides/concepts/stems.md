@@ -99,10 +99,22 @@ see [Troubleshooting](../troubleshooting.md)) helps most for `quality` and `max`
   vocals.
 * `--drum-split` splits the drum stem into kick, snare, toms, and cymbals with DrumSep (a
   hybrid Demucs fine-tune, MIT; hi-hats land in cymbals). `--extended guitar,piano` takes guitar
-  and piano out of `other` with `htdemucs-6s`. `--vocal-split` (lead and backing vocals) has no
-  license-clean model yet: pass one with `--cascade-models vocal-split=<model>
-  --accept-license`. Each cascade output carries a quality flag, and `--dry-run` lists the
-  cascade stages with their models and outputs.
+  and piano out of `other` with `htdemucs-6s`. Each cascade output carries a quality flag, and
+  `--dry-run` lists the cascade stages with their models and outputs.
+* `--vocal-split` splits the vocal stem into `song.lead.wav` and `song.backing.wav`. No
+  lead/backing model has a clear license, so the default is built in (`separate/melody-mask`,
+  nothing to download): it tracks the lead's pitch, keeps the energy on the lead's harmonics,
+  sends other voices' harmonics to the backing, weights stereo input toward the centre, and
+  makes backing = vocals − lead, so the two add back to the vocal stem. It is best effort
+  (`"method": "melody_mask"`): it cannot pull apart a harmony in unison or at the octave, it
+  takes a backing part that sings alone for the lead, and it warns when the pitch track is
+  unreliable (`vocal_split_pitch_unreliable`) or the stem has little backing
+  (`vocal_split_little_backing`). On synthetic test mixes it improved the lead by about 1 dB
+  SI-SDR on mono input and 3–4 dB on stereo input with panned backing.
+  `--vocal-split-tracker crepe|swiftf0` uses a model pitch tracker instead of pYIN.
+  `--cascade-models vocal-split=<model>` runs a separation model instead: an ONNX file of your
+  own, or the UVR karaoke model `separate/mdx-kara-2` (no license stated for its weights;
+  never used by default; it needs `--accept-license` once and warns on every use).
 * `--overlap 25%` and `--segment auto` control the processing windows; `--shifts 2` adds
   test-time augmentation (slower, slightly cleaner).
 * Models download on first use with `-y`, or pull them first:
