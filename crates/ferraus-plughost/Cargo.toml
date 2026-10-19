@@ -12,3 +12,7 @@ authors.workspace = true
 dist = false
 
 [dependencies]
+# Only the wire protocol and host runtime: no network, archive, or registry code.
+ferraus-plugins = { path = "../ferraus-plugins", version = "0.1.0", default-features = false }
+clap-sys = "0.5"
+libloading = "0.8"

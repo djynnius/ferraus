@@ -1,0 +1,18 @@
+[package]
+name = "ferraus-test-plugin"
+description = "Tiny CLAP test plugins (gain, fixed-latency delay, sine instrument, crash, hang) for ferraus' plugin-host tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[package.metadata.dist]
+dist = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+clap-sys = "0.5"

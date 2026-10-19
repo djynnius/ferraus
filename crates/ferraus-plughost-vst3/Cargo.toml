@@ -1,0 +1,18 @@
+[package]
+name = "ferraus-plughost-vst3"
+description = "Out-of-process VST3 plugin host used by ferraus (GPLv3; speaks the same protocol as ferraus-plughost)"
+version.workspace = true
+edition.workspace = true
+license = "GPL-3.0-only"
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[package.metadata.dist]
+# Built and shipped beside ferraus by the release workflow; kept out of the permissive core.
+dist = false
+
+[dependencies]
+ferraus-plugins = { path = "../ferraus-plugins", version = "0.1.0", default-features = false }
+vst3 = "0.3"
+libloading = "0.8"
