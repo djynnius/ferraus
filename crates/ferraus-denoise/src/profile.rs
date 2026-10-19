@@ -306,6 +306,9 @@ pub struct QuietRegion {
 const AUTO_BANDS: usize = 16;
 /// Weight of spectral instability against loudness when ranking candidate windows.
 const STABILITY_WEIGHT: f64 = 1.0;
+/// Weight of the loudest frame above the window mean (penalizes windows that touch the
+/// start or end of a sound).
+const PEAK_WEIGHT: f64 = 0.5;
 /// Windows quieter than this are digital silence and useless as a noise sample.
 const SILENCE_DB: f64 = -130.0;
 
@@ -393,7 +396,8 @@ pub fn find_quiet_region(buf: &AudioBuffer, window_s: f64) -> Option<QuietRegion
                 }
                 continue;
             }
-            let score = level + STABILITY_WEIGHT * stab;
+            let peak = ring.iter().map(|f| f[0]).fold(f64::NEG_INFINITY, f64::max);
+            let score = level + STABILITY_WEIGHT * stab + PEAK_WEIGHT * (peak - level);
             if best.map(|b| score < b.0).unwrap_or(true) {
                 best = Some((score, first, level, stab));
             }

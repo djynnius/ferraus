@@ -1,30 +1,36 @@
-//! The spectral gating engine shared by profile and adaptive modes.
+//! The spectral gating engine shared by profile and adaptive modes. It follows the PRD's
+//! seven steps:
 //!
-//! Per STFT frame (Hann, 75% overlap):
+//! 1. STFT with a periodic Hann window (2048 samples at 44.1/48 kHz, scaled with the
+//!    sample rate), 75% overlap, `f32`.
+//! 2. Noise statistics per bin: from the profile (mean and std of the magnitude in dB), or
+//!    in adaptive mode from a minimum-statistics tracker (Martin 2001) with no profile.
+//! 3. Threshold `mean + sensitivity × std`. The mean is put on the power scale (mean of dB
+//!    plus 2.51 dB for Gaussian noise, less for steadier noise) and the std is divided by
+//!    5.57 dB, the spread of Gaussian noise in dB (with a 2.5 dB floor so steady hum still
+//!    gets a margin). So `--sensitivity 6` puts the threshold 6 dB above the mean power of
+//!    steady hiss, and proportionally higher for noise that fluctuates more. Each bin's
+//!    level is compared with its threshold and mapped through a soft sigmoid (centred
+//!    1.5 dB above the threshold, 1.5 dB wide) to a gain between 0 dB and `-reduction`.
+//! 4. The mask is smoothed across frequency (a 3-bin morphological opening removes isolated
+//!    open bins narrower than a window main lobe, then a Hann-weighted average over
+//!    `±smoothing` bins adds soft skirts without pulling partials down) and in time (a
+//!    lookahead maximum over `attack` worth of frames, then slew limits: the gate opens
+//!    through the full range in `attack` and closes in `release`), so onsets are never
+//!    clipped.
+//! 5. `--artifact-control` blends a 3×3 (time × frequency) median of the mask into it and
+//!    fills spectral troughs up to a steady floor `-reduction` below the minimum-statistics
+//!    noise estimate. Both remove the random flicker of gated noise ("musical noise") at
+//!    the cost of a little more residual noise.
+//! 6. `--link on` computes one mask from the channel-mean power; `--preserve-transients`
+//!    detects onsets (spectral flux of the above-threshold bins, adaptive threshold, local
+//!    maximum) and holds the gate open around them with the threshold lowered to the noise
+//!    mean and instant attack.
+//! 7. Inverse STFT with overlap-add (Hann² sums to exactly 1.5 at 75% overlap). With
+//!    `--reduction 0dB` every gain is exactly 1.
 //!
-//! 1. The detector level of each bin is the power averaged over the bin and its two
-//!    neighbours, in dB.
-//! 2. The threshold is `mean + sensitivity × std` from the profile. Sensitivity is measured
-//!    in "dB for stationary Gaussian noise": the profile's dB standard deviation is divided
-//!    by 5.57 dB (the spread of Rayleigh-distributed magnitudes), and the mean is taken on
-//!    the power scale (mean of dB + 2.51 dB, exact for Gaussian noise). So the default
-//!    `--sensitivity 6` puts the threshold 6 dB above the noise's mean power for steady
-//!    hiss, and proportionally higher for noise that fluctuates more. In adaptive mode the
-//!    mean comes from a minimum-statistics tracker instead.
-//! 3. The excess over threshold is smoothed across `±smoothing` bins (triangular kernel)
-//!    and mapped through a soft sigmoid to a gain between 0 dB and `-reduction`.
-//! 4. `--artifact-control` blends a 3×3 (time × frequency) median of the gain mask into it.
-//! 5. A lookahead maximum over the next frames plus separate attack and release smoothing
-//!    shape the mask in time, so onsets open the gate before they arrive.
-//! 6. Onsets (spectral flux of the above-threshold bins) hold the gate open with a lowered
-//!    threshold and instant attack (`--preserve-transients`).
-//! 7. `--artifact-control` also fills spectral troughs up to a steady floor at the
-//!    `-reduction` level relative to the minimum-statistics noise estimate, which removes
-//!    the random flicker ("musical noise") of gated noise at the cost of a little more
-//!    residual noise.
-//! 8. Inverse STFT with overlap-add. With `--reduction 0dB` every gain is exactly 1.
-//!
-//! The engine streams: it holds a constant number of frames regardless of input length.
+//! The engine streams: it holds a constant number of frames (input ring, lookahead queue,
+//! overlap-add accumulator) regardless of input length.
 
 use crate::profile::NoiseProfile;
 use crate::stft::{hop_for, pow_db, Fft, FLOOR_POW};

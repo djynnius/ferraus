@@ -68,7 +68,7 @@ fn denoise_spec() -> OpSpec {
     .param(param("reduction", ParamKind::Gain).default("12dB").range("0..60").help(
         "How far noise is pushed down, in dB (0dB leaves the input unchanged)",
     ))
-    .param(param("sensitivity", ParamKind::Float).default("6").range("0..24").help(
+    .param(param("sensitivity", ParamKind::Float).default("6").range("0..48").help(
         "Gate threshold above the noise profile: threshold = mean + sensitivity × std, scaled so 6 means 6 dB above steady hiss; higher removes more",
     ))
     .param(param("smoothing", ParamKind::Int).default("3").range("0..32").help(
@@ -108,7 +108,7 @@ fn denoise_spec() -> OpSpec {
         "ml/hybrid modes: how much of the model's change to apply",
     ))
     .param(param("residual", ParamKind::Path).help(
-        "Also write the removed component (input minus output) to this audio file",
+        "Also write the removed component (input minus the fully processed output, before --mix) to this audio file",
     ))
     .param(param("dereverb", ParamKind::Flag).help(
         "Add the best-effort de-reverb stage (model slot denoise/dereverb-*)",
@@ -213,8 +213,8 @@ fn merge_spec() -> OpSpec {
 fn gate_config(a: &Args) -> Result<GateConfig> {
     let reduction = a.db("reduction")?.abs() as f32;
     let sensitivity = a.f64("sensitivity")?;
-    if !(0.0..=100.0).contains(&sensitivity) {
-        return Err(Error::usage("--sensitivity must be between 0 and 100"));
+    if !(0.0..=48.0).contains(&sensitivity) {
+        return Err(Error::usage("--sensitivity must be between 0 and 48"));
     }
     Ok(GateConfig {
         reduction_db: reduction,
@@ -324,7 +324,8 @@ fn resolve_profile(a: &Args, buf: &AudioBuffer, ctx: &mut OpCtx) -> Result<Optio
             "no --profile, --noise-range, or --auto given: learning the noise from the quietest 1 s region (pass --auto to make this explicit)",
         );
     }
-    let window = if buf.duration_s() < 4.0 { (buf.duration_s() / 4.0).clamp(0.25, 1.0) } else { 1.0 };
+    // the PRD window is 1 s; very short inputs use half their length
+    let window = if buf.duration_s() < 2.0 { (buf.duration_s() / 2.0).clamp(0.05, 1.0) } else { 1.0 };
     match profile::find_quiet_region(buf, window) {
         None => {
             ctx.warn("input_too_short", "the input is too short to estimate the noise; it was left unchanged");

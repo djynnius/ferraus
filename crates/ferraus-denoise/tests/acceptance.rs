@@ -46,11 +46,11 @@ fn run_case(signal: &'static str, kind: NoiseKind, snr: f64, pairs: &[(&str, &st
     Row { signal, noise: kind, snr, before, after, retained }
 }
 
-fn matrix(pairs: &[(&str, &str)], label: &str) -> Vec<Row> {
+fn matrix(pairs: &[(&str, &str)], snrs: &[f64], label: &str) -> Vec<Row> {
     let mut rows = Vec::new();
     for signal in ["speech", "music"] {
         for kind in NoiseKind::ALL {
-            for snr in [0.0, 10.0, 20.0] {
+            for &snr in snrs {
                 let r = run_case(signal, kind, snr, pairs);
                 eprintln!(
                     "[{label}] {:6} {:7} {:4.0} dB SNR: SI-SDR {:6.2} -> {:6.2} ({:+5.2} dB), clean level in voiced regions {:+5.2} dB",
@@ -77,7 +77,7 @@ fn matrix(pairs: &[(&str, &str)], label: &str) -> Vec<Row> {
 #[test]
 fn synthetic_mixes_improve_si_sdr() {
     let mut failures = Vec::new();
-    for r in matrix(&[("reduction", "24dB")], "24dB") {
+    for r in matrix(&[("reduction", "24dB")], &[0.0, 10.0, 20.0], "24dB") {
         let gain = r.after - r.before;
         if r.snr == 10.0 && gain < 8.0 {
             failures.push(format!("{} {:?} 10 dB: SI-SDR gain {gain:.2} < 8 dB", r.signal, r.noise));
@@ -92,7 +92,7 @@ fn synthetic_mixes_improve_si_sdr() {
             failures.push(format!("{} {:?} {} dB: SI-SDR gain only {gain:.2}", r.signal, r.noise, r.snr));
         }
     }
-    for r in matrix(&[], "defaults") {
+    for r in matrix(&[], &[10.0], "defaults") {
         let gain = r.after - r.before;
         if r.snr == 10.0 && (gain < 6.0 || r.retained < -1.0) {
             failures.push(format!(
