@@ -1,12 +1,38 @@
 [package]
 name = "ferraus-ml"
+description = "ferraus model runtime: ONNX Runtime sessions, execution-provider selection, chunked inference"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+# CUDA execution provider (Linux/Windows). Selects ONNX Runtime binaries built with CUDA;
+# the CUDA/cuDNN runtime libraries come from `ferraus accelerate install` or the system.
+cuda = ["ort/cuda"]
+# Compiled in by default on the platforms whose prebuilt runtime already contains it.
+coreml = ["ort/coreml"]
+directml = ["ort/directml"]
+
 [dependencies]
 ferraus-core.workspace = true
+ferraus-models.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+hex.workspace = true
+sha2.workspace = true
+ort = { version = "=2.0.0-rc.14" }
+ndarray = "0.17"
+flate2 = "1"
+tar = "0.4"
+
+# The macOS and Windows prebuilt ONNX Runtime binaries already include CoreML / DirectML,
+# so the providers are built in there at no extra cost.
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { version = "=2.0.0-rc.14", features = ["coreml"] }
+
+[target.'cfg(windows)'.dependencies]
+ort = { version = "=2.0.0-rc.14", features = ["directml"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
