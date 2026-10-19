@@ -3,3 +3,4 @@
 /ferraus-out
 *.ferraus.json.tmp
 .DS_Store
+/.claude/

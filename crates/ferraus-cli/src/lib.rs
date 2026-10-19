@@ -3,8 +3,10 @@
 
 pub mod cli;
 pub mod config;
+pub mod docgen;
 pub mod progress;
 pub mod system;
+pub mod tools;
 
 use ferraus_core::Registry;
 
@@ -30,6 +32,7 @@ pub fn registry() -> Registry {
     r.extend(ferraus_score::ops());
     r.extend(ferraus_mcp::ops());
     r.extend(system::ops());
+    r.extend(tools::ops());
     r
 }
 
