@@ -22,9 +22,9 @@ use ferraus_core::prelude::*;
 use ferraus_core::EncodeOptions;
 use ferraus_models::{active_registry, ensure_model_with, not_cached_error, Cache, EnsureOptions, Manifest, ModelSpec};
 use pipeline::{assign_residual, RunOptions, Segment};
-use stream::{ConfidenceAcc, Track};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use stream::{ConfidenceAcc, Track};
 
 pub const STEMS_4: &[&str] = &["vocals", "drums", "bass", "other"];
 pub const STEMS_6: &[&str] = &["vocals", "drums", "bass", "guitar", "piano", "other"];
@@ -261,7 +261,13 @@ fn resolve_members(ctx: &mut OpCtx, members: &[Member], accept: bool) -> Result<
                 let sha = ferraus_models::download::sha256_file(p)?;
                 ctx.model_used(&p.display().to_string(), &spec.version, &sha);
                 let stems = adapter::stems_of(&spec);
-                resolved.push(Resolved { member: m.clone(), path: p.clone(), spec, label: p.display().to_string(), stems });
+                resolved.push(Resolved {
+                    member: m.clone(),
+                    path: p.clone(),
+                    spec,
+                    label: p.display().to_string(),
+                    stems,
+                });
             }
             ModelRef::Registry(name) => match ensure_model_with(ctx, name, &opts) {
                 Ok(c) => {
@@ -534,7 +540,20 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let instrumental_only = a.flag("instrumental");
 
     if ctx.globals.dry_run {
-        return dry_run_plan(ctx, &manifest, &cache, &members, &stems_n, &only, instrumental_only, &cascades_req, &overrides, &ext, shifts, overlap);
+        return dry_run_plan(
+            ctx,
+            &manifest,
+            &cache,
+            &members,
+            &stems_n,
+            &only,
+            instrumental_only,
+            &cascades_req,
+            &overrides,
+            &ext,
+            shifts,
+            overlap,
+        );
     }
 
     let resolved = resolve_members(ctx, &members, a.flag("accept-license"))?;
@@ -659,8 +678,7 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         if let (_, Some(note)) = pipeline::plan_for(model.as_ref(), &run_opts)? {
             ctx.warn("segment_adjusted", note);
         }
-        let mut tracks: Vec<Track> =
-            keep.iter().map(|_| Track::zeros(n, ch, spill.as_ref())).collect::<Result<_>>()?;
+        let mut tracks: Vec<Track> = keep.iter().map(|_| Track::zeros(n, ch, spill.as_ref())).collect::<Result<_>>()?;
         {
             let cancel = ctx.cancel.clone();
             let progress = ctx.progress;
@@ -735,10 +753,8 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         for (stem, ests) in &estimates {
             let reads: Vec<Vec<Vec<f32>>> = ests.iter().map(|(_, t)| t.read(ra, rb)).collect::<Result<_>>()?;
             if ests.len() > 1 {
-                let views: Vec<Vec<Vec<f32>>> = reads
-                    .iter()
-                    .map(|r| r.iter().map(|c| c[start - ra..end - ra].to_vec()).collect())
-                    .collect();
+                let views: Vec<Vec<Vec<f32>>> =
+                    reads.iter().map(|r| r.iter().map(|c| c[start - ra..end - ra].to_vec()).collect()).collect();
                 let refs: Vec<&[Vec<f32>]> = views.iter().map(|v| v.as_slice()).collect();
                 agree.entry(stem.clone()).or_insert_with(|| stream::AgreementAcc::new(ests.len())).feed(&refs);
                 let weights: Vec<f64> = ests.iter().map(|(w, _)| *w).collect();
@@ -793,7 +809,11 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             rep.clipped += r.clipped;
         }
         if let Some(t) = inst_only.as_mut() {
-            let v = fin.iter().find(|(s, _)| s == "vocals").map(|(_, b)| b).ok_or_else(|| Error::processing("no vocals stem"))?;
+            let v = fin
+                .iter()
+                .find(|(s, _)| s == "vocals")
+                .map(|(_, b)| b)
+                .ok_or_else(|| Error::processing("no vocals stem"))?;
             let mut inst = mix_blk.clone();
             for (ci, c) in inst.data.iter_mut().enumerate() {
                 for (i, x) in c.iter_mut().enumerate() {
@@ -827,7 +847,9 @@ fn separate(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     for (i, s) in stem_order.iter().enumerate() {
         let q = match agree.get(s).and_then(|g| g.score()) {
             Some(q) => json!({"score": q, "method": "ensemble_agreement", "members": agree[s].members()}),
-            None => json!({"score": scores.get(i).copied().unwrap_or(1.0), "method": "mask_confidence", "calibrated": false}),
+            None => {
+                json!({"score": scores.get(i).copied().unwrap_or(1.0), "method": "mask_confidence", "calibrated": false})
+            }
         };
         qualities.insert(s.clone(), q);
     }
@@ -985,13 +1007,16 @@ fn dry_run_plan(
         let mut models = Vec::new();
         for m in &members {
             let stems: Vec<String> = match &m.reference {
-                ModelRef::Registry(n) => manifest
-                    .resolve(n)
-                    .map(|e| adapter::stems_of(&ModelSpec::from_entry(e)))
-                    .unwrap_or_default(),
+                ModelRef::Registry(n) => {
+                    manifest.resolve(n).map(|e| adapter::stems_of(&ModelSpec::from_entry(e))).unwrap_or_default()
+                }
                 ModelRef::File(p) => {
                     let side = [p.with_extension("spec.json"), p.with_file_name("spec.json")];
-                    side.iter().find(|s| s.exists()).and_then(|s| ModelSpec::load(s).ok()).map(|s| adapter::stems_of(&s)).unwrap_or_default()
+                    side.iter()
+                        .find(|s| s.exists())
+                        .and_then(|s| ModelSpec::load(s).ok())
+                        .map(|s| adapter::stems_of(&s))
+                        .unwrap_or_default()
                 }
             };
             for s in stems {

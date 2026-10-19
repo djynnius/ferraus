@@ -294,7 +294,8 @@ fn dry_run_plans_without_writing() {
     assert!(!stem_path(&r, "vocals").exists());
 
     // cascades are planned with their models and extra outputs
-    let pairs = [("tier", "fast"), ("vocal-split", "true"), ("drum-split", "true"), ("extended", "guitar,piano,strings")];
+    let pairs =
+        [("tier", "fast"), ("vocal-split", "true"), ("drum-split", "true"), ("extended", "guitar,piano,strings")];
     let (v, _) = run(&r, &pairs, |c| c.globals.dry_run = true).unwrap();
     let c = v["cascades"].as_array().unwrap();
     assert_eq!(c.len(), 3);
@@ -302,7 +303,8 @@ fn dry_run_plans_without_writing() {
     assert!(c[0]["hint"].as_str().unwrap().contains("--cascade-models vocal-split="));
     assert_eq!(c[1]["stage"], "drum-split");
     assert_eq!(c[1]["models"][0]["model"], "separate/drumsep-inagoy@2022");
-    let drum_outs: Vec<&str> = c[1]["outputs"].as_array().unwrap().iter().map(|o| o["stem"].as_str().unwrap()).collect();
+    let drum_outs: Vec<&str> =
+        c[1]["outputs"].as_array().unwrap().iter().map(|o| o["stem"].as_str().unwrap()).collect();
     assert_eq!(drum_outs, vec!["kick", "snare", "toms", "cymbals"], "no hi-hat output: hi-hats land in cymbals");
     assert!(c[1]["outputs"][0]["path"].as_str().unwrap().ends_with("song.kick.wav"));
     assert_eq!(c[2]["stage"], "extended");
@@ -499,7 +501,13 @@ fn mdx_adapter_round_trip() {
     };
     let (session, _) = ferraus_ml::load(
         &p,
-        &ferraus_ml::SessionOptions { device: "cpu".into(), deterministic: true, threads: 1, provider_hints: vec![], lean: false },
+        &ferraus_ml::SessionOptions {
+            device: "cpu".into(),
+            deterministic: true,
+            threads: 1,
+            provider_hints: vec![],
+            lean: false,
+        },
     )
     .unwrap();
     let model = adapter::open("mdx", spec, session).unwrap();

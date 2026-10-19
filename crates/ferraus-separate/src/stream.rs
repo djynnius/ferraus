@@ -96,12 +96,8 @@ impl Track {
             None => Ok(Track { frames, channels, store: Store::Mem(vec![vec![0f32; frames]; channels]) }),
             Some(dir) => {
                 let path = dir.path().join(format!("t{}.f32", dir.next.fetch_add(1, Ordering::Relaxed)));
-                let file = std::fs::OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create_new(true)
-                    .open(&path)
-                    .map_err(io_err)?;
+                let file =
+                    std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).map_err(io_err)?;
                 // sparse: unwritten ranges read back as zeros
                 file.set_len((frames * channels * 4) as u64).map_err(io_err)?;
                 Ok(Track { frames, channels, store: Store::Disk { file, path, _dir: dir.guard.clone() } })
@@ -246,7 +242,8 @@ impl Rs {
     /// [`Rs::src_range`]. Outputs past the full output length are zero.
     pub fn compute(&self, local: &[f32], s: usize, a: usize, b: usize) -> Vec<f32> {
         if self.from == self.to {
-            let mut v: Vec<f32> = (a..b).map(|i| if i >= s && i - s < local.len() { local[i - s] } else { 0.0 }).collect();
+            let mut v: Vec<f32> =
+                (a..b).map(|i| if i >= s && i - s < local.len() { local[i - s] } else { 0.0 }).collect();
             v.truncate(b - a);
             return v;
         }
@@ -358,10 +355,7 @@ impl Ola {
             }
             for c in o {
                 if c.len() != len {
-                    return Err(Error::processing(format!(
-                        "model returned {} samples for a window of {len}",
-                        c.len()
-                    )));
+                    return Err(Error::processing(format!("model returned {} samples for a window of {len}", c.len())));
                 }
             }
         }
@@ -1070,7 +1064,9 @@ pub(crate) mod tests {
     #[test]
     fn resample_range_matches_whole_signal() {
         let x: Vec<f32> = (0..5003).map(|i| ((i as f32) * 0.037).sin() + ((i * 7 % 11) as f32 - 5.0) * 0.01).collect();
-        for (from, to) in [(44_100u32, 48_000u32), (48_000, 44_100), (22_050, 44_100), (44_100, 16_000), (8_000, 44_100)] {
+        for (from, to) in
+            [(44_100u32, 48_000u32), (48_000, 44_100), (22_050, 44_100), (44_100, 16_000), (8_000, 44_100)]
+        {
             let whole = resample_channel(&x, from, to, Quality::High);
             let n_out = whole.len();
             assert_eq!(n_out, Rs::new(from, to, x.len()).n_out);

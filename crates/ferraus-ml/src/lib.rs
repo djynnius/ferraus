@@ -227,7 +227,13 @@ mod tests {
         if Provider::Cuda.compiled() {
             return;
         }
-        let opts = SessionOptions { device: "cuda".into(), deterministic: false, threads: 1, provider_hints: vec![], lean: false };
+        let opts = SessionOptions {
+            device: "cuda".into(),
+            deterministic: false,
+            threads: 1,
+            provider_hints: vec![],
+            lean: false,
+        };
         let (s, warnings) = load(&p, &opts).unwrap();
         assert_eq!(s.provider, Provider::Cpu);
         assert_eq!(warnings.len(), 1);

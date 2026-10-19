@@ -268,10 +268,7 @@ impl HdemucsSpecModel {
         let padded: Vec<f32> = (0..total).map(|i| x[reflect_index(i as isize - pad as isize, t)]).collect();
         let s = stft(&padded, self.n_fft, hl);
         let norm = 1.0 / (self.n_fft as f32).sqrt();
-        s.frames[2..2 + le]
-            .iter()
-            .map(|f| f[..self.n_fft / 2].iter().map(|v| v * norm).collect())
-            .collect()
+        s.frames[2..2 + le].iter().map(|f| f[..self.n_fft / 2].iter().map(|v| v * norm).collect()).collect()
     }
 
     /// Demucs `_ispec`: zero Nyquist bin and two edge frames, normalized iSTFT, crop to `length`.
@@ -352,8 +349,11 @@ impl SeparationModel for HdemucsSpecModel {
         }
         let names = &self.session.input_names;
         let mix_name = names.iter().find(|n| n.as_str() == "mix").cloned().unwrap_or_else(|| names[0].clone());
-        let mag_name =
-            names.iter().find(|n| n.as_str() == "mag").cloned().unwrap_or_else(|| names.get(1).cloned().unwrap_or_default());
+        let mag_name = names
+            .iter()
+            .find(|n| n.as_str() == "mag")
+            .cloned()
+            .unwrap_or_else(|| names.get(1).cloned().unwrap_or_default());
         let out = self.session.run(vec![
             TensorF32::new(&mix_name, vec![1, c as i64, t as i64], mix),
             TensorF32::new(&mag_name, vec![1, 2 * c as i64, nf as i64, fr as i64], mag),
@@ -409,7 +409,9 @@ pub fn open(name: &str, spec: ModelSpec, session: Arc<ModelSession>) -> Result<B
         other => Err(Error::new(
             ErrorKind::Unsupported,
             "model_arch_unsupported",
-            format!("{name}: no separation adapter for architecture '{other}' (supported: waveform, mdx, hdemucs-spec)"),
+            format!(
+                "{name}: no separation adapter for architecture '{other}' (supported: waveform, mdx, hdemucs-spec)"
+            ),
         )),
     }
 }
