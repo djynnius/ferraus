@@ -230,8 +230,9 @@ fn line_segments(m: &Mask, min_len: i64, max_gap: i64) -> Vec<LineSeg> {
 
 /// Group line segments into five-line staves.
 pub fn find_staves(m: &Mask) -> Vec<StaffLines> {
-    let min_len = ((m.w as i64) / 12).max(30);
-    let mut lines = line_segments(m, min_len, (m.w as i64 / 150).max(4));
+    // short final systems and lines broken by key signatures still give 1/30-page runs
+    let min_len = ((m.w as i64) / 30).max(24);
+    let mut lines = line_segments(m, min_len, (m.w as i64 / 80).max(4));
     // a staff line is thin: drop thick blobs (beams, text)
     lines.retain(|l| l.y1 - l.y0 <= 12);
     lines.sort_by(|a, b| (a.y0 + a.y1).cmp(&(b.y0 + b.y1)));
@@ -282,7 +283,19 @@ pub fn find_staves(m: &Mask) -> Vec<StaffLines> {
             i += 1;
         }
     }
-    staves
+    // pieces of one staff found separately (lines broken by glyphs): merge them
+    let mut merged: Vec<StaffLines> = Vec::new();
+    staves.sort_by(|a, b| a.ys[0].partial_cmp(&b.ys[0]).unwrap());
+    for s in staves {
+        match merged.iter_mut().find(|m| (m.ys[0] - s.ys[0]).abs() < 0.5 * m.sp && (m.ys[4] - s.ys[4]).abs() < 0.5 * m.sp) {
+            Some(m) => {
+                m.x0 = m.x0.min(s.x0);
+                m.x1 = m.x1.max(s.x1);
+            }
+            None => merged.push(s),
+        }
+    }
+    merged
 }
 
 /// Measure the real line thickness and positions on the ink, and erase the lines.
@@ -380,15 +393,32 @@ struct Rest {
     conf: f32,
 }
 
-fn hollow_score(clean: &Mask, b: &BBox) -> f64 {
+/// Ink density in the centre of a head, skipping rows where a staff or ledger line runs
+/// (a ledger line crosses the hole of a half or whole note on it).
+fn hollow_score(clean: &Mask, b: &BBox, st: &StaffLines) -> f64 {
     let (w, h) = (b.w() as f64, b.h() as f64);
-    let inner = BBox::new(
-        (b.cx() - 0.18 * w).round() as i64,
-        (b.cy() - 0.15 * h).round() as i64,
-        (b.cx() + 0.18 * w).round() as i64 + 1,
-        (b.cy() + 0.15 * h).round() as i64 + 1,
-    );
-    clean.density(&inner)
+    let x0 = (b.cx() - 0.18 * w).round() as i64;
+    let x1 = (b.cx() + 0.18 * w).round() as i64 + 1;
+    let y0 = (b.cy() - 0.2 * h).round() as i64;
+    let y1 = (b.cy() + 0.2 * h).round() as i64 + 1;
+    let near_line = |y: i64| {
+        let k = (st.bottom() - y as f64) / st.sp;
+        (k - k.round()).abs() * st.sp <= st.thickness / 2.0 + 1.0
+    };
+    let (mut ink, mut n) = (0usize, 0usize);
+    for y in y0..y1 {
+        if near_line(y) {
+            continue;
+        }
+        for x in x0..x1 {
+            n += 1;
+            ink += clean.get_i(x, y) as usize;
+        }
+    }
+    if n == 0 {
+        return 1.0;
+    }
+    ink as f64 / n as f64
 }
 
 fn split_heads(c: &Component, sp: f64) -> Vec<BBox> {
@@ -417,16 +447,19 @@ fn split_heads(c: &Component, sp: f64) -> Vec<BBox> {
     }
     let mut out = Vec::new();
     for col in cols {
-        let n = ((col.h() as f64) / (0.95 * sp)).round().max(1.0) as i64;
+        // touching heads in one column are a third apart: one staff space between centres,
+        // anchored at the region's top and bottom
+        let hh = 0.95 * sp;
+        let n = (((col.h() as f64 - hh) / sp).round() + 1.0).max(1.0) as usize;
         if n <= 1 {
             out.push(col);
             continue;
         }
-        let step = col.h() as f64 / n as f64;
+        let first = col.y0 as f64 + (col.h() as f64 - (n - 1) as f64 * sp) / 2.0;
+        let half = (0.5 * sp).round() as i64;
         for k in 0..n {
-            let y0 = col.y0 + (k as f64 * step).round() as i64;
-            let y1 = col.y0 + ((k + 1) as f64 * step).round() as i64;
-            out.push(BBox::new(col.x0, y0, col.x1, y1));
+            let cy = (first + k as f64 * sp).round() as i64;
+            out.push(BBox::new(col.x0, cy - half, col.x1, cy + half));
         }
     }
     out
@@ -454,7 +487,7 @@ fn best_run(ink: &Mask, xs: std::ops::Range<i64>, y: i64, dir: i64) -> (i64, i64
 fn find_stem(ink: &Mask, b: &BBox, sp: f64) -> Option<Stem> {
     let y = b.cy().round() as i64;
     let r = (0.35 * sp).round() as i64;
-    let e = (0.2 * sp).round().max(1.0) as i64;
+    let e = (0.35 * sp).round().max(1.0) as i64;
     let (up, ux) = best_run(ink, b.x1 - r..b.x1 + e, y, -1);
     let (down, dx) = best_run(ink, b.x0 - e..b.x0 + r, y, 1);
     let min = (2.2 * sp) as i64;
@@ -889,20 +922,45 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
     let mut heads: Vec<Head> = Vec::new();
     for comp in c.heads.components_in(&zone) {
         let b = comp.bbox;
-        if (comp.area as f64) < 0.25 * sp * sp || (b.h() as f64) < 0.45 * sp || (b.w() as f64) < 0.6 * sp {
+        // a notehead is about 1.2 sp wide and 1 sp tall; smaller specks are parts of other
+        // glyphs (time signature digits, clefs) the network mistook for heads
+        if (comp.area as f64) < 0.4 * sp * sp || (b.h() as f64) < 0.6 * sp || (b.w() as f64) < 0.85 * sp {
+            if trace() {
+                eprintln!("  head rejected {:?} area {:.2}sp2", b, comp.area as f64 / (sp * sp));
+            }
             continue;
         }
         let conf = mean_prob(c.symbols, &comp);
         for hb in split_heads(&comp, sp) {
             let pos = st.position(hb.cy());
-            let hollow = hollow_score(c.clean, &hb) < 0.45;
+            let hollow = hollow_score(c.clean, &hb, st) < 0.45;
             heads.push(Head { bbox: hb, pos, hollow, conf, stem: None, dots: 0, acc: None });
+        }
+    }
+    // the network sometimes marks parts of time signature digits as heads
+    let tsig = find_time_signature_box(c);
+    if let Some(t) = tsig {
+        heads.retain(|h| !h.bbox.overlaps(&t));
+        if trace() {
+            eprintln!("  time signature region {:?}", t);
         }
     }
     heads.sort_by(|a, b| a.bbox.x0.cmp(&b.bbox.x0));
     let head_boxes: Vec<BBox> = heads.iter().map(|h| h.bbox).collect();
     for h in heads.iter_mut() {
         h.stem = find_stem(c.soft, &h.bbox, sp);
+        // the edges of stacked whole notes form a vertical run too: a stem must reach
+        // well beyond the heads it passes
+        if let Some(s) = h.stem {
+            let cy = h.bbox.cy().round() as i64;
+            let (a, b) = (s.end.min(cy), s.end.max(cy));
+            let free = (a..b)
+                .filter(|&y| !head_boxes.iter().any(|hb| hb.grow(1, 1).overlaps(&BBox::new(s.x, y, s.x + 1, y + 1))))
+                .count();
+            if (free as f64) < 1.2 * sp {
+                h.stem = None;
+            }
+        }
         if let Some(s) = h.stem.as_mut() {
             s.beams = count_beams(c.clean, s, sp, &head_boxes);
         }
@@ -1175,29 +1233,9 @@ fn read_staff(c: &StaffCtx, debug: &mut Debug) -> StaffResult {
     let mut events: Vec<Ev> = Vec::new();
     // staff positions and accidentals of each note event (spelled per measure below)
     let mut pos_of: Vec<Option<Vec<(i32, Option<Acc>)>>> = Vec::new();
-    let mut taken = vec![false; heads.len()];
-    for i in 0..heads.len() {
-        if taken[i] {
-            continue;
-        }
-        let mut members = vec![i];
-        taken[i] = true;
-        for j in i + 1..heads.len() {
-            if taken[j] {
-                continue;
-            }
-            let same = match (heads[i].stem, heads[j].stem) {
-                (Some(a), Some(b)) => (a.x - b.x).abs() as f64 <= 0.35 * sp && a.dir == b.dir,
-                (None, None) => (heads[i].bbox.cx() - heads[j].bbox.cx()).abs() <= 0.8 * sp,
-                _ => false,
-            };
-            if same {
-                members.push(j);
-                taken[j] = true;
-            }
-        }
+    for members in group_chords(&heads, sp) {
         let hs: Vec<&Head> = members.iter().map(|&k| &heads[k]).collect();
-        let stem = hs.iter().find_map(|h| h.stem);
+        let stem = hs.iter().filter_map(|h| h.stem).max_by_key(|s| (s.beams, (s.end - s.x).abs()));
         let hollow_votes = hs.iter().filter(|h| h.hollow).count();
         let hollow = hollow_votes * 2 > hs.len();
         let beams = stem.map(|s| s.beams).unwrap_or(0);
@@ -1434,6 +1472,117 @@ fn classify_rest(st: &StaffLines, g: &Component, symbols: &ClassMap) -> Option<R
     None
 }
 
+/// Group heads into chords: heads beside one stem (on either side of it, as in a chord
+/// with a second) and within its vertical reach share it; stemless heads stacked at the
+/// same x form whole-note chords.
+fn group_chords(heads: &[Head], sp: f64) -> Vec<Vec<usize>> {
+    // distinct stems with the vertical span they cover (stem end to the farthest head)
+    let mut stems: Vec<(Stem, f64, f64)> = Vec::new();
+    for h in heads {
+        let Some(s) = h.stem else { continue };
+        let (a, b) = (s.end as f64, h.bbox.cy());
+        let (lo, hi) = (a.min(b), a.max(b));
+        match stems.iter_mut().find(|(t, _, _)| (t.x - s.x).abs() as f64 <= 0.35 * sp && t.dir == s.dir) {
+            Some(t) => {
+                t.1 = t.1.min(lo);
+                t.2 = t.2.max(hi);
+            }
+            None => stems.push((s, lo, hi)),
+        }
+    }
+    let mut owner: Vec<Option<usize>> = vec![None; heads.len()];
+    for (i, h) in heads.iter().enumerate() {
+        let mut best: Option<(usize, f64)> = None;
+        for (k, (s, lo, hi)) in stems.iter().enumerate() {
+            let cy = h.bbox.cy();
+            if cy < lo - 0.7 * sp || cy > hi + 0.7 * sp {
+                continue;
+            }
+            let sx = s.x as f64;
+            let d = if sx >= h.bbox.x0 as f64 && sx < h.bbox.x1 as f64 {
+                ((h.bbox.x1 as f64 - sx).min(sx - h.bbox.x0 as f64)).max(0.0)
+            } else {
+                (h.bbox.x1 as f64 - sx).abs().min((h.bbox.x0 as f64 - sx).abs())
+            };
+            if d <= 0.45 * sp && best.map(|b| d < b.1).unwrap_or(true) {
+                best = Some((k, d));
+            }
+        }
+        owner[i] = best.map(|b| b.0);
+    }
+    let mut groups: Vec<Vec<usize>> = vec![Vec::new(); stems.len()];
+    let mut loose: Vec<Vec<usize>> = Vec::new();
+    for (i, o) in owner.iter().enumerate() {
+        match o {
+            Some(k) => groups[*k].push(i),
+            None => match loose
+                .iter_mut()
+                .find(|g| g.iter().any(|&j| (heads[j].bbox.cx() - heads[i].bbox.cx()).abs() <= 0.8 * sp))
+            {
+                Some(g) => g.push(i),
+                None => loose.push(vec![i]),
+            },
+        }
+    }
+    groups.retain(|g| !g.is_empty());
+    groups.extend(loose);
+    groups
+}
+
+/// The region of a time signature near the start of a staff: glyphs (pieces merged by
+/// horizontal overlap) filling the staff from the top line to the bottom line, in both
+/// halves, 0.9–3 sp wide, and mostly not noteheads.
+fn find_time_signature_box(c: &StaffCtx) -> Option<BBox> {
+    let st = c.st;
+    let sp = st.sp;
+    let area = BBox::new(
+        st.x0 + (2.0 * sp) as i64,
+        (st.top() - 3.0 * sp) as i64,
+        (st.x0 + (20.0 * sp) as i64).min(st.x1),
+        (st.bottom() + 3.0 * sp) as i64,
+    );
+    let mut clusters: Vec<(BBox, Vec<Component>)> = Vec::new();
+    let mut comps = c.clean.components_in(&area);
+    comps.sort_by_key(|g| g.bbox.x0);
+    for g in comps {
+        match clusters.iter_mut().find(|(b, _)| b.x_overlap(&g.bbox) as f64 > 0.25 * sp) {
+            Some((b, v)) => {
+                *b = b.union(&g.bbox);
+                v.push(g);
+            }
+            None => clusters.push((g.bbox, vec![g])),
+        }
+    }
+    let mid = st.ys[2];
+    for (b, v) in clusters {
+        let (w, h) = (b.w() as f64 / sp, b.h() as f64 / sp);
+        if (b.y0 as f64) < st.top() - 0.4 * sp || (b.y1 as f64) > st.bottom() + 0.4 * sp {
+            continue;
+        }
+        if !(3.4..=4.8).contains(&h) || !(0.9..=3.0).contains(&w) {
+            continue;
+        }
+        let px = v.iter().flat_map(|g| g.pixels.iter());
+        let (mut upper, mut lower, mut head, mut total) = (0usize, 0usize, 0usize, 0usize);
+        for &(x, y) in px {
+            total += 1;
+            if (y as f64) < mid - 0.5 * sp {
+                upper += 1;
+            }
+            if (y as f64) > mid + 0.5 * sp {
+                lower += 1;
+            }
+            if c.heads.get(x as usize, y as usize) {
+                head += 1;
+            }
+        }
+        if upper * 5 > total && lower * 5 > total && head * 3 < total {
+            return Some(b);
+        }
+    }
+    None
+}
+
 /// Rejoin flats whose thin stem was cut from the bowl where the bowl meets a staff line.
 fn merge_split_flats(glyphs: &mut Vec<Component>, sp: f64) {
     loop {
@@ -1510,7 +1659,7 @@ fn find_barlines(c: &StaffCtx, heads: &[Head]) -> Vec<Bar> {
         }
         let x = (a + b) as f64 / 2.0;
         // away from noteheads (stems)
-        if heads.iter().any(|h| h.bbox.x0 as f64 - 0.6 * sp <= x && x <= h.bbox.x1 as f64 + 0.6 * sp) {
+        if heads.iter().any(|h| h.bbox.x0 as f64 - 0.25 * sp <= x && x <= h.bbox.x1 as f64 + 0.25 * sp) {
             continue;
         }
         // a barline stops at the staff unless the system continues it to a joined staff
