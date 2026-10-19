@@ -38,6 +38,8 @@ pub enum ParamKind {
     Percent,
     /// `1/16`, `1/8T`.
     Grid,
+    /// `80Hz..8kHz`, `C2..C6`.
+    FreqRange,
     /// One of a fixed set of words.
     Choice,
     /// Cents or semitones.
@@ -62,6 +64,7 @@ impl ParamKind {
             ParamKind::Ratio => "ratio",
             ParamKind::Percent => "percent",
             ParamKind::Grid => "grid",
+            ParamKind::FreqRange => "frequency range",
             ParamKind::Choice => "choice",
             ParamKind::Pitch => "cents|semitones",
             ParamKind::List => "list",
@@ -99,6 +102,7 @@ impl ParamKind {
                 }
             }
             ParamKind::Pitch => units::parse_cents(raw).map(|_| ()),
+            ParamKind::FreqRange => units::parse_num_range(raw, units::parse_freq).map(|_| ()),
             ParamKind::Choice => {
                 if choices.is_empty() || choices.contains(&raw) {
                     Ok(())

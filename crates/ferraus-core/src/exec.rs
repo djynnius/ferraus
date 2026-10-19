@@ -238,7 +238,7 @@ impl<'a> Runtime<'a> {
                 let out = conform_output(out, &ctx.globals);
                 ctx.write_audio(&out_path, &out, None)?;
                 ctx.set_progress(1.0);
-                Ok(Value::Null)
+                Ok(ctx.result.take().unwrap_or(Value::Null))
             }
             Runner::Custom(f) => {
                 ctx.set_progress(0.0);

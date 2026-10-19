@@ -68,6 +68,7 @@ fn kind_example(k: ParamKind) -> Option<&'static str> {
         ParamKind::Percent => "50%",
         ParamKind::Grid => "1/16",
         ParamKind::Pitch => "+200cents",
+        ParamKind::FreqRange => "80Hz..8kHz",
         _ => return None,
     })
 }

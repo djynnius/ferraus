@@ -43,6 +43,14 @@ pub fn run(spec: &OpSpec, pairs: &[(&str, &str)], input: AudioBuffer) -> crate::
     crate::exec::apply_spec(spec, &a, input, &mut c)
 }
 
+/// Run a transform spec and also return the context (to assert on metrics, notes, warnings).
+pub fn run_ctx(spec: &OpSpec, pairs: &[(&str, &str)], input: AudioBuffer) -> crate::error::Result<(AudioBuffer, OpCtx<'static>)> {
+    let a = args(spec, pairs);
+    let mut c = ctx();
+    let out = crate::exec::apply_spec(spec, &a, input, &mut c)?;
+    Ok((out, c))
+}
+
 pub fn sine(sr: u32, freq: f64, secs: f64, amp: f32) -> AudioBuffer {
     let n = (sr as f64 * secs).round() as usize;
     AudioBuffer::from_mono(sr, (0..n).map(|i| amp * (2.0 * PI * freq * i as f64 / sr as f64).sin() as f32).collect())

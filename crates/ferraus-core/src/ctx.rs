@@ -220,6 +220,8 @@ pub struct OpCtx<'a> {
     pub index: usize,
     /// Files created by this op that must be removed if the op fails.
     pub temp_files: Vec<PathBuf>,
+    /// Result value set by a Transform op (custom ops return theirs directly).
+    pub result: Option<Value>,
 }
 
 impl<'a> OpCtx<'a> {
@@ -250,6 +252,7 @@ impl<'a> OpCtx<'a> {
             stdout: None,
             index: 0,
             temp_files: Vec::new(),
+            result: None,
         }
     }
 
@@ -522,6 +525,11 @@ impl<'a> OpCtx<'a> {
             extra: Map::new(),
         });
         self.progress.output(&path.display().to_string(), role);
+    }
+
+    /// Set the envelope `result` from a Transform op.
+    pub fn set_result(&mut self, value: impl Serialize) {
+        self.result = Some(serde_json::to_value(value).unwrap_or(Value::Null));
     }
 
     pub fn warn(&mut self, code: &str, message: impl Into<String>) {
