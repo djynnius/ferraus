@@ -19,6 +19,7 @@ directml = ["ort/directml"]
 [dependencies]
 ferraus-core.workspace = true
 ferraus-models.workspace = true
+ferraus-pitch.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 hex.workspace = true

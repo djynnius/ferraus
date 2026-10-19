@@ -12,6 +12,8 @@ use ferraus_core::Registry;
 
 /// Every op from every crate. One place, so the CLI, MCP server, schemas, and docs agree.
 pub fn registry() -> Registry {
+    // model-backed implementations (pitch trackers, ...) plug into their crates' seams
+    ferraus_ml::register_all();
     let mut r = Registry::new();
     r.extend(ferraus_core::builtin::ops());
     r.extend(ferraus_codec::ops());

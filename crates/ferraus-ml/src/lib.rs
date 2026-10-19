@@ -9,19 +9,36 @@
 //!   rate, padded so chunked results equal whole-file results.
 //! * [`accelerate`] — `accelerate install` / `accelerate status`.
 //! * [`onnx_proto`] — a tiny ONNX writer for generated test models (no binary fixtures).
+//! * [`pitch`] — CREPE and SwiftF0 pitch trackers for `ferraus-pitch` (`--tracker`).
+//! * [`basic_pitch`] — Basic Pitch note/onset/contour activations for transcription.
+//! * [`archive`] — unpacking multi-file models (`.tar.gz`).
+//!
+//! [`register_all`] plugs the model-backed implementations into the crates that define the
+//! seams (today: the pitch trackers of `ferraus-pitch`). The CLI calls it once when it builds
+//! its registry; it is idempotent.
 
 pub mod accelerate;
+pub mod archive;
+pub mod basic_pitch;
 pub mod chunk;
 pub mod onnx_proto;
+pub mod pitch;
 pub mod provider;
 pub mod session;
 
+pub use basic_pitch::{basic_pitch_activations, Activations};
 pub use chunk::{overlap_add, Block, ChunkPlan};
 pub use ferraus_models::ModelSpec;
 pub use provider::Provider;
 pub use session::{load, load_for, ModelSession, SessionOptions, TensorF32};
 
 use ferraus_core::{OpSpec, Result};
+
+/// Register every model-backed implementation with the crates that expose a seam for it:
+/// `--tracker crepe` and `--tracker swiftf0` in `ferraus-pitch`. Safe to call repeatedly.
+pub fn register_all() {
+    pitch::register();
+}
 
 /// Ops this crate contributes to the command registry.
 pub fn ops() -> Vec<OpSpec> {

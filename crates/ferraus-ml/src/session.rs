@@ -224,7 +224,8 @@ pub fn clear_cache() {
 }
 
 impl ModelSession {
-    /// Run with `f32` inputs (matched by name) and return every output as `f32`.
+    /// Run with `f32` inputs (matched by name; an empty shape is a scalar) and return every
+    /// output as `f32` (`f64` outputs are narrowed).
     pub fn run(&self, inputs: Vec<TensorF32>) -> Result<Vec<TensorF32>> {
         let mut values: Vec<(String, ort::session::SessionInputValue<'static>)> = Vec::new();
         for t in inputs {
@@ -238,10 +239,15 @@ impl ModelSession {
         let mut out = Vec::new();
         for name in &self.output_names {
             let v = outputs.get(name).ok_or_else(|| Error::processing(format!("model produced no output '{name}'")))?;
-            let (shape, data) = v
-                .try_extract_tensor::<f32>()
-                .map_err(|e| Error::processing(format!("output {name} is not f32: {e}")))?;
-            out.push(TensorF32 { name: name.clone(), shape: shape.iter().copied().collect(), data: data.to_vec() });
+            // f32 outputs are copied; f64 outputs (e.g. SwiftF0's pitch) are narrowed
+            let (shape, data) = match v.try_extract_tensor::<f32>() {
+                Ok((shape, data)) => (shape.iter().copied().collect(), data.to_vec()),
+                Err(e32) => match v.try_extract_tensor::<f64>() {
+                    Ok((shape, data)) => (shape.iter().copied().collect(), data.iter().map(|x| *x as f32).collect()),
+                    Err(_) => return Err(Error::processing(format!("output {name} is not f32 or f64: {e32}"))),
+                },
+            };
+            out.push(TensorF32 { name: name.clone(), shape, data });
         }
         Ok(out)
     }

@@ -2,13 +2,15 @@
 //!
 //! pYIN is built in. The model trackers (CREPE, RMVPE, SwiftF0) run on ONNX Runtime in
 //! `ferraus-ml`, which depends on this crate, implements [`PitchTracker`] and registers a
-//! factory with [`register_model_tracker`] (for example from its `ops()` function, which
-//! the CLI calls at start-up). Until a factory is registered, or when the model is not in
-//! the cache, selecting a model tracker fails with `ErrorKind::ModelNotCached` and the hint
-//! `ferraus models pull pitch/<name>`.
+//! factory with [`register_model_tracker`] (`ferraus_ml::register_all()`, which the CLI
+//! calls when it builds its registry). A factory receives the op context so it can apply
+//! the model download policy (`-y`, config, `--offline`) and record the model in the
+//! provenance sidecar. Until a factory is registered, or when the model is not in the
+//! cache, selecting a model tracker fails with `ErrorKind::ModelNotCached` and a
+//! `ferraus models pull pitch/<name>` hint.
 
 use crate::pyin::{self, PitchFrame, PyinOptions};
-use ferraus_core::{Error, ErrorKind, Result};
+use ferraus_core::{Error, ErrorKind, OpCtx, Result};
 use std::sync::{Mutex, OnceLock};
 
 /// The selectable trackers.
@@ -94,8 +96,9 @@ impl PitchTracker for PyinTracker {
     }
 }
 
-/// Factory for a model tracker; returns `ModelNotCached` when its weights are missing.
-pub type TrackerFactory = fn() -> Result<Box<dyn PitchTracker>>;
+/// Factory for a model tracker; returns `ModelNotCached` when its weights are missing and
+/// the download policy in `ctx` does not allow fetching them.
+pub type TrackerFactory = fn(&mut OpCtx) -> Result<Box<dyn PitchTracker>>;
 
 fn registry() -> &'static Mutex<Vec<(TrackerKind, TrackerFactory)>> {
     static R: OnceLock<Mutex<Vec<(TrackerKind, TrackerFactory)>>> = OnceLock::new();
@@ -120,8 +123,9 @@ pub fn model_not_cached(kind: TrackerKind) -> Error {
     .with_hint(format!("ferraus models pull {model}"))
 }
 
-/// Get a tracker by kind.
-pub fn tracker(kind: TrackerKind) -> Result<Box<dyn PitchTracker>> {
+/// Get a tracker by kind, applying the model download policy of `ctx` and recording the
+/// model used in it.
+pub fn tracker_for(ctx: &mut OpCtx, kind: TrackerKind) -> Result<Box<dyn PitchTracker>> {
     if kind == TrackerKind::Pyin {
         return Ok(Box::new(PyinTracker));
     }
@@ -130,12 +134,31 @@ pub fn tracker(kind: TrackerKind) -> Result<Box<dyn PitchTracker>> {
         r.iter().find(|(k, _)| *k == kind).map(|(_, f)| *f)
     };
     match factory {
-        Some(f) => f(),
+        Some(f) => f(ctx),
         None => Err(model_not_cached(kind)),
     }
 }
 
-/// Get a tracker by its `--tracker` name.
+/// Get a tracker by its `--tracker` name (see [`tracker_for`]).
+pub fn by_name_for(ctx: &mut OpCtx, name: &str) -> Result<Box<dyn PitchTracker>> {
+    tracker_for(ctx, TrackerKind::parse(name)?)
+}
+
+/// Get a tracker by kind without an op context: model downloads follow only the
+/// environment (`FERRAUS_AUTO_DOWNLOAD=1`, `FERRAUS_OFFLINE=1`) and warnings are dropped.
+/// Prefer [`tracker_for`] inside ops.
+pub fn tracker(kind: TrackerKind) -> Result<Box<dyn PitchTracker>> {
+    let mut ctx = OpCtx::new(
+        "pitch",
+        Vec::new(),
+        ferraus_core::ctx::Globals::default(),
+        &ferraus_core::testing::SIMPLE_IO,
+        &ferraus_core::testing::NO_PROGRESS,
+    );
+    tracker_for(&mut ctx, kind)
+}
+
+/// Get a tracker by its `--tracker` name without an op context (see [`tracker`]).
 pub fn by_name(name: &str) -> Result<Box<dyn PitchTracker>> {
     tracker(TrackerKind::parse(name)?)
 }
@@ -164,7 +187,7 @@ mod tests {
                 Ok(Vec::new())
             }
         }
-        fn make() -> Result<Box<dyn PitchTracker>> {
+        fn make(_: &mut OpCtx) -> Result<Box<dyn PitchTracker>> {
             Ok(Box::new(Fake))
         }
         register_model_tracker(TrackerKind::SwiftF0, make);

@@ -91,7 +91,7 @@ fn track_opts(a: &Args, sr: u32, hop_s: f64) -> Result<TrackOptions> {
 }
 
 fn run_tracker(a: &Args, x: &[f32], sr: u32, hop_s: f64, ctx: &mut OpCtx) -> Result<Vec<PitchFrame>> {
-    let t = tracker::by_name(&a.choice("tracker"))?;
+    let t = tracker::by_name_for(ctx, &a.choice("tracker"))?;
     if let Some((name, version, sha)) = t.model() {
         ctx.model_used(&name, &version, &sha);
     }
