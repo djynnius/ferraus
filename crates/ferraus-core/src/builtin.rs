@@ -230,6 +230,8 @@ pub fn agent_catalog(registry: &Registry) -> Vec<(String, String)> {
                         _ => "file",
                     };
                     match max {
+                        // one audio file is the default and is not marked (see the header)
+                        Some(1) if kind == "audio" => String::new(),
                         Some(1) => format!(" <{kind}>"),
                         Some(m) if m == min => format!(" <{kind}>x{m}"),
                         _ if min == 0 => format!(" [{kind}...]"),
@@ -258,7 +260,7 @@ fn describe(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let registry = ctx.registry.ok_or_else(|| Error::internal("no registry"))?;
     let catalog = agent_catalog(registry);
     let fmt = args.str_or("format", "text");
-    let header = "ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]. Add --json for a structured result, --dry-run to plan. Units: 1.5s 4b -6dB 2kHz C4 4:1 80% 1/16. Effects chain: ferraus fx in.wav -o out.wav --fx \"name:key=val\".";
+    let header = "ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]. Commands take one audio file unless marked (<midi>, <file>, x2, ...). Add --json for a structured result, --dry-run to plan. Units: 1.5s 4b -6dB 2kHz C4 4:1 80% 1/16. Effects chain: ferraus fx in.wav -o out.wav --fx \"name:key=val\".";
     let text = match fmt.as_str() {
         "markdown" => {
             let mut s = format!("# ferraus agent guide\n\n{header}\n");
