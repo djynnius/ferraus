@@ -13,5 +13,7 @@ use ferraus_core::OpSpec;
 pub fn ops() -> Vec<OpSpec> {
     let mut v = Vec::new();
     v.extend(ops::clicks::ops());
+    v.extend(ops::hum::ops());
+    v.extend(ops::spectral::ops());
     v
 }
