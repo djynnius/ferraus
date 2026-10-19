@@ -190,12 +190,23 @@ fn engraving_uses_the_helper_or_says_how_to_get_one() {
     let t = tmp("engrave");
     let mid = t.path("tune.mid");
     write_test_midi(&mid);
+    // SVG always works: the helper, LilyPond, or the native fallback
     let svg = t.path("tune.svg");
-    let res = run_op("score", vec![mid], &[("svg", svg.to_str().unwrap())], Some(t.path("tune.musicxml")));
+    run_op("score", vec![mid.clone()], &[("svg", svg.to_str().unwrap())], Some(t.path("tune.musicxml"))).unwrap();
+    assert!(std::fs::read_to_string(&svg).unwrap().contains("<svg"));
+    // the native renderer on request
+    let native = t.path("native.svg");
+    run_op("score", vec![mid.clone()], &[("svg", native.to_str().unwrap()), ("engraver", "native")], Some(t.path("n.musicxml"))).unwrap();
+    let text = std::fs::read_to_string(&native).unwrap();
+    assert!(text.contains("class=\"notehead\"") && text.contains("class=\"clef\""));
+    assert_eq!(text.matches("class=\"notehead\"").count(), 8);
+    // PDF needs a real engraver
+    let pdf = t.path("tune.pdf");
+    let res = run_op("score", vec![mid], &[("pdf", pdf.to_str().unwrap())], Some(t.path("tune2.musicxml")));
     match ferraus_score::engrave::choose("auto") {
         Ok(_) => {
             res.unwrap();
-            assert!(std::fs::read_to_string(&svg).unwrap().contains("<svg"));
+            assert!(std::fs::read(&pdf).unwrap().starts_with(b"%PDF"));
         }
         Err(_) => {
             let e = res.unwrap_err();

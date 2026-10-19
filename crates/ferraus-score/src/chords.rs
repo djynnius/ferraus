@@ -288,6 +288,17 @@ pub fn recognize(notes: &[(u64, u64, i32)], beats: &[(u64, u64)], bar_starts: &[
             }),
         }
     }
+    // a symbol needs real harmony: at least three pitch classes sound in its span
+    // (a bare melody line gets no guesses)
+    out.retain(|c| {
+        let mut pcs = [false; 12];
+        for &(s, e, m) in notes {
+            if s < c.end && e > c.start {
+                pcs[m.rem_euclid(12) as usize] = true;
+            }
+        }
+        pcs.iter().filter(|x| **x).count() >= 3
+    });
     out
 }
 

@@ -221,3 +221,43 @@ fn json_model_round_trip() {
         assert_eq!(back, s, "{name}");
     }
 }
+
+/// Writes every fixture's MusicXML (plus notated, drum, chord-diagram, and lyric
+/// variants) to `$FERRAUS_SCORE_DUMP` for external validation, e.g.
+/// `xmllint --noout --schema musicxml.xsd *.musicxml`. A no-op otherwise.
+#[test]
+fn dump_outputs_for_schema_validation() {
+    let Some(dir) = std::env::var_os("FERRAUS_SCORE_DUMP") else { return };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for (name, s) in fixtures() {
+        std::fs::write(dir.join(format!("{name}.musicxml")), musicxml::write(&s)).unwrap();
+        let mut opts = NotateOptions::default();
+        opts.chords = ferraus_score::notate::ChordMode::Diagrams;
+        opts.lyrics = Some("la la-la la la la la la la la la la la".into());
+        let mut n = render_and_notate(&s, &opts);
+        ferraus_score::solfa::annotate(&mut n, ferraus_score::solfa::SolfaKind::Movable);
+        std::fs::write(dir.join(format!("{name}-notated.musicxml")), musicxml::write(&n)).unwrap();
+        std::fs::write(dir.join(format!("{name}.mei")), mei::write(&s)).unwrap();
+        std::fs::write(dir.join(format!("{name}.ly")), lily::write(&n)).unwrap();
+        std::fs::write(dir.join(format!("{name}.abc")), abc::write(&n)).unwrap();
+        std::fs::write(dir.join(format!("{name}.svg")), ferraus_score::svg::render(&n)).unwrap();
+    }
+    // a drum score and a grand staff
+    let mut d = ferraus_score::midi::MidiData { ppq: 480, tempos: vec![(0, 500_000)], time_sigs: vec![(0, 4, 4)], ..Default::default() };
+    for k in 0..16u64 {
+        d.notes.push(ferraus_score::midi::MidiNote { track: 0, channel: 9, key: 42, velocity: 80, start: k * 240, end: k * 240 + 100 });
+    }
+    for (t, key) in [(0u64, 36u8), (480, 38), (960, 36), (1440, 38), (1920, 49), (1920, 36), (2400, 38), (2880, 36), (3120, 36), (3360, 38)] {
+        d.notes.push(ferraus_score::midi::MidiNote { track: 0, channel: 9, key, velocity: 100, start: t, end: t + 100 });
+    }
+    d.notes.sort_by_key(|n| n.start);
+    let (drums, _) = notate(&d, &NotateOptions::default());
+    std::fs::write(dir.join("drums.musicxml"), musicxml::write(&drums)).unwrap();
+    std::fs::write(dir.join("drums.svg"), ferraus_score::svg::render(&drums)).unwrap();
+    let rh = measures(&[&["E5:e", "D5:e", "C5:q", "G5:h"], &["F5:q.", "E5:e", "D5:h"]]);
+    let lh = measures(&[&["C3+G3:h", "E3+G3:h"], &["G2+D3:w"]]);
+    let g = score_with(KeySig::major(0), TimeSig::new(4, 4), false, vec![(Clef::treble(), rh), (Clef::bass(), lh)]);
+    std::fs::write(dir.join("grand.musicxml"), musicxml::write(&g)).unwrap();
+    std::fs::write(dir.join("grand.svg"), ferraus_score::svg::render(&g)).unwrap();
+}

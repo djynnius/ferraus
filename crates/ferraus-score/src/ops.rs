@@ -34,9 +34,9 @@ fn output_params() -> Vec<ferraus_core::ParamSpec> {
         param("solfa-txt", ParamKind::Path).help("Also write tonic sol-fa text to this path (.md writes Markdown)"),
         param("json-out", ParamKind::Path).help("Also write the agent-facing score JSON to this path (named json-out because --json is the global result flag)"),
         param("engraver", ParamKind::Choice)
-            .choices(&["auto", "verovio", "lilypond"])
+            .choices(&["auto", "verovio", "lilypond", "native"])
             .default("auto")
-            .help("Engraving engine for SVG/PDF/PNG: auto tries the Verovio helper, then LilyPond")
+            .help("Engraving engine for SVG/PDF/PNG: auto tries the Verovio helper, then LilyPond, then (SVG only) the minimal native renderer")
             .advanced(),
     ]
 }
@@ -66,7 +66,7 @@ accidentals are spelled for the key. MusicXML 4.0 is the main output; add --midi
                 .choices(&["off", "on", "only", "fixed", "fixed-only"])
                 .default("off")
                 .help("on: tonic sol-fa syllables (movable do) under the notes; only: write sol-fa text and no staff; fixed / fixed-only: fixed do (do = C)"),
-            param("key", ParamKind::Str).default("auto").help("Key such as G, Em, Bb major; auto uses the MIDI key signature or a Krumhansl estimate on the notes"),
+            param("key", ParamKind::Str).default("auto").help("Key of the input (before --transpose) such as G, Em, Bb major; auto uses the MIDI key signature (or analyze key for audio) or a Krumhansl estimate on the notes"),
             param("time", ParamKind::Str).default("auto").help("Time signature such as 3/4 or 6/8; auto uses the MIDI time signature (or analyze tempo for audio)"),
             param("tempo", ParamKind::Str).default("auto").help("Tempo in quarter notes per minute; auto uses the MIDI tempo"),
             param("quantize", ParamKind::Grid).default("1/16").help("Quantization grid (1/8, 1/16, 1/32; 1/8T forces triplets)"),
@@ -170,7 +170,7 @@ the output as a second path or with -o.",
         .params([
             param("pretty", ParamKind::Flag).help("Indent JSON output"),
             param("solfa", ParamKind::Choice).choices(&["movable", "fixed"]).default("movable").help("Sol-fa system for .txt/.md outputs"),
-            param("engraver", ParamKind::Choice).choices(&["auto", "verovio", "lilypond"]).default("auto").help("Engraving engine for SVG/PDF/PNG").advanced(),
+            param("engraver", ParamKind::Choice).choices(&["auto", "verovio", "lilypond", "native"]).default("auto").help("Engraving engine for SVG/PDF/PNG (native: built-in SVG fallback)").advanced(),
         ])
         .example("ferraus score convert song.musicxml song.abc", "MusicXML to ABC (output as the second path)")
         .example("ferraus score convert tune.abc -o tune.pdf", "Engrave an ABC tune to PDF (output with -o)")

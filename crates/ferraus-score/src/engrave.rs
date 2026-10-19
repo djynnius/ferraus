@@ -11,7 +11,9 @@
 //!
 //! The helper is found through `FERRAUS_ENGRAVE`, next to the running executable, or on
 //! `PATH`. When it is missing, LilyPond on `PATH` is used (publication quality, GPL,
-//! external). Otherwise an `unsupported` error explains how to get one.
+//! external). For SVG, a minimal native renderer ([`crate::svg`]) is the last resort;
+//! PDF and PNG without either engine fail with an `unsupported` error that explains how
+//! to get one.
 
 use crate::model::Score;
 use ferraus_core::{Error, ErrorKind, Result};
@@ -100,9 +102,21 @@ pub struct Engraved {
     pub pages: Vec<Vec<u8>>,
 }
 
-/// Engrave a score to `svg`, `pdf`, or `png`.
+/// Engrave a score to `svg`, `pdf`, or `png`. `pref` is `auto`, `verovio`, `lilypond`, or
+/// `native` (the built-in SVG fallback for simple scores; SVG only).
 pub fn engrave(score: &Score, to: &str, pref: &str) -> Result<Engraved> {
-    let engine = choose(pref)?;
+    let native = || Engraved { engine: "native".into(), pages: vec![crate::svg::render(score).into_bytes()] };
+    if pref == "native" {
+        if to != "svg" {
+            return Err(Error::new(ErrorKind::Unsupported, "engraver_missing", "the native engraver writes SVG only").with_hint("use the ferraus-engrave helper or LilyPond for PDF and PNG"));
+        }
+        return Ok(native());
+    }
+    let engine = match choose(pref) {
+        Ok(e) => e,
+        Err(_) if pref == "auto" && to == "svg" => return Ok(native()),
+        Err(e) => return Err(e),
+    };
     match &engine {
         Engine::Helper(p) => {
             let xml = crate::musicxml::write(score);

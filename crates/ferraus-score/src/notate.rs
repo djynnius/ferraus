@@ -217,7 +217,8 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
     let mut spans: Vec<MSpan> = Vec::new();
     let mut pos = 0u64;
     let mut number = 1u32;
-    let total_end = (last_end.max(1.0) - 0.25).max(0.0);
+    // generous: quantization may round an end up by half a grid step; trimmed below
+    let total_end = last_end.max(1.0) + dq as f64 / ss as f64;
     while (pos as f64) < total_end || spans.is_empty() {
         let si = sigs.iter().rposition(|s| s.0 <= pos).unwrap_or(0);
         let t = sigs[si].1;
@@ -423,7 +424,10 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
         }
         parts_in.push(PartIn { track: *track, name, program, channel: *ch, drums, notes: q });
     }
-    // keep quantized notes inside the measures
+    // keep only the measures the quantized notes need
+    let qend = parts_in.iter().flat_map(|p| p.notes.iter().map(|n| n.end)).max().unwrap_or(1).max(1);
+    let used = spans.iter().position(|s| s.end() >= qend).map(|i| i + 1).unwrap_or(spans.len()).max(1);
+    let spans: Vec<MSpan> = spans[..used].to_vec();
     let last_end_div = spans.last().map(|s| s.end()).unwrap_or(0);
     for p in parts_in.iter_mut() {
         for n in p.notes.iter_mut() {
@@ -441,7 +445,8 @@ pub fn notate(mid: &MidiData, opts: &NotateOptions) -> (Score, NotateInfo) {
 
     // ---- key ----------------------------------------------------------------------
     let (key, key_source, key_conf) = if let Some(k) = opts.key {
-        (pitch::transpose_key(k, 0), "given".to_string(), 1.0)
+        // --key names the input's key; the notation is in the transposed key
+        (pitch::transpose_key(k, opts.transpose), "given".to_string(), 1.0)
     } else if let Some((_, sf, minor)) = mid.key_sigs.first() {
         let k = KeySig { fifths: (*sf).clamp(-7, 7), mode: if *minor { Mode::Minor } else { Mode::Major } };
         (pitch::transpose_key(k, opts.transpose), "midi".to_string(), 1.0)
@@ -701,6 +706,23 @@ fn median_pitch(notes: &[QNote]) -> i32 {
     v[v.len() / 2]
 }
 
+/// For each note, how many notes sound at its onset (itself included), by a sweep.
+fn sounding_at_onsets(notes: &[QNote]) -> Vec<usize> {
+    let mut starts: Vec<u64> = notes.iter().map(|n| n.start).collect();
+    let mut ends: Vec<u64> = notes.iter().map(|n| n.end).collect();
+    starts.sort_unstable();
+    ends.sort_unstable();
+    notes
+        .iter()
+        .map(|n| {
+            // started at or before the onset minus ended at or before it
+            let started = starts.partition_point(|s| *s <= n.start);
+            let ended = ends.partition_point(|e| *e <= n.start);
+            started - ended
+        })
+        .collect()
+}
+
 fn auto_layout(notes: &[QNote]) -> Layout {
     if notes.is_empty() {
         return Layout::LeadSheet;
@@ -712,12 +734,8 @@ fn auto_layout(notes: &[QNote]) -> Layout {
     let below = v.iter().filter(|m| **m < 60).count() as f64 / v.len() as f64;
     let above = v.iter().filter(|m| **m >= 60).count() as f64 / v.len() as f64;
     // polyphony: share of notes overlapping another
-    let mut overl = 0usize;
-    for (i, a) in notes.iter().enumerate() {
-        if notes.iter().enumerate().any(|(j, b)| i != j && b.start < a.end && a.start < b.end) {
-            overl += 1;
-        }
-    }
+    let counts = sounding_at_onsets(notes);
+    let overl = counts.iter().filter(|c| **c > 1).count();
     let poly = overl as f64 / notes.len() as f64;
     if hi - lo > 24 || (poly > 0.3 && below > 0.2 && above > 0.2) {
         Layout::Grand
@@ -894,7 +912,7 @@ fn separate_voices(notes: &[QNote]) -> [Vec<Item>; 2] {
 fn straight_values(div: u32) -> Vec<u32> {
     let mut v: Vec<u32> = Vec::new();
     for i in 0..7u32 {
-        for dots in 0..=2u32 {
+        for dots in 0..=1u32 {
             let base = 4 * div as u64;
             let num = base * ((1u64 << (dots + 1)) - 1);
             let den = (1u64 << i) * (1u64 << dots);
@@ -1159,11 +1177,10 @@ fn measure_confidence(m: &mut Measure, notes: &[QNote], s: &MSpan) {
     let mut c: f32 = inside.iter().map(|n| note_conf(n)).sum::<f32>() / inside.len() as f32;
     let mut reasons = Vec::new();
     // density: max simultaneous notes
-    let mut maxpoly = 0usize;
-    for n in &inside {
-        let k = notes.iter().filter(|o| o.start <= n.start && o.end > n.start).count();
-        maxpoly = maxpoly.max(k);
-    }
+    let maxpoly = {
+        let window: Vec<QNote> = notes.iter().filter(|o| o.start < s.end() && o.end > s.start).cloned().collect();
+        sounding_at_onsets(&window).into_iter().max().unwrap_or(0)
+    };
     if maxpoly > 6 {
         c *= 0.8;
         reasons.push("polyphony too dense".to_string());
@@ -1207,7 +1224,9 @@ fn notate_drums(ctx: &Ctx, notes: &[QNote]) -> Staff {
             let next = onsets.get(i + 1).copied().unwrap_or(u64::MAX);
             // measure end
             let mend = ctx.spans.iter().find(|sp| s >= sp.start && s < sp.end()).map(|sp| sp.end()).unwrap_or(s + ctx.dq);
-            let end = (s + ctx.dq).min(next).min(mend).max(s + 1);
+            // a hit lasts until the next hit or the end of its beat
+            let beat_end = ctx.wins.iter().find(|w| s >= w.start && s < w.end).map(|w| w.end).unwrap_or(s + ctx.dq);
+            let end = beat_end.min(next).min(mend).max(s + 1);
             let mut notes = ns;
             for n in notes.iter_mut() {
                 n.end = end;

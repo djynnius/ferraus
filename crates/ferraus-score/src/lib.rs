@@ -31,6 +31,7 @@ mod ops;
 pub mod perform;
 pub mod pitch;
 pub mod solfa;
+pub mod svg;
 
 pub use model::Score;
 pub use ops::{ops, transpose_score};

@@ -773,28 +773,50 @@ pub fn read(src: &str) -> Result<Score> {
                     }
                     "Staff" | "DrumStaff" => {
                         let mut name = String::new();
-                        // optional \with { instrumentName = "..." }
                         let mut j = i + 2;
-                        while j < toks.len() && !matches!(toks[j], Tok::Open | Tok::SimOpen) {
+                        // optional = "id"
+                        if matches!(toks.get(j), Some(Tok::Word(w)) if w == "=") {
+                            j += 2;
+                        }
+                        // optional \with { instrumentName = "..." }
+                        if matches!(toks.get(j), Some(Tok::Cmd(c)) if c == "with") {
                             j += 1;
-                        }
-                        if let Some(Tok::Cmd(w)) = toks.get(i + 2).or(toks.get(i + 3)) {
-                            let _ = w;
-                        }
-                        for k in i + 2..(j + 12).min(toks.len()) {
-                            if let Tok::Word(w) = &toks[k] {
-                                if w == "instrumentName" {
-                                    if let Some(Tok::Str(s)) = toks.get(k + 2) {
-                                        name = s.clone();
+                            let mut depth = 0;
+                            while j < toks.len() {
+                                match &toks[j] {
+                                    Tok::Open => depth += 1,
+                                    Tok::Close => {
+                                        depth -= 1;
+                                        if depth == 0 {
+                                            j += 1;
+                                            break;
+                                        }
                                     }
+                                    Tok::Word(w) if w == "instrumentName" => {
+                                        if let Some(Tok::Str(s)) = toks.get(j + 2) {
+                                            name = s.clone();
+                                        }
+                                    }
+                                    _ => {}
                                 }
+                                j += 1;
                             }
+                        }
+                        if matches!(toks.get(j), Some(Tok::Cmd(c)) if c == "drummode") {
+                            j += 1;
                         }
                         if !in_piano {
                             group += 1;
                         }
                         staves.push(StaffIn { drums: kind == "DrumStaff", name, voices: Vec::new(), group });
-                        i += 2;
+                        if toks.get(j) == Some(&Tok::Open) {
+                            // music directly in the staff (a single voice)
+                            let (v, end) = parse_music(&toks, j)?;
+                            staves.last_mut().unwrap().voices.push(v);
+                            i = end;
+                        } else {
+                            i = j;
+                        }
                         continue;
                     }
                     "Voice" | "DrumVoice" => {

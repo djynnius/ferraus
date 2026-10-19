@@ -262,8 +262,10 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
             )
             .fifths;
             let mut acc_state: HashMap<(char, i8), i8> = HashMap::new();
+            let staff_ref = p.staves.iter().find(|s| s.number == *sn).unwrap_or(&p.staves[0]);
+            let beams = if p.percussion && v.number == 2 { vec![Vec::new(); v.events.len()] } else { beam_states(&v.events, score.divisions, Score::time_at(staff_ref, mi), m.implicit) };
             let mut pos = 0u32;
-            for e in &v.events {
+            for (ei, e) in v.events.iter().enumerate() {
                 // emit harmonies/directions whose offset falls before the end of this event
                 let end = pos + e.duration;
                 while hi < harm.len() && (harm[hi].offset < end || (e.duration == 0 && harm[hi].offset <= pos)) {
@@ -283,7 +285,7 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
                     };
                     write_direction(x, &d, 0, multi.then_some(*sn), xml_voice(*sn, v.number));
                 }
-                write_event(x, score, p, e, *sn, v.number, multi, stem, fifths, &mut acc_state);
+                write_event(x, score, p, e, *sn, v.number, multi, stem, fifths, &mut acc_state, &beams[ei]);
                 pos = end;
             }
             while hi < harm.len() {
@@ -324,6 +326,94 @@ fn write_part(x: &mut String, score: &Score, p: &Part) {
         x.push_str("    </measure>\n");
     }
     x.push_str("  </part>\n");
+}
+
+/// Beam groups: consecutive eighth-or-shorter notes inside one beat (a dotted quarter in
+/// compound meters); a second beam level joins sixteenths.
+fn beam_states(events: &[Event], div: u32, time: TimeSig, implicit: bool) -> Vec<Vec<(u8, &'static str)>> {
+    let n = events.len();
+    let mut out: Vec<Vec<(u8, &'static str)>> = vec![Vec::new(); n];
+    let beat = time.beat_divisions(div).max(1);
+    let total: u32 = events.iter().filter(|e| !e.grace).map(|e| e.duration).sum();
+    let full = time.measure_divisions(div);
+    // pickups are aligned to the end of the bar
+    let shift = if implicit && total < full { full - total } else { 0 };
+    let level_of = |e: &Event| -> u8 {
+        if e.is_rest() || e.grace || e.duration == 0 {
+            return 0;
+        }
+        let tup = e.tuplet.map(|t| (t.actual, t.normal));
+        let t = match &e.note_type {
+            Some(t) => Some(t.as_str()),
+            None => type_for(e.duration, div, tup).map(|x| x.0),
+        };
+        match t {
+            Some("eighth") => 1,
+            Some("16th") => 2,
+            Some("32nd") => 3,
+            Some("64th") => 4,
+            _ => 0,
+        }
+    };
+    let mut pos = shift;
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut cur: Vec<usize> = Vec::new();
+    let mut cur_beat = u32::MAX;
+    for (i, e) in events.iter().enumerate() {
+        if e.grace {
+            continue;
+        }
+        let b = pos / beat;
+        let lv = level_of(e);
+        if lv == 0 || b != cur_beat || (pos + e.duration).div_ceil(beat) - 1 != b {
+            if cur.len() > 1 {
+                groups.push(std::mem::take(&mut cur));
+            }
+            cur.clear();
+        }
+        if lv > 0 && (pos + e.duration).div_ceil(beat) - 1 == b {
+            cur.push(i);
+            cur_beat = b;
+        } else {
+            cur_beat = u32::MAX;
+        }
+        pos += e.duration;
+    }
+    if cur.len() > 1 {
+        groups.push(cur);
+    }
+    for g in groups {
+        let k = g.len();
+        for (j, &i) in g.iter().enumerate() {
+            let kind = if j == 0 { "begin" } else if j + 1 == k { "end" } else { "continue" };
+            out[i].push((1, kind));
+        }
+        // deeper levels
+        for level in 2..=4u8 {
+            let mut j = 0;
+            while j < k {
+                if level_of(&events[g[j]]) >= level {
+                    let start = j;
+                    while j < k && level_of(&events[g[j]]) >= level {
+                        j += 1;
+                    }
+                    let run = &g[start..j];
+                    if run.len() == 1 {
+                        let hook = if start == 0 { "forward hook" } else { "backward hook" };
+                        out[run[0]].push((level, hook));
+                    } else {
+                        for (r, &i) in run.iter().enumerate() {
+                            let kind = if r == 0 { "begin" } else if r + 1 == run.len() { "end" } else { "continue" };
+                            out[i].push((level, kind));
+                        }
+                    }
+                } else {
+                    j += 1;
+                }
+            }
+        }
+    }
+    out
 }
 
 fn fmt_num(v: f64) -> String {
@@ -465,6 +555,7 @@ fn write_event(
     stem: Option<&str>,
     fifths: i8,
     acc_state: &mut HashMap<(char, i8), i8>,
+    beams: &[(u8, &'static str)],
 ) {
     let div = score.divisions;
     let tup = e.tuplet.map(|t| (t.actual, t.normal));
@@ -565,6 +656,11 @@ fn write_event(
         }
         if multi {
             let _ = writeln!(x, "        <staff>{staff}</staff>");
+        }
+        if ni == 0 {
+            for (level, kind) in beams {
+                let _ = writeln!(x, "        <beam number=\"{level}\">{kind}</beam>");
+            }
         }
         // notations
         let mut nots = String::new();
