@@ -166,6 +166,8 @@ the MIDI to audio through `render` with the chosen instrument. The MusicXML and 
         ])
         .example("ferraus score perform sonata.pdf --instrument piano -o sonata.wav", "Read a printed score and render it (writes sonata.musicxml and sonata.mid too)")
         .example("ferraus score perform tune.abc --tempo 100 -o tune.wav", "Render an ABC tune at 100 bpm")
+        .example("ferraus score perform quartet.musicxml --instrument strings --humanize 30% --dynamics on -o quartet.wav", "Render a MusicXML quartet on strings with a little human timing")
+        .example("ferraus score perform lead.musicxml --instrument salamander-grand-piano --swing 60% --repeats off -o lead.wav", "Swung piano performance of a lead sheet, playing each section once")
 }
 
 fn convert_spec() -> OpSpec {
@@ -197,6 +199,7 @@ articulations, repeats, and per-measure confidence. Edit it and convert back wit
         .param(param("pretty", ParamKind::Flag).help("Indent the JSON"))
         .example("ferraus score to-json song.musicxml --pretty -o song.json", "Write the score model to a file")
         .example("ferraus score to-json song.mid --json", "Notate a MIDI file and return the model in the result envelope")
+        .example("ferraus score to-json tune.abc -o tune.json", "Turn an ABC tune into compact score JSON for an agent to edit")
 }
 
 fn from_json_spec() -> OpSpec {
@@ -206,6 +209,11 @@ fn from_json_spec() -> OpSpec {
         .param(param("pretty", ParamKind::Flag).help("Indent JSON output when -o ends in .json"))
         .example("ferraus score from-json song.json -o song.musicxml", "Back to MusicXML after editing")
         .example("ferraus score from-json song.json -o song.pdf", "Engrave the edited model")
+        .example(
+            "ferraus score from-json edited.json -o clean.json --pretty",
+            "Normalize and indent an edited score model",
+        )
+        .example("ferraus score from-json song.json -o song.abc", "Write the model as ABC notation")
 }
 
 fn check_spec() -> OpSpec {
@@ -224,6 +232,7 @@ JSON report; exits with code 9 (verification) when any error is found. -o writes
     .param(param("strict", ParamKind::Flag).help("Treat warnings as failures too"))
     .example("ferraus score check song.musicxml --json", "Validate a score and get the report")
     .example("ferraus score check scan.musicxml -o report.json", "Write the report to a file (exit 9 when it fails)")
+    .example("ferraus score check tune.abc --strict", "Fail on warnings as well as errors before publishing a score")
 }
 
 // ------------------------------------------------------------------------------------
