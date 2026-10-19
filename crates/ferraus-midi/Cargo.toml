@@ -8,7 +8,14 @@ authors.workspace = true
 
 [dependencies]
 ferraus-core.workspace = true
+ferraus-pitch.workspace = true
+ferraus-analysis.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+realfft.workspace = true
+
+[dev-dependencies]
+# dev-only: ferraus-synth depends on this crate, so it may only appear here (tests of `hum`)
+ferraus-synth.workspace = true

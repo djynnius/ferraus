@@ -626,9 +626,13 @@ dependencies = [
 name = "ferraus-midi"
 version = "0.1.0"
 dependencies = [
+ "ferraus-analysis",
  "ferraus-core",
+ "ferraus-pitch",
+ "ferraus-synth",
  "rand 0.8.8",
  "rand_chacha",
+ "realfft",
  "serde",
  "serde_json",
 ]
