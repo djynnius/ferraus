@@ -1,5 +1,11 @@
 //! ferraus-pitch
 
+pub mod pyin;
+mod util;
+
+#[cfg(test)]
+mod fixtures;
+
 use ferraus_core::OpSpec;
 
 /// Ops this crate contributes to the command registry.
