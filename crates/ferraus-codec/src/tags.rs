@@ -136,10 +136,14 @@ impl TagEdit {
 pub fn write(path: &Path, edit: &TagEdit) -> Result<()> {
     let opts = WriteOptions::default();
     if edit.clear {
-        let tf = lofty::read_from_path(path).map_err(|e| lerr(e, path))?;
-        for t in tf.tags() {
-            t.tag_type().remove_from_path(path, opts).map_err(|e| lerr(e, path))?;
+        let mut tf = lofty::read_from_path(path).map_err(|e| lerr(e, path))?;
+        let types: Vec<TagType> = tf.tags().iter().map(|t| t.tag_type()).collect();
+        for t in types {
+            if let Some(tag) = tf.tag_mut(t) {
+                tag.clear();
+            }
         }
+        tf.save_to_path(path, opts).map_err(|e| lerr(e, path))?;
     }
     if edit.set.is_empty() && edit.remove.is_empty() && edit.art.is_none() {
         return Ok(());

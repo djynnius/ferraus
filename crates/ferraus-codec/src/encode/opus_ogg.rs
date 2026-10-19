@@ -119,9 +119,11 @@ impl StreamEncoder for OggOpusEncoder {
     fn write(&mut self, data: &[&[f32]]) -> Result<()> {
         let n = data.first().map(|c| c.len()).unwrap_or(0);
         self.pcm.reserve(n * self.channels);
+        let last = data.len() - 1;
         for f in 0..n {
             for c in 0..self.channels {
-                self.pcm.push(data[c.min(data.len() - 1)][f]);
+                let chan: &[f32] = data[c.min(last)];
+                self.pcm.push(chan[f]);
             }
         }
         self.real += n as u64;

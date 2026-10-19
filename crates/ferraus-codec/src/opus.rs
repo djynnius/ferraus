@@ -92,7 +92,7 @@ impl OpusEncoder {
         }
         // SAFETY: valid encoder; ctl requests take an opus_int32 argument.
         unsafe {
-            (lib.enc_ctl)(st, OPUS_SET_BITRATE_REQUEST, bitrate as i32);
+            (lib.enc_ctl)(st, OPUS_SET_BITRATE_REQUEST, bitrate);
             (lib.enc_ctl)(st, OPUS_SET_VBR_REQUEST, if vbr { 1i32 } else { 0i32 });
             (lib.enc_ctl)(st, OPUS_SET_COMPLEXITY_REQUEST, 10i32);
         }

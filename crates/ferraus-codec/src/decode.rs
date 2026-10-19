@@ -59,9 +59,7 @@ pub struct TrackInfo {
 /// Sniff the container from the first bytes.
 pub fn sniff_container(head: &[u8], ext: Option<&str>) -> Option<String> {
     let ext = ext.map(|e| e.to_ascii_lowercase());
-    let c = if head.len() >= 12 && &head[0..4] == b"RIFF" && &head[8..12] == b"WAVE" {
-        "wav"
-    } else if head.len() >= 12 && &head[0..4] == b"RF64" {
+    let c = if head.len() >= 12 && (&head[0..4] == b"RIFF" || &head[0..4] == b"RF64") && &head[8..12] == b"WAVE" {
         "wav"
     } else if head.len() >= 12 && &head[0..4] == b"FORM" && (&head[8..12] == b"AIFF" || &head[8..12] == b"AIFC") {
         "aiff"
@@ -258,7 +256,7 @@ impl DecodeStream {
         let mut audio: Vec<u32> = Vec::new();
         for (i, t) in reader.tracks().iter().enumerate() {
             let p = &t.codec_params;
-            let is_audio = p.codec != CODEC_TYPE_NULL && (p.sample_rate.is_some() || p.channels.is_some());
+            let is_audio = p.codec != CODEC_TYPE_NULL;
             if is_audio {
                 audio.push(t.id);
             }

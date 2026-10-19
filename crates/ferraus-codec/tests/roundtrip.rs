@@ -175,12 +175,29 @@ fn mp3_decode_after_encode() {
     lossy_check("mp3", 15.0);
 }
 
+/// With LAME, libopus, and FFmpeg all hidden (child process), MP3/Opus/M4A output are
+/// exit-4 errors whose hint names the FFmpeg bridge installer.
 #[test]
-fn mp3_missing_lame_errors_or_bridges() {
-    // with LAME disabled and FFmpeg hidden the error is Unsupported with the bridge hint
-    if ferraus_codec::lame::lib().is_some() {
-        return; // library already loaded in this process; covered by the branch above
+fn missing_encoders_are_exit_4_with_bridge_hint() {
+    if std::env::var_os("FERRAUS_TEST_CHILD").is_some() {
+        let td = TempDir::new("no-encoders");
+        assert!(!CodecIo.can_encode("mp3") && !CodecIo.can_encode("m4a") && !CodecIo.can_encode("opus"));
+        for ext in ["mp3", "opus", "m4a"] {
+            let e = write_file(&td.path(&format!("a.{ext}")), &sine(48000, 440.0, 0.1, 0.5), &opts(ext, None)).unwrap_err();
+            assert_eq!(e.exit_code, 4, "{ext}");
+            assert!(e.hint.as_deref().unwrap_or("").contains("ferraus doctor --install-ffmpeg"), "{ext}: {e:?}");
+        }
+        return;
     }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "missing_encoders_are_exit_4_with_bridge_hint", "--quiet"])
+        .env("FERRAUS_TEST_CHILD", "1")
+        .env("FERRAUS_LIBMP3LAME_DISABLE", "1")
+        .env("FERRAUS_LIBOPUS_DISABLE", "1")
+        .env("FERRAUS_NO_FFMPEG", "1")
+        .status()
+        .unwrap();
+    assert!(status.success());
 }
 
 #[test]

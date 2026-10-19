@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn loudness_of_sine() {
-        // a 1 kHz sine at -20 dBFS (stereo) reads about -20 LUFS (+3 dB for two channels minus 3.01 for sine RMS)
+        // BS.1770: a 1 kHz sine in one channel reads 3.01 dB below its peak level, so -20 dBFS peak is about -23 LUFS
         let s = sine(48000, 1000.0, 5.0, 0.1);
         let mut l = Loudness::new(1, 48000).unwrap();
         l.add(&s).unwrap();
