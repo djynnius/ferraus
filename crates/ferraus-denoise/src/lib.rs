@@ -101,7 +101,7 @@ fn denoise_spec() -> OpSpec {
     .param(
         param("model", ParamKind::Choice)
             .choices(&["dfn3", "rnnoise", "music"])
-            .default("dfn3")
+            .default("rnnoise")
             .help("ml/hybrid modes: dfn3 = DeepFilterNet 3 (48 kHz, speech; model slot denoise/dfn3), rnnoise = RNNoise (fast, light, built in, speech), music = music-aware slot denoise/music-*"),
     )
     .param(param("strength", ParamKind::Percent).default("100%").help(
