@@ -258,6 +258,8 @@ fn read_bytes(ctx: &mut OpCtx, path: &Path) -> Result<Vec<u8>> {
 fn input_format(path: &Path, bytes: &[u8]) -> Option<Format> {
     match formats::format_of(path) {
         Some(Format::MusicXml) | None => formats::sniff(bytes).or(formats::format_of(path)),
+        // as an input, a .png is a scanned or photographed page to recognize, like .jpg
+        Some(Format::Png) => Some(Format::Image),
         f => f,
     }
 }
