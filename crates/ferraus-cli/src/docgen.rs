@@ -341,6 +341,14 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
     let mut extras_listed = false;
     let mut intro_written = false;
     for g in &guides {
+        // images/ holds files the pages link to (the banner); copied as is, not a menu section
+        if g.is_dir() && g.file_name().is_some_and(|n| n == "images") {
+            std::fs::create_dir_all(src.join("images"))?;
+            for f in std::fs::read_dir(g)?.flatten().map(|e| e.path()).filter(|p| p.is_file()) {
+                std::fs::copy(&f, src.join("images").join(f.file_name().unwrap()))?;
+            }
+            continue;
+        }
         if g.is_dir() {
             if !extras_listed {
                 summary.push_str(extras);

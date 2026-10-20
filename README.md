@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/guides/images/banner.jpg" alt="ferraus banner: a person in headphones wearing a steel mask engraved FERRAUS, in front of a terminal showing the hum-to-piano example script" width="100%"></p>
+
 # ferraus
 
 **A command-line audio workstation for scripts and AI agents.**

@@ -1,5 +1,7 @@
 # ferraus
 
+![ferraus banner: a person in headphones wearing a steel mask engraved FERRAUS, in front of a terminal showing the hum-to-piano example script](images/banner.jpg)
+
 **A command-line audio workstation for scripts and AI agents.** One cross-platform binary
 covers conversion and editing, effects, restoration, noise reduction, stem separation, pitch
 correction, MIDI, notation in both directions, CLAP/VST3 instrument hosting, and mastering.
