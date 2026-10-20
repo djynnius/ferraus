@@ -88,7 +88,8 @@ fn docs(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             s
         }
         "errors" => crate::docgen::error_catalog(),
-        "troubleshooting" => include_str!("../../../docs/guides/troubleshooting.md").to_string(),
+        // a copy inside the crate (crates.io packages only the crate); a contract test keeps it in sync
+        "troubleshooting" => include_str!("../guides/troubleshooting.md").to_string(),
         name => crate::docgen::command_page(reg.require(name)?),
     };
     Ok(json!({ "text": text }))

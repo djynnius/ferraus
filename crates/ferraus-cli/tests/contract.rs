@@ -390,3 +390,20 @@ fn guide_examples_parse() {
     assert!(checked > 100, "only {checked} guide examples found");
     assert!(bad.is_empty(), "{} guide examples do not parse:\n{}", bad.len(), bad.join("\n"));
 }
+
+#[test]
+fn embedded_troubleshooting_page_matches_docs() {
+    // `ferraus docs troubleshooting` embeds crates/ferraus-cli/guides/troubleshooting.md, because
+    // the published crate cannot reach docs/; it must stay a copy of the docs page
+    let docs = repo_root().join("docs/guides/troubleshooting.md");
+    let copy = Path::new(env!("CARGO_MANIFEST_DIR")).join("guides/troubleshooting.md");
+    if updating() {
+        std::fs::copy(&docs, &copy).unwrap();
+    } else {
+        assert_eq!(
+            std::fs::read_to_string(&copy).unwrap(),
+            std::fs::read_to_string(&docs).unwrap(),
+            "crates/ferraus-cli/guides/troubleshooting.md is stale; run UPDATE_SNAPSHOTS=1 cargo test -p ferraus --test contract"
+        );
+    }
+}
