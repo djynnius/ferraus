@@ -60,10 +60,12 @@ agent loop. They work on test audio that ferraus generates, and CI runs all of t
 | Windows | the MSI from the [releases page](https://github.com/djynnius/ferraus/releases) |
 | From source | `cargo install ferraus` |
 
-Builds: macOS on Apple silicon, Linux with glibc 2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+)
-on x86-64 and ARM64, Windows on x86-64 (ARM64 machines run it under Windows' x64 emulation;
-needs the Microsoft Visual C++ Redistributable, present on most machines). Release artifacts
-are built and attested only by this repository's GitHub Actions workflows. Model weights are
+Builds: macOS 13.4+ on Apple silicon and Intel; Linux on x86-64 and ARM64, both with glibc
+2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+) and as a fully static musl build for Alpine and
+older distributions (the shell installer picks it when glibc is too old; it cannot load CLAP or
+VST3 plugins); Windows on x86-64 and ARM64 (needs the Microsoft Visual C++ Redistributable,
+present on most machines). Release artifacts are built and attested only by this repository's
+GitHub Actions workflows. Model weights are
 not in the package; they download on first use (with `-y` or `models.auto_download = true`) and
 are verified by SHA-256.
 

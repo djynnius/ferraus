@@ -1,0 +1,8 @@
+# Steps dist inserts into the release workflow's build-local-artifacts job, right after checkout
+# (dist-workspace.toml: github-build-setup). They prepare ONNX Runtime for the targets ort ships no
+# prebuilt library for (Intel macOS, musl Linux) and WiX 3.14 for the Windows ARM64 MSI; on every
+# other target they do nothing. See .github/actions/onnxruntime/action.yml.
+- name: ONNX Runtime for targets without prebuilt binaries
+  uses: ./.github/actions/onnxruntime
+  with:
+    targets: ${{ join(matrix.targets, ',') }}

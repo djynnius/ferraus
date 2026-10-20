@@ -13,6 +13,15 @@ publish = false
 # Released as its own app (archive + installers) so a crashing plugin cannot take ferraus down;
 # ferraus finds it next to itself or on PATH.
 dist = true
+# Not on the static musl targets: a statically linked program cannot load plugin libraries.
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-pc-windows-msvc",
+  "x86_64-pc-windows-msvc",
+]
 
 [package.metadata.wix]
 upgrade-guid = "40EECA67-8F1E-49C3-B1A3-D7BD3B0DEFB3"

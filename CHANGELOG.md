@@ -6,6 +6,15 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
+### Added
+- Release builds for Intel Macs (`x86_64-apple-darwin`, macOS 13.4+), Windows on ARM64
+  (`aarch64-pc-windows-msvc`, zip and MSI; no longer the x64 build under emulation), and fully
+  static musl Linux on x86-64 and ARM64 (`*-unknown-linux-musl`) for Alpine and for distributions
+  whose glibc is older than the glibc build needs; the shell installer picks the musl build on
+  those systems. ONNX Runtime 1.31 is built from source in CI for the Intel Mac and musl targets,
+  for which ort ships no prebuilt library. The static musl build cannot load audio plugins
+  (CLAP/VST3), so `ferraus-plughost-vst3` has no musl archive.
+
 ### Changed
 - `separate --tier auto` (the default) picks `quality` again (Mel-Band RoFormer vocals): the
   maintainer accepted the weights' MIT license (ADR 0008). Use `--tier balanced` for the

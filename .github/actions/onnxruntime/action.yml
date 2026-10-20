@@ -1,0 +1,128 @@
+# Prepares ONNX Runtime for release targets the ort crate ships no prebuilt library for, so that
+# `cargo build` / `dist build` links ferraus statically against it:
+#
+# * x86_64-apple-darwin, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl: ONNX Runtime is
+#   built from source as static libraries (build.sh), cached per version + target + build script,
+#   and ort-sys is pointed at it with ORT_LIB_LOCATION. The musl targets are compiled with Alpine's
+#   GCC and musl: an Alpine container runs next to the job and thin wrappers route the C/C++
+#   compiler and linker that cargo uses into it (GitHub's JavaScript actions cannot run inside an
+#   Alpine container on ARM64 runners, so the job itself stays on Ubuntu).
+# * aarch64-pc-windows-msvc: ort ships a prebuilt library; this installs WiX 3.14 (the first WiX 3
+#   that builds ARM64 MSIs), which the windows-11-arm runner image does not have.
+# * any other target: nothing to do.
+#
+# Used by the release workflow (via .github/build-setup.yml, which dist inserts into
+# build-local-artifacts) and by extra-targets.yml.
+name: ONNX Runtime for targets without prebuilt binaries
+description: Build (or restore from cache) a static ONNX Runtime and point ort at it
+inputs:
+  targets:
+    description: Comma-separated Rust target triples this job builds (dist passes join(matrix.targets, ','))
+    required: true
+  version:
+    description: ONNX Runtime version; must match the API of the pinned ort crate
+    default: "1.31.0"
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: bash
+      run: |
+        target=""
+        case ",${{ inputs.targets }}," in
+          *,x86_64-apple-darwin,*) target=x86_64-apple-darwin ;;
+          *,x86_64-unknown-linux-musl,*) target=x86_64-unknown-linux-musl ;;
+          *,aarch64-unknown-linux-musl,*) target=aarch64-unknown-linux-musl ;;
+          *,aarch64-pc-windows-msvc,*) target=aarch64-pc-windows-msvc ;;
+        esac
+        build=false
+        case "$target" in
+          x86_64-apple-darwin | *-unknown-linux-musl) build=true ;;
+        esac
+        echo "target=$target" >> "$GITHUB_OUTPUT"
+        echo "build=$build" >> "$GITHUB_OUTPUT"
+        echo "dir=$HOME/.cache/ferraus-ci/onnxruntime-${{ inputs.version }}-$target" >> "$GITHUB_OUTPUT"
+
+    - name: Alpine toolchain container (musl)
+      if: endsWith(steps.plan.outputs.target, '-unknown-linux-musl')
+      shell: bash
+      env:
+        TARGET: ${{ steps.plan.outputs.target }}
+      run: |
+        set -euo pipefail
+        # Same user as the job, and the same paths (home directory, /tmp), so the compiler sees
+        # every file cargo and rustc hand it.
+        docker run -d --name ferraus-alpine --user "$(id -u):$(id -g)" -e HOME="$HOME" \
+          -v "$HOME:$HOME" -v /tmp:/tmp -w "$GITHUB_WORKSPACE" alpine:3.22 sleep infinity
+        docker exec -u 0 ferraus-alpine apk add --no-cache \
+          bash binutils build-base cmake curl linux-headers patch python3 samurai
+        docker exec ferraus-alpine gcc --version
+        bin="$RUNNER_TEMP/alpine-toolchain"
+        mkdir -p "$bin"
+        for tool in gcc g++ ar ranlib; do
+          printf '#!/bin/sh\nexec docker exec -i -w "$PWD" ferraus-alpine %s "$@"\n' "$tool" > "$bin/$tool"
+          chmod +x "$bin/$tool"
+        done
+        t="${TARGET//-/_}"
+        T="$(echo "$t" | tr '[:lower:]' '[:upper:]')"
+        {
+          echo "CC_$t=$bin/gcc"
+          echo "CXX_$t=$bin/g++"
+          echo "AR_$t=$bin/ar"
+          echo "RANLIB_$t=$bin/ranlib"
+          echo "CARGO_TARGET_${T}_LINKER=$bin/gcc"
+        } >> "$GITHUB_ENV"
+
+    - name: Restore ONNX Runtime
+      id: cache
+      if: steps.plan.outputs.build == 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.plan.outputs.dir }}
+        key: onnxruntime-${{ inputs.version }}-${{ steps.plan.outputs.target }}-${{ hashFiles('.github/actions/onnxruntime/build.sh') }}
+
+    - name: Build ONNX Runtime from source
+      if: steps.plan.outputs.build == 'true' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TARGET: ${{ steps.plan.outputs.target }}
+        ORT_VERSION: ${{ inputs.version }}
+        OUT_DIR: ${{ steps.plan.outputs.dir }}
+        SCRIPT: ${{ github.action_path }}/build.sh
+      run: |
+        set -euo pipefail
+        case "$TARGET" in
+          *-unknown-linux-musl) docker exec ferraus-alpine bash "$SCRIPT" "$TARGET" "$ORT_VERSION" "$OUT_DIR" ;;
+          *) bash "$SCRIPT" "$TARGET" "$ORT_VERSION" "$OUT_DIR" ;;
+        esac
+
+    - name: Save ONNX Runtime
+      if: steps.plan.outputs.build == 'true' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ steps.plan.outputs.dir }}
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    - name: Point ort at the static ONNX Runtime
+      if: steps.plan.outputs.build == 'true'
+      shell: bash
+      env:
+        DIR: ${{ steps.plan.outputs.dir }}
+      run: |
+        cat "$DIR/BUILD-INFO.txt"
+        echo "ORT_LIB_LOCATION=$DIR" >> "$GITHUB_ENV"
+
+    - name: WiX Toolset 3.14 (ARM64 MSI)
+      if: steps.plan.outputs.target == 'aarch64-pc-windows-msvc'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $zip = Join-Path $env:RUNNER_TEMP "wix314-binaries.zip"
+        Invoke-WebRequest "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip" -OutFile $zip
+        $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+        if ($hash -ne "6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31") { throw "wix314-binaries.zip: unexpected SHA-256 $hash" }
+        $wix = Join-Path $env:RUNNER_TEMP "wix314"
+        Expand-Archive $zip -DestinationPath (Join-Path $wix "bin")
+        "WIX=$wix" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        (Join-Path $wix "bin") | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        Get-Item (Join-Path $wix "bin\candle.exe"), (Join-Path $wix "bin\light.exe")
