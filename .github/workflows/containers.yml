@@ -1,0 +1,72 @@
+# Builds the container images without pushing them, so a broken Dockerfile shows up before a
+# release (publishing happens in publish-packages.yml).
+name: Containers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/docker/**"
+      - ".github/workflows/containers.yml"
+  pull_request:
+    paths:
+      - "packaging/docker/**"
+      - ".github/workflows/containers.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Latest release archives (the release job uses the ones it just built)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "${{ github.repository }}" -p 'ferraus-*-unknown-linux-gnu.tar.xz' -D dist
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build both architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+      - name: Load amd64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile.release
+          platforms: linux/amd64
+          load: true
+          tags: ferraus:test
+      - name: Smoke test
+        run: |
+          docker run --rm ferraus:test --version
+          docker run --rm ferraus:test doctor --json | jq -e '.ok and .result.ffmpeg.found'
+          docker run --rm --entrypoint sh ferraus:test -c \
+            'ferraus generate tone --freq 440Hz --dur 4s -o t.wav && ferraus fx t.wav -o o.wav --fx normalize:lufs=-14 --json' \
+            | jq -e .ok
+
+  cuda:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space (the CUDA base image and a Rust build need most of the runner's disk)
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile.cuda
+          platforms: linux/amd64
+          load: true
+          tags: ferraus:cuda-test
+      - name: Smoke test (no GPU on the runner; the binary must start and report its devices)
+        run: |
+          docker run --rm ferraus:cuda-test --version
+          docker run --rm ferraus:cuda-test doctor --json | jq -e '.ok' && \
+            docker run --rm ferraus:cuda-test doctor --json | jq '.result.compute'
