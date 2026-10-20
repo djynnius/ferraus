@@ -533,7 +533,9 @@ fn aliases_file_and_plugin_errors() {
     let sf = d.path("font.sf2");
     write_sf2(&sf);
     let at = d.path("aliases.toml");
-    std::fs::write(&at, format!("[aliases]\nmy-keys = \"sf2:{}@48\"\nlead = \"Trumpet\"\n", sf.display())).unwrap();
+    // a TOML-escaped value: Windows paths contain backslashes
+    let keys = toml::Value::String(format!("sf2:{}@48", sf.display()));
+    std::fs::write(&at, format!("[aliases]\nmy-keys = {keys}\nlead = \"Trumpet\"\n")).unwrap();
     let r = Resolver { aliases: ferraus_synth::read_aliases(&at), ..Default::default() };
     let x = r.resolve("my keys").unwrap();
     assert_eq!(x.via, "alias");
