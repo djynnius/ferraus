@@ -327,9 +327,9 @@ pub(crate) mod test_server {
                     routes.iter().find(|(p, _)| *p == path).map(|(_, b)| b.clone()).unwrap_or(Behavior::NotFound);
                 let (data, cut) = match behavior {
                     Behavior::NotFound => {
+                        hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: 0 });
                         let _ = stream
                             .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                        hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: 0 });
                         continue;
                     }
                     Behavior::Serve(d) => (d, None),
@@ -354,11 +354,13 @@ pub(crate) mod test_server {
                         body.len()
                     )
                 };
-                let _ = stream.write_all(head.as_bytes());
                 let send = cut.map(|c| c.min(body.len())).unwrap_or(body.len());
+                // record before sending: the client may finish and the test read `hits` before
+                // this thread runs again
+                hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: send as u64 });
+                let _ = stream.write_all(head.as_bytes());
                 let _ = stream.write_all(&body[..send]);
                 let _ = stream.flush();
-                hits2.lock().unwrap().push(Hit { path, range_start, bytes_sent: send as u64 });
                 // dropping the stream closes the connection (early when cut)
                 let _ = stream.shutdown(std::net::Shutdown::Both);
             }
