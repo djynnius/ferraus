@@ -1,0 +1,6 @@
+# LF everywhere, on every platform: snapshot and catalog tests compare bytes, the embedded
+# sounds registry is verified against a signature over its exact bytes, and the example
+# shell scripts must run from a Windows checkout.
+* text=auto eol=lf
+# cargo-dist writes the WiX installer sources with CRLF
+*.wxs text eol=crlf
