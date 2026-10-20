@@ -17,11 +17,11 @@ the binary goes to `~/.cargo/bin`, which rustup puts on your `PATH`.
 **Release installers.** Releases are built and attested by the repository's GitHub Actions
 workflows and published on the [releases page](https://github.com/djynnius/ferraus/releases).
 Release builds exist for macOS on Apple silicon (macOS 13.4+), Linux with glibc 2.38 or newer
-(Ubuntu 24.04+, Debian 13+, Fedora 39+) on x86-64 and ARM64, and Windows on x86-64 and ARM64
-(with the Microsoft Visual C++ Redistributable, which most Windows machines already have:
-<https://aka.ms/vs/17/release/vc_redist.x64.exe>, or `vc_redist.arm64.exe` on ARM). Intel Macs,
-older Linux distributions, and musl-based systems such as Alpine have no release build, because
-the ONNX Runtime libraries ferraus links have none.
+(Ubuntu 24.04+, Debian 13+, Fedora 39+) on x86-64 and ARM64, and Windows on x86-64 (Windows 11
+on ARM runs it under its built-in x64 emulation) with the Microsoft Visual C++ Redistributable,
+which most Windows machines already have (<https://aka.ms/vs/17/release/vc_redist.x64.exe>).
+Intel Macs, older Linux distributions, and musl-based systems such as Alpine have no release
+build, because the ONNX Runtime libraries ferraus links have none.
 
 macOS and Linux:
 

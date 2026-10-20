@@ -8,6 +8,8 @@ on:
       plan:
         required: true
         type: string
+  # run by hand to check packaging before tagging a release
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -16,7 +16,6 @@ targets = [
   "aarch64-apple-darwin",
   "aarch64-unknown-linux-gnu",
   "x86_64-unknown-linux-gnu",
-  "aarch64-pc-windows-msvc",
   "x86_64-pc-windows-msvc",
 ]
 # Path that installers should place binaries in
@@ -46,8 +45,8 @@ macos-sign = false
 # ONNX Runtime's prebuilt Linux libraries (ort) need glibc 2.38+, so Linux builds run on
 # Ubuntu 24.04 and the release supports Ubuntu 24.04+, Debian 13+, Fedora 39+. There is no
 # musl build: ort ships no musl library, and no Intel macOS library (Apple silicon only).
+# No Windows ARM64 build yet (WiX 3 cannot build its MSI); Windows 11 on ARM runs the x64 build.
 [dist.github-custom-runners]
 global = "ubuntu-24.04"
 x86_64-unknown-linux-gnu = "ubuntu-24.04"
 aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
-aarch64-pc-windows-msvc = "windows-11-arm"

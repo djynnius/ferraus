@@ -59,10 +59,11 @@ agent loop. They work on test audio that ferraus generates, and CI runs all of t
 | From source | `cargo install ferraus` |
 
 Builds: macOS on Apple silicon, Linux with glibc 2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+)
-on x86-64 and ARM64, Windows on x86-64 and ARM64 (needs the Microsoft Visual C++
-Redistributable, present on most machines). Release artifacts are built and attested only by
-this repository's GitHub Actions workflows. Model weights are not in the package; they download
-on first use (with `-y` or `models.auto_download = true`) and are verified by SHA-256.
+on x86-64 and ARM64, Windows on x86-64 (ARM64 machines run it under Windows' x64 emulation;
+needs the Microsoft Visual C++ Redistributable, present on most machines). Release artifacts
+are built and attested only by this repository's GitHub Actions workflows. Model weights are
+not in the package; they download on first use (with `-y` or `models.auto_download = true`) and
+are verified by SHA-256.
 
 Run `ferraus doctor` after installing.
 
