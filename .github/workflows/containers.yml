@@ -47,7 +47,7 @@ jobs:
           docker run --rm ferraus:test --version
           docker run --rm ferraus:test doctor --json | jq -e '.ok and .result.ffmpeg.found'
           docker run --rm --entrypoint sh ferraus:test -c \
-            'ferraus generate tone --freq 440Hz --dur 4s -o t.wav && ferraus fx t.wav -o o.wav --fx normalize:lufs=-14 --json' \
+            'ferraus generate tone --freq 440Hz --dur 4s -o t.wav >/dev/null && ferraus fx t.wav -o o.wav --fx normalize:lufs=-14 --json' \
             | jq -e .ok
 
   cuda:
