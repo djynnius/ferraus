@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/djynnius/ferraus"
@@ -12,25 +12,25 @@ authors = ["Sunday Ikpe <ikakke.ikpe@gmail.com>"]
 rust-version = "1.85"
 
 [workspace.dependencies]
-ferraus-core = { path = "crates/ferraus-core", version = "0.1.0" }
-ferraus-codec = { path = "crates/ferraus-codec", version = "0.1.0" }
-ferraus-dsp = { path = "crates/ferraus-dsp", version = "0.1.0" }
-ferraus-pitch = { path = "crates/ferraus-pitch", version = "0.1.0" }
-ferraus-ml = { path = "crates/ferraus-ml", version = "0.1.0" }
-ferraus-separate = { path = "crates/ferraus-separate", version = "0.1.0" }
-ferraus-denoise = { path = "crates/ferraus-denoise", version = "0.1.0" }
-ferraus-midi = { path = "crates/ferraus-midi", version = "0.1.0" }
-ferraus-synth = { path = "crates/ferraus-synth", version = "0.1.0" }
-ferraus-plugins = { path = "crates/ferraus-plugins", version = "0.1.0" }
-ferraus-models = { path = "crates/ferraus-models", version = "0.1.0" }
-ferraus-mcp = { path = "crates/ferraus-mcp", version = "0.1.0" }
-ferraus-score = { path = "crates/ferraus-score", version = "0.1.0" }
-ferraus-media = { path = "crates/ferraus-media", version = "0.1.0" }
-ferraus-analysis = { path = "crates/ferraus-analysis", version = "0.1.0" }
-ferraus-master = { path = "crates/ferraus-master", version = "0.1.0" }
-ferraus-edit = { path = "crates/ferraus-edit", version = "0.1.0" }
-ferraus-restore = { path = "crates/ferraus-restore", version = "0.1.0" }
-ferraus-plughost = { path = "crates/ferraus-plughost", version = "0.1.0" }
+ferraus-core = { path = "crates/ferraus-core", version = "0.1.1" }
+ferraus-codec = { path = "crates/ferraus-codec", version = "0.1.1" }
+ferraus-dsp = { path = "crates/ferraus-dsp", version = "0.1.1" }
+ferraus-pitch = { path = "crates/ferraus-pitch", version = "0.1.1" }
+ferraus-ml = { path = "crates/ferraus-ml", version = "0.1.1" }
+ferraus-separate = { path = "crates/ferraus-separate", version = "0.1.1" }
+ferraus-denoise = { path = "crates/ferraus-denoise", version = "0.1.1" }
+ferraus-midi = { path = "crates/ferraus-midi", version = "0.1.1" }
+ferraus-synth = { path = "crates/ferraus-synth", version = "0.1.1" }
+ferraus-plugins = { path = "crates/ferraus-plugins", version = "0.1.1" }
+ferraus-models = { path = "crates/ferraus-models", version = "0.1.1" }
+ferraus-mcp = { path = "crates/ferraus-mcp", version = "0.1.1" }
+ferraus-score = { path = "crates/ferraus-score", version = "0.1.1" }
+ferraus-media = { path = "crates/ferraus-media", version = "0.1.1" }
+ferraus-analysis = { path = "crates/ferraus-analysis", version = "0.1.1" }
+ferraus-master = { path = "crates/ferraus-master", version = "0.1.1" }
+ferraus-edit = { path = "crates/ferraus-edit", version = "0.1.1" }
+ferraus-restore = { path = "crates/ferraus-restore", version = "0.1.1" }
+ferraus-plughost = { path = "crates/ferraus-plughost", version = "0.1.1" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

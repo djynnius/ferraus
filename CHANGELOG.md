@@ -4,6 +4,17 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
+## [0.1.1] — 2026-10-20
+
+### Fixed
+- The `ferraus` crate is publishable: `ferraus docs troubleshooting` embeds a copy of the page
+  that lives inside the crate (0.1.0 reached `docs/`, outside the package, so it never reached
+  crates.io).
+
+### Changed
+- Banner on the README and the docs site home page, the wordmark on Getting started, and the
+  logo as the docs site favicon.
+
 ## [0.1.0] — 2026-10-20
 
 First implementation of the PRD, milestones M0–M9 (see `docs/decisions/` for decisions taken
