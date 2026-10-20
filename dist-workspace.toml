@@ -33,6 +33,9 @@ github-attestations = true
 pr-run-mode = "plan"
 # Extra static files to include in each app archive
 include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
+# release.yml carries hand edits (the Homebrew job runs in the release environment); keep them
+# when regenerating with `dist generate`
+allow-dirty = ["ci"]
 # Sign and notarize macOS binaries in CI: off until a Developer ID certificate is set up
 # (CODESIGN_* secrets, docs/dev/RELEASE-SETUP.md section 4); then set this to true and run `dist generate`
 macos-sign = false
