@@ -4,6 +4,15 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
+## [Unreleased]
+
+### Fixed
+- `score read` works on Linux and Windows x86-64: ONNX Runtime's x86 layout optimizations
+  rejected the oemer model (a transposed convolution with negative pads), so every page failed
+  with `processing_failed`. Sessions that fail shape inference now load at the extended
+  optimization level.
+- `speed` is about 3x faster (polyphase resampling), above the 50x real-time floor on CI runners.
+
 ## [0.1.1] — 2026-10-20
 
 ### Fixed

@@ -133,6 +133,24 @@ enum Source<'a> {
 }
 
 fn build_from(src: Source, provider: Provider, opts: &SessionOptions) -> std::result::Result<Session, String> {
+    build_at(src, provider, opts, None).or_else(|e| {
+        // ONNX Runtime's x86 layout rewrites (part of the default ORT_ENABLE_ALL) re-run shape
+        // inference, which rejects some exported graphs that load and run fine without them
+        // (oemer's ConvTranspose carries negative pads); retry those at the extended level.
+        if e.contains("ShapeInferenceError") && !opts.lean {
+            build_at(src, provider, opts, Some(ort::session::builder::GraphOptimizationLevel::Level2)).map_err(|_| e)
+        } else {
+            Err(e)
+        }
+    })
+}
+
+fn build_at(
+    src: Source,
+    provider: Provider,
+    opts: &SessionOptions,
+    level: Option<ort::session::builder::GraphOptimizationLevel>,
+) -> std::result::Result<Session, String> {
     let env = environment().map_err(|e| e.message)?;
     let s = |e: ort::Error<ort::session::builder::SessionBuilder>| e.to_string();
     let mut b = Session::builder(env).map_err(|e| e.to_string())?;
@@ -164,6 +182,8 @@ fn build_from(src: Source, provider: Provider, opts: &SessionOptions) -> std::re
             .map_err(s)?
             .with_config_entry("session.disable_prepacking", "1")
             .map_err(s)?;
+    } else if let Some(level) = level {
+        b = b.with_optimization_level(level).map_err(s)?;
     }
     b = register(b, provider)?;
     match src {
