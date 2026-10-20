@@ -55,10 +55,21 @@ agent loop. They work on test audio that ferraus generates, and CI runs all of t
 | macOS and Linux | `curl -fsSL https://github.com/djynnius/ferraus/releases/latest/download/ferraus-installer.sh \| sh` |
 | Windows (PowerShell) | `powershell -ExecutionPolicy ByPass -c "irm https://github.com/djynnius/ferraus/releases/latest/download/ferraus-installer.ps1 \| iex"` |
 | Homebrew | `brew install djynnius/tap/ferraus` |
-| Debian / Ubuntu | `sudo apt install ./ferraus_<version>_amd64.deb` |
-| Fedora / RHEL | `sudo dnf install ./ferraus-<version>.x86_64.rpm` |
-| Windows | the MSI from the [releases page](https://github.com/djynnius/ferraus/releases) |
+| Debian 13+ / Ubuntu 24.04+ | the apt repository below, or the `.deb` from the [releases page](https://github.com/djynnius/ferraus/releases) |
+| Fedora 39+ / RHEL | `sudo curl -fsSLo /etc/yum.repos.d/ferraus.repo https://djynnius.github.io/packages/rpm/ferraus.repo && sudo dnf install ferraus` |
+| Windows (scoop) | `scoop bucket add djynnius https://github.com/djynnius/scoop-bucket; scoop install djynnius/ferraus` |
+| Windows (MSI) | from the [releases page](https://github.com/djynnius/ferraus/releases) |
+| Docker | `docker run --rm -v "$PWD:/work" -v ferraus-data:/data ghcr.io/djynnius/ferraus info song.wav` |
 | From source | `cargo install ferraus` |
+
+apt repository (signed; updates arrive with `apt upgrade`):
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+sudo curl -fsSLo /etc/apt/keyrings/ferraus-archive-keyring.asc https://djynnius.github.io/packages/ferraus-archive-keyring.asc
+sudo curl -fsSLo /etc/apt/sources.list.d/ferraus.sources https://djynnius.github.io/packages/apt/ferraus.sources
+sudo apt update && sudo apt install ferraus
+```
 
 Builds: macOS 13.4+ on Apple silicon and Intel; Linux on x86-64 and ARM64, both with glibc
 2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+) and as a fully static musl build for Alpine and

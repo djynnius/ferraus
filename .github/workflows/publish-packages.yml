@@ -115,7 +115,7 @@ jobs:
           platforms: linux/amd64
           push: true
           provenance: true
-          tags: ghcr.io/djynnius/ferraus:${{ github.ref_name }}-cuda
+          tags: ghcr.io/djynnius/ferraus:${{ github.ref_name }}-cuda,ghcr.io/djynnius/ferraus:latest-cuda
 
   winget:
     needs: verify-attestations

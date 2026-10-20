@@ -4,9 +4,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
-## [Unreleased]
+## [0.1.2] — 2026-10-20
 
 ### Added
+- Signed apt (Debian 13+, Ubuntu 24.04+) and dnf (Fedora 39+, RHEL) repositories at
+  <https://djynnius.github.io/packages/>, a scoop bucket (`djynnius/scoop-bucket`), and container
+  images `ghcr.io/djynnius/ferraus` (x86-64 and ARM64) and `ghcr.io/djynnius/ferraus:latest-cuda`
+  (NVIDIA GPUs). See Getting started for the commands.
 - Release builds for Intel Macs (`x86_64-apple-darwin`, macOS 13.4+), Windows on ARM64
   (`aarch64-pc-windows-msvc`, zip and MSI; no longer the x64 build under emulation), and fully
   static musl Linux on x86-64 and ARM64 (`*-unknown-linux-musl`) for Alpine and for distributions

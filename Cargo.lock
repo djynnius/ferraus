@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap",
  "clap_complete",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-analysis"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ebur128",
  "ferraus-core",
@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-codec"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ebur128",
  "ferraus-core",
@@ -874,7 +874,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "glob",
  "hex",
@@ -890,7 +890,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-denoise"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "ferraus-ml",
@@ -903,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-dsp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "midly",
@@ -915,7 +915,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-edit"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ebur128",
  "ferraus-core",
@@ -928,14 +928,14 @@ dependencies = [
 
 [[package]]
 name = "ferraus-engrave"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "verovio",
 ]
 
 [[package]]
 name = "ferraus-master"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-analysis",
  "ferraus-core",
@@ -949,7 +949,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-mcp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "serde",
@@ -959,7 +959,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-media"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-codec",
  "ferraus-core",
@@ -971,7 +971,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-midi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-analysis",
  "ferraus-core",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-ml"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "ferraus-models",
@@ -1004,7 +1004,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-models"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ed25519-dalek",
  "ferraus-core",
@@ -1017,7 +1017,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-pitch"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "midly",
@@ -1029,7 +1029,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-plughost"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap-sys",
  "ferraus-plugins",
@@ -1038,7 +1038,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-plughost-vst3"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-plugins",
  "libloading 0.8.9",
@@ -1047,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-plugins"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-restore"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "serde",
@@ -1077,7 +1077,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-score"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "image",
@@ -1091,7 +1091,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-separate"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ferraus-core",
  "ferraus-ml",
@@ -1107,7 +1107,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-synth"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "claxon",
  "ferraus-core",
@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "ferraus-test-plugin"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap-sys",
  "vst3",

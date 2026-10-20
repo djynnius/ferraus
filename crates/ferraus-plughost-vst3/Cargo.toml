@@ -30,6 +30,6 @@ license = false
 eula = false
 
 [dependencies]
-ferraus-plugins = { path = "../ferraus-plugins", version = "0.1.1", default-features = false }
+ferraus-plugins = { path = "../ferraus-plugins", version = "0.1.2", default-features = false }
 vst3 = "0.3"
 libloading = "0.8"

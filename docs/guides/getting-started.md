@@ -46,11 +46,41 @@ powershell -ExecutionPolicy ByPass -c "irm https://github.com/djynnius/ferraus/r
 ```
 
 The installers put `ferraus` in `~/.ferraus/bin` (set `FERRAUS_INSTALL_DIR` to change it) and
-never ask for administrator rights. Open a new terminal afterwards. Packages are also published
-for Homebrew (`brew install djynnius/tap/ferraus`), Debian and Ubuntu
-(`sudo apt install ./ferraus_<version>_amd64.deb`), Fedora and RHEL
-(`sudo dnf install ./ferraus-<version>.x86_64.rpm`), and Windows (the MSI from the releases
-page). winget, scoop, and apt/dnf repositories follow in a later release.
+never ask for administrator rights. Open a new terminal afterwards.
+
+Package managers, which also keep ferraus up to date:
+
+* Homebrew (macOS, Linux): `brew install djynnius/tap/ferraus`
+* Debian 13+ and Ubuntu 24.04+ (signed apt repository):
+
+  ```bash
+  sudo mkdir -p /etc/apt/keyrings
+  sudo curl -fsSLo /etc/apt/keyrings/ferraus-archive-keyring.asc https://djynnius.github.io/packages/ferraus-archive-keyring.asc
+  sudo curl -fsSLo /etc/apt/sources.list.d/ferraus.sources https://djynnius.github.io/packages/apt/ferraus.sources
+  sudo apt update && sudo apt install ferraus
+  ```
+
+* Fedora 39+ and RHEL (signed dnf repository):
+
+  ```bash
+  sudo curl -fsSLo /etc/yum.repos.d/ferraus.repo https://djynnius.github.io/packages/rpm/ferraus.repo
+  sudo dnf install ferraus
+  ```
+
+* Windows (scoop): `scoop bucket add djynnius https://github.com/djynnius/scoop-bucket`, then
+  `scoop install djynnius/ferraus`. winget follows once Microsoft has reviewed the package.
+* The `.deb`, `.rpm`, and Windows MSI files are also on the
+  [releases page](https://github.com/djynnius/ferraus/releases).
+
+Docker (Linux x86-64 and ARM64; the current folder is `/work`, models persist in the
+`ferraus-data` volume):
+
+```bash
+docker run --rm -v "$PWD:/work" -v ferraus-data:/data ghcr.io/djynnius/ferraus separate song.wav -y
+```
+
+The `ghcr.io/djynnius/ferraus:latest-cuda` image (x86-64) runs models on an NVIDIA GPU with
+`docker run --gpus all ...`.
 
 ## Check the installation
 
@@ -158,6 +188,7 @@ which is handy for a sandbox or a test; `FERRAUS_CONFIG` points at another confi
 * Release installer: `ferraus self-uninstall -y` (`--purge` also removes models, sounds, and config).
 * `cargo install`: `cargo uninstall ferraus`.
 * Package managers: `brew uninstall ferraus`, `sudo apt remove ferraus`, `sudo dnf remove ferraus`,
+  `scoop uninstall ferraus`,
   `winget uninstall djynnius.ferraus`.
 
 Models, sounds, and config stay in the folders above until you delete them (or use `--purge`).
