@@ -201,13 +201,8 @@ fn doctor(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     report.insert("ffmpeg".into(), ferraus_media::ffmpeg_status());
     report.insert("models".into(), json!({"cache_bytes": dir_size(&paths::models_dir())}));
     report.insert("compute".into(), ferraus_ml::device_report());
-    let plughost = std::env::current_exe()
-        .ok()
-        .and_then(|e| {
-            e.parent().map(|d| d.join(if cfg!(windows) { "ferraus-plughost.exe" } else { "ferraus-plughost" }))
-        })
-        .filter(|p| p.exists())
-        .map(|p| p.display().to_string());
+    let plughost =
+        ferraus_plugins::client::host_binary(ferraus_plugins::PluginFormat::Clap).ok().map(|p| p.display().to_string());
     report.insert("plughost".into(), json!({ "clap_host": plughost }));
     report.insert("engraver".into(), ferraus_score::engrave::status());
     report.insert("java".into(), json!(find_on_path("java").map(|p| p.display().to_string())));

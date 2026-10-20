@@ -1,0 +1,26 @@
+# CPU image for releases: packages the attested release archives (dist/ferraus-<target>.tar.xz,
+# downloaded by the publish job) instead of compiling, so each architecture's image carries the
+# same binary as the GitHub Release. To build from a source checkout, use Dockerfile.
+FROM debian:trixie-slim AS unpack
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && rm -rf /var/lib/apt/lists/*
+COPY dist/ferraus-*-unknown-linux-gnu.tar.xz /dist/
+RUN case "$TARGETARCH" in \
+      amd64) t=x86_64-unknown-linux-gnu ;; \
+      arm64) t=aarch64-unknown-linux-gnu ;; \
+      *) echo "no release archive for $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && tar -xJf "/dist/ferraus-$t.tar.xz" -C / \
+    && mv "/ferraus-$t" /ferraus
+
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates libmp3lame0 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=unpack /ferraus/ferraus /usr/local/bin/ferraus
+COPY --from=unpack /ferraus/ferraus-plughost /usr/local/lib/ferraus/ferraus-plughost
+COPY --from=unpack /ferraus/THIRD-PARTY-LICENSES.md /ferraus/LICENSE-APACHE /ferraus/LICENSE-MIT /usr/share/doc/ferraus/
+ENV FERRAUS_HOME=/data
+VOLUME ["/data", "/work"]
+WORKDIR /work
+ENTRYPOINT ["ferraus"]
+CMD ["--help"]
