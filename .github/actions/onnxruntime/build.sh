@@ -44,6 +44,9 @@ args=(
   --skip_tests
   --skip_submodule_sync
   --compile_no_warning_as_error
+  # build.py turns on Microsoft's 1DS telemetry by default since 1.31 (it also needs glibc's
+  # execinfo.h); ferraus sends nothing anywhere
+  --no_telemetry
 )
 case "$target" in
   x86_64-apple-darwin)
