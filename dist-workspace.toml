@@ -33,6 +33,9 @@ github-attestations = true
 pr-run-mode = "plan"
 # Extra static files to include in each app archive
 include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
+# ONNX Runtime's prebuilt Windows libraries use the DLL C runtime (/MD); a static CRT does not
+# link (LNK2019 on __imp_ symbols). Windows users need the Visual C++ Redistributable.
+msvc-crt-static = false
 # release.yml carries hand edits (the Homebrew job runs in the release environment); keep them
 # when regenerating with `dist generate`
 allow-dirty = ["ci"]
