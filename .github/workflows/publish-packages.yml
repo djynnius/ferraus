@@ -1,6 +1,6 @@
 # dist publish job: crates.io, plus opt-in apt and dnf repositories, container images, and
 # winget and scoop manifests (repository variables PUBLISH_APT_DNF, PUBLISH_CONTAINERS,
-# PUBLISH_WINGET_SCOOP). Runs only from the release workflow, behind the `release` environment,
+# PUBLISH_WINGET, PUBLISH_SCOOP). Runs only from the release workflow, behind the `release` environment,
 # whose required reviewers are the human approval gate. Signing keys live only in that
 # environment's secrets.
 name: Publish packages
@@ -140,20 +140,30 @@ jobs:
           provenance: true
           tags: ghcr.io/djynnius/ferraus:${{ github.ref_name }}-cuda
 
-  winget-scoop:
+  winget:
     needs: verify-attestations
-    # opt in with the repository variable PUBLISH_WINGET_SCOOP=true once WINGET_TOKEN and SCOOP_BUCKET_TOKEN exist
-    if: vars.PUBLISH_WINGET_SCOOP == 'true'
+    # opt in with the repository variable PUBLISH_WINGET=true once WINGET_TOKEN exists
+    if: vars.PUBLISH_WINGET == 'true'
     runs-on: windows-2022
     environment: release
     steps:
-      - uses: actions/checkout@v4
-      - name: winget PR
+      - name: winget pull request
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: djynnius.ferraus
-          installers-regex: '\.msi$'
+          # only the ferraus MSIs (the release also carries ferraus-engrave and plugin-host MSIs)
+          installers-regex: '^ferraus-(x86_64|aarch64)-pc-windows-msvc\.msi$'
           token: ${{ secrets.WINGET_TOKEN }}
+
+  scoop:
+    needs: verify-attestations
+    # opt in with the repository variable PUBLISH_SCOOP=true once djynnius/scoop-bucket and
+    # SCOOP_BUCKET_TOKEN exist
+    if: vars.PUBLISH_SCOOP == 'true'
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
       - name: scoop manifest
         shell: pwsh
         env:

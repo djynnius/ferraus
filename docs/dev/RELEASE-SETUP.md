@@ -11,7 +11,7 @@ Keep every secret file outside the repository and delete it after uploading.
 public (environment secrets and required reviewers need a public repository on the free plan).
 macOS signing is off (`macos-sign = false`), and apt/dnf, containers, winget, and scoop are
 opt-in through the repository variables `PUBLISH_APT_DNF`, `PUBLISH_CONTAINERS`, and
-`PUBLISH_WINGET_SCOOP` (`gh variable set PUBLISH_APT_DNF --body true`) once their sections
+`PUBLISH_WINGET`, `PUBLISH_SCOOP` (`gh variable set PUBLISH_APT_DNF --body true`) once their sections
 are done.
 
 ## 1. The `release` environment (the human approval gate)
@@ -101,7 +101,8 @@ gpg --armor --export-secret-keys "ferraus release" | gh secret set PACKAGE_SIGNI
 gh variable set PUBLISH_APT_DNF --body true --repo djynnius/ferraus
 ```
 
-Each release copies the `.deb`/`.rpm` files there, signs the metadata, and publishes the public
+Done 2026-10-20: the key lives in `~/.ferraus-release-keys/gnupg-packages` (fingerprint
+`33BD DD34 7B6B 1DD3 4500  9EC9 006E 0F9E DF10 FF82`). Each release copies the `.deb`/`.rpm` files there, signs the metadata, and publishes the public
 key as `ferraus-archive-keyring.asc` and a dnf `rpm/ferraus.repo` file.
 
 ## 7. Package managers, containers, and crates.io
@@ -116,10 +117,12 @@ key as `ferraus-archive-keyring.asc` and a dnf `rpm/ferraus.repo` file.
   `gh secret set WINGET_TOKEN --env release`. Each release opens a pull request to
   `microsoft/winget-pkgs`; Microsoft's moderators review the first one.
 * scoop: `gh repo create djynnius/scoop-bucket --public --add-readme`, a fine-grained token with
-  Contents read and write on it, and `gh secret set SCOOP_BUCKET_TOKEN --env release`.
+  Contents read and write on it, and `gh secret set SCOOP_BUCKET_TOKEN --env release`. Done
+  2026-10-20 (one token covers `scoop-bucket` and `packages`).
   Users install with `scoop bucket add djynnius https://github.com/djynnius/scoop-bucket`
   then `scoop install djynnius/ferraus`.
-* winget and scoop share the variable: `gh variable set PUBLISH_WINGET_SCOOP --body true`.
+* Switch each on with its repository variable: `gh variable set PUBLISH_WINGET --body true`,
+  `gh variable set PUBLISH_SCOOP --body true`.
 
 ## 8. Model hosting (recommended before 1.0)
 

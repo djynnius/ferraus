@@ -1,0 +1,31 @@
+# Dry runs of the package-manager scripts against the latest release, so a broken script shows
+# up before a release (publishing happens in publish-packages.yml).
+name: Packaging
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/scoop/**"
+      - ".github/workflows/packaging.yml"
+  pull_request:
+    paths:
+      - "packaging/scoop/**"
+      - ".github/workflows/packaging.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scoop:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifest for the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "${{ github.repository }}" --json tagName --jq .tagName)
+          pwsh ./packaging/scoop/update-bucket.ps1 -Version "$tag" -DryRun | tee ferraus.json
+          jq -e --arg v "${tag#v}" '.version == $v and (.architecture["64bit"].hash | test("^[0-9a-f]{64}$"))' ferraus.json
