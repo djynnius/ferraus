@@ -228,6 +228,11 @@ jobs:
     with:
       plan: ${{ needs.plan.outputs.val }}
     secrets: inherit
+    # hand edit: a reusable workflow gets only the permissions its caller grants
+    permissions:
+      "contents": "read"
+      "id-token": "write"
+      "attestations": "write"
 
   custom-sign-registries:
     needs:
@@ -237,6 +242,11 @@ jobs:
     with:
       plan: ${{ needs.plan.outputs.val }}
     secrets: inherit
+    # hand edit: a reusable workflow gets only the permissions its caller grants
+    permissions:
+      "contents": "read"
+      "id-token": "write"
+      "attestations": "write"
   # Determines if we should publish/announce
   host:
     needs:
@@ -363,10 +373,13 @@ jobs:
     with:
       plan: ${{ needs.plan.outputs.val }}
     secrets: inherit
-    # publish jobs get escalated permissions
+    # publish jobs get escalated permissions (hand edit: contents and attestations too, which
+    # publish-packages.yml requests)
     permissions:
+      "contents": "write"
       "id-token": "write"
       "packages": "write"
+      "attestations": "write"
 
   announce:
     needs:
