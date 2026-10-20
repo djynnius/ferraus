@@ -69,6 +69,8 @@ case "$target" in
 esac
 
 python3 "$src/tools/ci_build/build.py" "${args[@]}" --cmake_extra_defines "${defines[@]}"
+# ort links re2, which only ONNX Runtime's unit tests pull into the default build
+cmake --build "$work/build/Release" --config Release --target re2 --parallel
 
 # Keep only the static libraries (object files and sources would make the CI cache gigabytes).
 bin="$work/build/Release"
@@ -81,5 +83,6 @@ done
 printf 'onnxruntime %s\ntarget %s\nbuild.py %s --cmake_extra_defines %s\n' \
   "$version" "$target" "${args[*]}" "${defines[*]}" > "$out/BUILD-INFO.txt"
 test -f "$out/libonnxruntime_common.a"
+find "$out" -name libre2.a | grep -q .
 echo "ONNX Runtime $version for $target: $(find "$out" -name '*.a' | wc -l | tr -d ' ') static libraries in $out"
 du -sh "$out"
