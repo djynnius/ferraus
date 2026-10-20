@@ -36,6 +36,9 @@ src="$work/onnxruntime-$version"
 defines=(
   CMAKE_POSITION_INDEPENDENT_CODE=ON
   CMAKE_POLICY_VERSION_MINIMUM=3.5
+  # --skip_tests only skips running them; ONNX Runtime's own unit tests take a third of the
+  # build and do not compile against musl (its math functions are not noexcept)
+  onnxruntime_BUILD_UNIT_TESTS=OFF
 )
 args=(
   --build_dir "$work/build"
