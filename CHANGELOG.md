@@ -15,6 +15,16 @@ change to any `--json` schema or exit code is a major version.
   for which ort ships no prebuilt library. The static musl build cannot load audio plugins
   (CLAP/VST3), so `ferraus-plughost-vst3` has no musl archive.
 
+### Fixed
+- `score read` works on Linux and Windows x86-64: ONNX Runtime's x86 layout optimizations
+  rejected the oemer model (a transposed convolution with negative pads), so every page failed
+  with `processing_failed`. Sessions that fail shape inference now load at the extended
+  optimization level.
+- The `.deb`/`.rpm` packages and the container image find the CLAP plugin host in
+  `/usr/lib/ferraus/` (`/usr/local/lib/ferraus/` in the image); it was looked for only next to
+  `ferraus` and on `PATH`, so `plugin run` failed there and `doctor` reported no host.
+- `speed` is about 3x faster (polyphase resampling), above the 50x real-time floor on CI runners.
+
 ## [0.1.1] — 2026-10-20
 
 ### Fixed

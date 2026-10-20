@@ -22,15 +22,22 @@ jobs:
           path: ~/.cache/ferraus/models
           key: models-${{ hashFiles('crates/ferraus-models/registry/registry.json') }}
       - name: Pull models for tests
-        run: cargo run -q --release -p ferraus -- models pull --all-for separate -y || true
-      # Fetch every dependency (dev-dependencies included) and build the tests while the network
-      # is still up; the next step only runs them.
+        run: |
+          cargo run -q --release -p ferraus -- models pull --all-for separate -y || true
+          cargo run -q --release -p ferraus -- models pull omr/oemer omr/oemer-seg -y || true
+      # Fetch every dependency (dev-dependencies included), build the tests and the binaries the
+      # ignored tests call while the network is still up; the next step only runs them.
       - name: Build tests
-        run: cargo test --workspace --release --locked --no-run
+        run: |
+          cargo test --workspace --release --locked --no-run
+          cargo build --workspace --release --locked --bins
+      # A fresh network namespace has only a loopback interface, and it starts down; the
+      # download tests serve files from 127.0.0.1. Anything else on the network is unreachable.
       - name: Full suite with network disabled
         run: |
-          sudo unshare -n -- sudo -u "$USER" env PATH="$PATH" HOME="$HOME" FERRAUS_OFFLINE=1 \
-            cargo test --workspace --release --offline -- --include-ignored
+          sudo unshare -n -- sh -c 'ip link set lo up && exec sudo -u "$0" env PATH="$1" HOME="$2" \
+            cargo test --workspace --release --offline --no-fail-fast -- --include-ignored' \
+            "$USER" "$PATH" "$HOME"
 
   bench:
     runs-on: ubuntu-24.04

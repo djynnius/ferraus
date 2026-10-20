@@ -1,6 +1,6 @@
 # dist publish job: crates.io, plus opt-in apt and dnf repositories, container images, and
 # winget and scoop manifests (repository variables PUBLISH_APT_DNF, PUBLISH_CONTAINERS,
-# PUBLISH_WINGET_SCOOP). Runs only from the release workflow, behind the `release` environment,
+# PUBLISH_WINGET, PUBLISH_SCOOP). Runs only from the release workflow, behind the `release` environment,
 # whose required reviewers are the human approval gate. Signing keys live only in that
 # environment's secrets.
 name: Publish packages
@@ -39,14 +39,21 @@ jobs:
 
   apt-dnf:
     needs: verify-attestations
-    # opt in with the repository variable PUBLISH_APT_DNF=true once gh-pages and PACKAGE_SIGNING_KEY exist
+    # The repositories live in djynnius/packages (served by its GitHub Pages at
+    # https://djynnius.github.io/packages/), because this repository's Pages site is the docs.
+    # Opt in with the repository variable PUBLISH_APT_DNF=true once that repository,
+    # PACKAGES_REPO_TOKEN, and PACKAGE_SIGNING_KEY exist (docs/dev/RELEASE-SETUP.md section 6).
     if: vars.PUBLISH_APT_DNF == 'true'
     runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: gh-pages
+          path: src
+      - uses: actions/checkout@v4
+        with:
+          repository: djynnius/packages
+          token: ${{ secrets.PACKAGES_REPO_TOKEN }}
           path: pages
       - uses: actions/download-artifact@v4
         with:
@@ -54,24 +61,13 @@ jobs:
           path: pkgs
           merge-multiple: true
       - name: Import signing key
-        run: echo "${{ secrets.PACKAGE_SIGNING_KEY }}" | gpg --batch --import
-      - name: Update apt repository
+        env:
+          PACKAGE_SIGNING_KEY: ${{ secrets.PACKAGE_SIGNING_KEY }}
+        run: echo "$PACKAGE_SIGNING_KEY" | gpg --batch --import
+      - name: Update the apt and dnf repositories
         run: |
-          sudo apt-get install -y dpkg-dev
-          mkdir -p pages/apt/pool
-          cp pkgs/*.deb pages/apt/pool/
-          cd pages/apt
-          dpkg-scanpackages --multiversion pool > Packages && gzip -kf Packages
-          apt-ftparchive release . > Release
-          gpg --batch --yes --clearsign -o InRelease Release
-          gpg --batch --yes -abs -o Release.gpg Release
-      - name: Update dnf repository
-        run: |
-          sudo apt-get install -y createrepo-c
-          mkdir -p pages/rpm
-          cp pkgs/*.rpm pages/rpm/
-          createrepo_c pages/rpm
-          gpg --batch --yes --detach-sign --armor pages/rpm/repodata/repomd.xml
+          sudo apt-get install -y dpkg-dev apt-utils createrepo-c
+          ./src/packaging/linux-repos/update.sh pages pkgs https://djynnius.github.io/packages
       - name: Push
         run: |
           cd pages
@@ -87,6 +83,14 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v4
+      # the CPU image packages the attested Linux release archives (no compiling under emulation)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: dist
+          merge-multiple: true
+      - name: Free disk space (the CUDA base image and a Rust build need most of the runner's disk)
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -98,7 +102,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: packaging/docker/Dockerfile
+          file: packaging/docker/Dockerfile.release
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: true
@@ -113,20 +117,30 @@ jobs:
           provenance: true
           tags: ghcr.io/djynnius/ferraus:${{ github.ref_name }}-cuda
 
-  winget-scoop:
+  winget:
     needs: verify-attestations
-    # opt in with the repository variable PUBLISH_WINGET_SCOOP=true once WINGET_TOKEN and SCOOP_BUCKET_TOKEN exist
-    if: vars.PUBLISH_WINGET_SCOOP == 'true'
+    # opt in with the repository variable PUBLISH_WINGET=true once WINGET_TOKEN exists
+    if: vars.PUBLISH_WINGET == 'true'
     runs-on: windows-2022
     environment: release
     steps:
-      - uses: actions/checkout@v4
-      - name: winget PR
+      - name: winget pull request
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: djynnius.ferraus
-          installers-regex: '\.msi$'
+          # only the ferraus MSIs (the release also carries ferraus-engrave and plugin-host MSIs)
+          installers-regex: '^ferraus-(x86_64|aarch64)-pc-windows-msvc\.msi$'
           token: ${{ secrets.WINGET_TOKEN }}
+
+  scoop:
+    needs: verify-attestations
+    # opt in with the repository variable PUBLISH_SCOOP=true once djynnius/scoop-bucket and
+    # SCOOP_BUCKET_TOKEN exist
+    if: vars.PUBLISH_SCOOP == 'true'
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
       - name: scoop manifest
         shell: pwsh
         env:

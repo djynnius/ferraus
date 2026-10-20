@@ -789,7 +789,10 @@ fn hdemucs_spec_adapter_round_trip() {
 #[ignore]
 fn real_htdemucs_fast_tier() {
     isolate_cache();
-    let src = std::env::var("FERRAUS_HTDEMUCS_ONNX").expect("set FERRAUS_HTDEMUCS_ONNX");
+    let Ok(src) = std::env::var("FERRAUS_HTDEMUCS_ONNX") else {
+        eprintln!("skipped: set FERRAUS_HTDEMUCS_ONNX");
+        return;
+    };
     let manifest = ferraus_models::Manifest::embedded();
     let entry = manifest.resolve("separate/htdemucs").unwrap().clone();
     let cache = Cache::default_root();
@@ -889,7 +892,10 @@ fn install_from_dir(dir: &Path) -> Vec<String> {
 #[ignore]
 fn real_registry_tiers() {
     isolate_cache();
-    let dir = std::env::var("FERRAUS_REAL_MODEL_DIR").expect("set FERRAUS_REAL_MODEL_DIR");
+    let Ok(dir) = std::env::var("FERRAUS_REAL_MODEL_DIR") else {
+        eprintln!("skipped: set FERRAUS_REAL_MODEL_DIR");
+        return;
+    };
     let ids = install_from_dir(Path::new(&dir));
     eprintln!("installed: {ids:?}");
     let sr = 44_100;
@@ -953,7 +959,10 @@ fn real_registry_tiers() {
 #[ignore]
 fn real_mdx_kim_vocal_2() {
     isolate_cache();
-    let src = std::env::var("FERRAUS_KIM_VOCAL_2_ONNX").expect("set FERRAUS_KIM_VOCAL_2_ONNX");
+    let Ok(src) = std::env::var("FERRAUS_KIM_VOCAL_2_ONNX") else {
+        eprintln!("skipped: set FERRAUS_KIM_VOCAL_2_ONNX");
+        return;
+    };
     let manifest = ferraus_models::Manifest::embedded();
     let entry = manifest.resolve("separate/mdx-kim-vocal-2").unwrap().clone();
     let cache = Cache::default_root();

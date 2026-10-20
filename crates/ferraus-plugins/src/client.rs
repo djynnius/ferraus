@@ -75,7 +75,8 @@ impl std::fmt::Display for PluginFormat {
 
 /// Locate the host executable: `FERRAUS_PLUGHOST` / `FERRAUS_PLUGHOST_VST3`, then next to
 /// the running executable (and its parent, which covers `target/<profile>/deps` test
-/// binaries), then `PATH`.
+/// binaries), then `<prefix>/lib/ferraus/` beside the executable's `bin/` (system packages),
+/// then `PATH`.
 pub fn host_binary(format: PluginFormat) -> Result<PathBuf> {
     let var = match format {
         PluginFormat::Clap => "FERRAUS_PLUGHOST",
@@ -94,6 +95,13 @@ pub fn host_binary(format: PluginFormat) -> Result<PathBuf> {
                     return Ok(c);
                 }
                 dir = d.parent().map(|p| p.to_path_buf());
+            }
+        }
+        // system packages and the container image: /usr/bin/ferraus, /usr/lib/ferraus/<host>
+        if let Some(prefix) = exe.parent().and_then(|bin| bin.parent()) {
+            let c = prefix.join("lib/ferraus").join(&file);
+            if c.is_file() {
+                return Ok(c);
             }
         }
     }

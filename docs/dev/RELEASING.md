@@ -21,8 +21,9 @@ sign, or publish anything built on a laptop or an agent's machine.
 5. `build-linux-packages.yml` builds and smoke-tests `.deb` and `.rpm` packages and attests them.
 6. `publish-packages.yml` runs behind the `release` environment. Its required reviewers are the
    human approval gate. It verifies every artifact's attestation (`gh attestation verify`),
-   then updates the apt/dnf repositories on GitHub Pages, pushes container images to ghcr.io,
-   opens winget/scoop PRs, and publishes crates to crates.io.
+   then publishes crates to crates.io and, where opted in with repository variables, updates the
+   apt/dnf repositories in `djynnius/packages`, pushes container images to ghcr.io, opens the
+   winget pull request, and updates the scoop bucket.
 
 ## Secrets (in the `release` environment only)
 
@@ -30,12 +31,13 @@ sign, or publish anything built on a laptop or an agent's machine.
 | --- | --- |
 | `HOMEBREW_TAP_TOKEN` | pushing the formula to `djynnius/homebrew-tap` |
 | `PACKAGE_SIGNING_KEY` | signing apt/dnf repository metadata |
+| `PACKAGES_REPO_TOKEN` | pushing the apt/dnf repositories to `djynnius/packages` |
 | `WINGET_TOKEN`, `SCOOP_BUCKET_TOKEN` | package-manager PRs |
 | `CARGO_REGISTRY_TOKEN` | crates.io |
 | `MODEL_REGISTRY_SIGNING_KEY` | Ed25519 signature of the model registry |
 | `SOUNDS_REGISTRY_SIGNING_KEY` | Ed25519 signature of the sounds registry |
 | `CODESIGN_CERTIFICATE`, `CODESIGN_CERTIFICATE_PASSWORD`, `CODESIGN_IDENTITY` | macOS signing (dist `macos-sign = true`) |
-| Windows Authenticode certificate | MSI and exe signing |
+| `SSLDOTCOM_USERNAME`, `SSLDOTCOM_PASSWORD`, `SSLDOTCOM_CREDENTIAL_ID`, `SSLDOTCOM_TOTP_SECRET` | Windows signing (dist `ssldotcom-windows-sign = "prod"`) |
 
 ## Local dry runs
 

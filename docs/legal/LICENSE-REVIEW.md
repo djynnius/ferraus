@@ -46,7 +46,7 @@ Research-only entries (e.g. RMVPE) are flagged and excluded.
 | Entry | License as recorded | Used by default |
 | --- | --- | --- |
 | separate/htdemucs, htdemucs-ft-{drums,bass,other,vocals}, htdemucs-6s | MIT (Meta Demucs v4; ONNX exports by StemSplitio on Hugging Face, MIT cards) | yes (`fast`, `balanced`, `quality`, `max`, `--stems 6`) |
-| separate/mel-roformer-kj@2024.08 | MIT per the author's (Kimberley Jensen) weights repository and the export's LICENSE file; an unrelated OpenVINO conversion labels it GPL-3.0; training data undisclosed | yes (`quality`, `max`; `auto` picks `quality`) |
+| separate/mel-roformer-kj@2024.08 | MIT per the author's (Kimberley Jensen) weights repository and the export's LICENSE file; an unrelated OpenVINO conversion labels it GPL-3.0; training data undisclosed | `quality`, `max` (`auto` picks `balanced` until this review clears it: the registry's `auto_skip` field on the `quality` tier) |
 | separate/drumsep-inagoy@2022 | MIT (inagoy/drumsep; ONNX export by gridshiftstudio) | `--drum-split` |
 | denoise/dfn3 | MIT OR Apache-2.0 (DeepFilterNet) | yes |
 | denoise/rnnoise | BSD-3-Clause | yes |
@@ -61,8 +61,8 @@ Research-only entries (e.g. RMVPE) are flagged and excluded.
 Questions for counsel: whether model weights trained on datasets with research-only terms
 (e.g. MUSDB18-HQ) can be redistributed under the code license stated by their authors; whether
 the Mel-Band RoFormer's MIT statement holds given the GPL-3.0 label on another conversion and
-its undisclosed training data (if not, set its registry status back to `unverified` and `auto`
-falls back to `balanced`); and whether downloading from third-party Hugging Face repositories
+its undisclosed training data (if it does, delete the `auto_skip` field in the registry and
+`auto` picks `quality` again; if not, also set the entry's status to `unverified`); and whether downloading from third-party Hugging Face repositories
 (pinned by commit and SHA-256) is acceptable or the files should be mirrored to a
 `djynnius/ferraus-models` release first.
 
