@@ -114,8 +114,11 @@ key as `ferraus-archive-keyring.asc` and a dnf `rpm/ferraus.repo` file.
   `ferraus` package on github.com → Package settings → Change visibility → Public.
 * winget: fork `microsoft/winget-pkgs` (`gh repo fork microsoft/winget-pkgs --clone=false`),
   create a **classic** token with the `public_repo` scope, and
-  `gh secret set WINGET_TOKEN --env release`. Each release opens a pull request to
-  `microsoft/winget-pkgs`; Microsoft's moderators review the first one.
+  `gh secret set WINGET_TOKEN --env release`. Done 2026-10-20. The release job can only update
+  a package that winget already has, so submit the first version by hand after a release
+  (`komac new djynnius.ferraus` or `wingetcreate new` with the MSI URLs); Microsoft's moderators
+  review it. After that each release opens the update pull request itself. The job does not
+  block the release if it fails.
 * scoop: `gh repo create djynnius/scoop-bucket --public --add-readme`, a fine-grained token with
   Contents read and write on it, and `gh secret set SCOOP_BUCKET_TOKEN --env release`. Done
   2026-10-20 (one token covers `scoop-bucket` and `packages`).

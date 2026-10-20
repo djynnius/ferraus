@@ -119,8 +119,12 @@ jobs:
 
   winget:
     needs: verify-attestations
-    # opt in with the repository variable PUBLISH_WINGET=true once WINGET_TOKEN exists
+    # opt in with the repository variable PUBLISH_WINGET=true once WINGET_TOKEN exists.
+    # winget-releaser only updates packages already in microsoft/winget-pkgs (the first version is
+    # submitted by hand, docs/dev/RELEASE-SETUP.md section 7), and Microsoft's review queue is
+    # outside our control, so a failure here must not hold back the release announcement.
     if: vars.PUBLISH_WINGET == 'true'
+    continue-on-error: true
     runs-on: windows-2022
     environment: release
     steps:
