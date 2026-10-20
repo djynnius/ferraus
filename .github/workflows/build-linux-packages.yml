@@ -29,10 +29,11 @@ jobs:
             arch: arm64
             rpmarch: aarch64
     runs-on: ${{ matrix.runner }}
-    env:
-      SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
     steps:
       - uses: actions/checkout@v4
+      # reproducible package timestamps from the commit (github.event fields differ per trigger)
+      - name: SOURCE_DATE_EPOCH
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@1.97.1
       - name: Install packagers
         run: cargo install cargo-deb cargo-generate-rpm --locked
