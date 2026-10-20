@@ -4,15 +4,22 @@ $ErrorActionPreference = "Stop"
 $v = $Version.TrimStart("v")
 $base = "https://github.com/djynnius/ferraus/releases/download/v$v"
 $sha = (Invoke-WebRequest "$base/ferraus-x86_64-pc-windows-msvc.zip.sha256").Content.Split(" ")[0].Trim()
+$shaArm = (Invoke-WebRequest "$base/ferraus-aarch64-pc-windows-msvc.zip.sha256").Content.Split(" ")[0].Trim()
 $manifest = [ordered]@{
   version      = $v
   description  = "Music editing CLI for people and AI agents"
   homepage     = "https://github.com/djynnius/ferraus"
   license      = "Apache-2.0 OR MIT"
-  architecture = @{ "64bit" = @{ url = "$base/ferraus-x86_64-pc-windows-msvc.zip"; hash = $sha } }
+  architecture = @{
+    "64bit" = @{ url = "$base/ferraus-x86_64-pc-windows-msvc.zip"; hash = $sha }
+    "arm64" = @{ url = "$base/ferraus-aarch64-pc-windows-msvc.zip"; hash = $shaArm }
+  }
   bin          = "ferraus.exe"
   checkver     = "github"
-  autoupdate   = @{ architecture = @{ "64bit" = @{ url = "https://github.com/djynnius/ferraus/releases/download/v`$version/ferraus-x86_64-pc-windows-msvc.zip" } } }
+  autoupdate   = @{ architecture = @{
+    "64bit" = @{ url = "https://github.com/djynnius/ferraus/releases/download/v`$version/ferraus-x86_64-pc-windows-msvc.zip" }
+    "arm64" = @{ url = "https://github.com/djynnius/ferraus/releases/download/v`$version/ferraus-aarch64-pc-windows-msvc.zip" }
+  } }
 }
 git clone "https://x-access-token:$env:GH_TOKEN@github.com/djynnius/scoop-bucket.git" bucket
 $manifest | ConvertTo-Json -Depth 6 | Set-Content bucket/bucket/ferraus.json
