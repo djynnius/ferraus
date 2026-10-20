@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/wordmark-for-dark.png">
+  <img src="images/wordmark-for-light.png" alt="ferraus" width="320">
+</picture>
+
 # Getting started
 
 ## Install

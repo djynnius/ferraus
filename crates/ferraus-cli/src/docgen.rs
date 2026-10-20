@@ -347,6 +347,11 @@ pub fn build_site(reg: &Registry, guides_dir: &std::path::Path, out: &std::path:
             for f in std::fs::read_dir(g)?.flatten().map(|e| e.path()).filter(|p| p.is_file()) {
                 std::fs::copy(&f, src.join("images").join(f.file_name().unwrap()))?;
             }
+            // mdBook takes the favicon from theme/ next to book.toml
+            if g.join("favicon.png").exists() {
+                std::fs::create_dir_all(out.join("theme"))?;
+                std::fs::copy(g.join("favicon.png"), out.join("theme/favicon.png"))?;
+            }
             continue;
         }
         if g.is_dir() {
