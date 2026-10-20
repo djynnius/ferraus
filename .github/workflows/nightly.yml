@@ -30,7 +30,7 @@ jobs:
       - name: Full suite with network disabled
         run: |
           sudo unshare -n -- sudo -u "$USER" env PATH="$PATH" HOME="$HOME" FERRAUS_OFFLINE=1 \
-            cargo test --workspace --release --offline -- --include-ignored
+            cargo test --workspace --release --offline --no-fail-fast -- --include-ignored
 
   bench:
     runs-on: ubuntu-24.04
