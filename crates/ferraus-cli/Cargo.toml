@@ -30,6 +30,10 @@ path = "src/bin/ferraus-plughost.rs"
 name = "ferraus_cli"
 path = "src/lib.rs"
 
+[features]
+# CUDA execution provider (used by the CUDA container image)
+cuda = ["ferraus-ml/cuda"]
+
 [dependencies]
 ferraus-core.workspace = true
 ferraus-codec.workspace = true

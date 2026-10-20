@@ -1,0 +1,8 @@
+# Keep the build context to the sources (a local target/ is tens of gigabytes).
+target
+**/target
+.git
+.claude
+.DS_Store
+brand
+ferraus-out

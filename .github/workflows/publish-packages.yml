@@ -39,14 +39,18 @@ jobs:
 
   apt-dnf:
     needs: verify-attestations
-    # opt in with the repository variable PUBLISH_APT_DNF=true once gh-pages and PACKAGE_SIGNING_KEY exist
+    # The repositories live in djynnius/packages (served by its GitHub Pages at
+    # https://djynnius.github.io/packages/), because this repository's Pages site is the docs.
+    # Opt in with the repository variable PUBLISH_APT_DNF=true once that repository,
+    # PACKAGES_REPO_TOKEN, and PACKAGE_SIGNING_KEY exist (docs/dev/RELEASE-SETUP.md section 6).
     if: vars.PUBLISH_APT_DNF == 'true'
     runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: gh-pages
+          repository: djynnius/packages
+          token: ${{ secrets.PACKAGES_REPO_TOKEN }}
           path: pages
       - uses: actions/download-artifact@v4
         with:
@@ -54,7 +58,12 @@ jobs:
           path: pkgs
           merge-multiple: true
       - name: Import signing key
-        run: echo "${{ secrets.PACKAGE_SIGNING_KEY }}" | gpg --batch --import
+        env:
+          PACKAGE_SIGNING_KEY: ${{ secrets.PACKAGE_SIGNING_KEY }}
+        run: |
+          echo "$PACKAGE_SIGNING_KEY" | gpg --batch --import
+          # publish the public key next to the repositories
+          gpg --armor --export > pages/ferraus-archive-keyring.asc
       - name: Update apt repository
         run: |
           sudo apt-get install -y dpkg-dev
@@ -72,9 +81,19 @@ jobs:
           cp pkgs/*.rpm pages/rpm/
           createrepo_c pages/rpm
           gpg --batch --yes --detach-sign --armor pages/rpm/repodata/repomd.xml
+          cat > pages/rpm/ferraus.repo <<'REPO'
+          [ferraus]
+          name=ferraus
+          baseurl=https://djynnius.github.io/packages/rpm
+          enabled=1
+          gpgcheck=0
+          repo_gpgcheck=1
+          gpgkey=https://djynnius.github.io/packages/ferraus-archive-keyring.asc
+          REPO
       - name: Push
         run: |
           cd pages
+          touch .nojekyll
           git config user.name "ferraus release bot"
           git config user.email "release-bot@users.noreply.github.com"
           git add -A && git commit -m "Publish packages for ${{ github.ref_name }}" && git push

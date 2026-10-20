@@ -58,10 +58,13 @@ gh repo create djynnius/homebrew-tap --public --description "Homebrew formulae f
 gh secret set HOMEBREW_TAP_TOKEN --env release   # paste the token
 ```
 
-## 4. macOS signing and notarization (off until you have a certificate)
+## 4. macOS signing (off until you have a certificate)
 
-Set `macos-sign = true` in `dist-workspace.toml` and run `dist generate`, then add the
-secrets from an Apple Developer ID Application certificate exported as `.p12`:
+Needs a paid Apple Developer Program membership (individual enrollment is enough). As the
+account holder, create a **Developer ID Application** certificate (Xcode → Settings →
+Accounts → Manage Certificates → + → Developer ID Application), then export it from Keychain
+Access as a password-protected `.p12`. Then set `macos-sign = true` in `dist-workspace.toml`,
+run `dist generate` (keep the hand edits listed under `allow-dirty`), and add:
 
 ```bash
 base64 -i DeveloperID.p12 | gh secret set CODESIGN_CERTIFICATE --env release
@@ -69,31 +72,54 @@ gh secret set CODESIGN_CERTIFICATE_PASSWORD --env release
 gh secret set CODESIGN_IDENTITY --env release        # e.g. "Developer ID Application: Name (TEAMID)"
 ```
 
-## 5. Windows signing
+Gatekeeper checks only files that carry the quarantine flag (browser downloads); Homebrew, the
+shell installer, and `curl` downloads run unsigned binaries without a prompt.
 
-cargo-dist signs Windows artifacts with SSL.com eSigner. Set `ssldotcom-windows-sign = "prod"` in
-`dist-workspace.toml`, run `dist generate`, and add `SSLDOTCOM_USERNAME`, `SSLDOTCOM_PASSWORD`,
-`SSLDOTCOM_CREDENTIAL_ID`, `SSLDOTCOM_TOTP_SECRET` to the `release` environment.
+## 5. Windows signing (off until you have a certificate)
 
-## 6. apt and dnf repositories (GitHub Pages)
+cargo-dist signs Windows artifacts with SSL.com eSigner (cloud signing; no USB token). Buy an
+SSL.com code signing certificate with eSigner enabled, finish its identity validation, then
+set `ssldotcom-windows-sign = "prod"` in `dist-workspace.toml`, run `dist generate`, and add
+`SSLDOTCOM_USERNAME`, `SSLDOTCOM_PASSWORD`, `SSLDOTCOM_CREDENTIAL_ID`, and
+`SSLDOTCOM_TOTP_SECRET` (from the eSigner 2FA setup) to the `release` environment. Microsoft's
+Azure Artifact Signing is a cheaper alternative where its identity validation is available,
+but cargo-dist has no built-in support for it; it needs a custom signing step.
+
+## 6. apt and dnf repositories
+
+The repositories are published to `djynnius/packages` and served by that repository's GitHub
+Pages at https://djynnius.github.io/packages/ (this repository's Pages site is the docs).
 
 ```bash
-gpg --quick-gen-key "ferraus release <release@ferraus.invalid>" rsa4096 sign never
-gpg --armor --export-secret-keys "ferraus release" | gh secret set PACKAGE_SIGNING_KEY --env release
-git switch --orphan gh-pages && git commit --allow-empty -m "Pages" && git push origin gh-pages && git switch main
-gpg --armor --export "ferraus release" > docs/guides/ferraus-archive-keyring.asc   # publish the public key
+gh repo create djynnius/packages --public --add-readme --description "apt and dnf repositories for ferraus"
+gh api -X POST repos/djynnius/packages/pages -f "source[branch]=main" -f "source[path]=/"
+# fine-grained token: repository djynnius/packages, Contents read and write
+gh secret set PACKAGES_REPO_TOKEN --env release --repo djynnius/ferraus     # paste the token
+# signing key (no passphrase; it lives only in the release environment and your backup)
+gpg --batch --passphrase '' --quick-gen-key "ferraus release" rsa4096 sign never
+gpg --armor --export-secret-keys "ferraus release" | gh secret set PACKAGE_SIGNING_KEY --env release --repo djynnius/ferraus
+gh variable set PUBLISH_APT_DNF --body true --repo djynnius/ferraus
 ```
 
-Enable GitHub Pages from the `gh-pages` branch (Settings → Pages).
+Each release copies the `.deb`/`.rpm` files there, signs the metadata, and publishes the public
+key as `ferraus-archive-keyring.asc` and a dnf `rpm/ferraus.repo` file.
 
-## 7. Package managers and crates.io
+## 7. Package managers, containers, and crates.io
 
 * crates.io: `cargo login`, then create an API token scoped to publish-new/publish-update and
-  `gh secret set CARGO_REGISTRY_TOKEN --env release`. The first CI release reserves the names.
-* winget: fork `microsoft/winget-pkgs`, create a classic token with `public_repo`, and
-  `gh secret set WINGET_TOKEN --env release`.
-* scoop: `gh repo create djynnius/scoop-bucket --public` and
-  `gh secret set SCOOP_BUCKET_TOKEN --env release` with contents write on it.
+  `gh secret set CARGO_REGISTRY_TOKEN --env release`. Done for v0.1.0.
+* Containers (ghcr.io): no account or secret needed (the workflow's `GITHUB_TOKEN` pushes).
+  `gh variable set PUBLISH_CONTAINERS --body true`. After the first push, open the
+  `ferraus` package on github.com → Package settings → Change visibility → Public.
+* winget: fork `microsoft/winget-pkgs` (`gh repo fork microsoft/winget-pkgs --clone=false`),
+  create a **classic** token with the `public_repo` scope, and
+  `gh secret set WINGET_TOKEN --env release`. Each release opens a pull request to
+  `microsoft/winget-pkgs`; Microsoft's moderators review the first one.
+* scoop: `gh repo create djynnius/scoop-bucket --public --add-readme`, a fine-grained token with
+  Contents read and write on it, and `gh secret set SCOOP_BUCKET_TOKEN --env release`.
+  Users install with `scoop bucket add djynnius https://github.com/djynnius/scoop-bucket`
+  then `scoop install djynnius/ferraus`.
+* winget and scoop share the variable: `gh variable set PUBLISH_WINGET_SCOOP --body true`.
 
 ## 8. Model hosting (recommended before 1.0)
 
