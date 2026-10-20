@@ -1,7 +1,8 @@
 //! `ferraus-plughost-vst3`: the out-of-process VST3 host for ferraus. It speaks the same
 //! protocol as the CLAP host (`crates/ferraus-plugins/PROTOCOL.md`), loads exactly one
-//! plugin, and never opens a GUI. Licensed GPL-3.0-only because VST3 hosting code is kept
-//! out of the permissively licensed crates (see the PRD's licensing section).
+//! plugin, and never opens a GUI. Apache-2.0 OR MIT like the rest of ferraus: the VST3 SDK is
+//! MIT since 3.8, and the `vst3` bindings (generated from the 3.8 headers) are MIT OR Apache-2.0
+//! (ADR 0008).
 
 mod vst3_backend;
 
@@ -18,7 +19,7 @@ fn main() {
         }
         Some("--help") | Some("-h") => {
             println!(
-                "ferraus-plughost-vst3 — out-of-process VST3 plugin host for ferraus (GPL-3.0-only)\n\n\
+                "ferraus-plughost-vst3 — out-of-process VST3 plugin host for ferraus (Apache-2.0 OR MIT)\n\n\
                  Started by ferraus; speaks the ferraus plugin-host protocol on stdin/stdout.\n\
                  Options: --version, --help"
             );

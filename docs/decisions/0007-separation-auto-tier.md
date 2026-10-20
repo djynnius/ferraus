@@ -11,6 +11,11 @@ registry's `quality` tier carries `auto_skip`, so `auto` resolves to `balanced` 
 warning. `--tier quality` and `--tier max` still run when named. Deleting the `auto_skip` field
 restores `quality` as the default.
 
+Update 2026-10-20 (maintainer decision): the RoFormer weights' MIT license, as stated on the
+author's repository, is accepted (a third party's conversion label does not override it). The
+`auto_skip` field is removed, so `auto` resolves to `quality` again. The mechanism stays for
+future holds.
+
 ## Context
 The PRD makes `quality` (RoFormer-class) the default separation tier. The best open RoFormer
 and SCNet checkpoints either lack a clear license or are published only as PyTorch weights that

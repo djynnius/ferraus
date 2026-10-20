@@ -1,17 +1,17 @@
 [package]
 name = "ferraus-plughost-vst3"
-description = "Out-of-process VST3 plugin host used by ferraus (GPLv3; speaks the same protocol as ferraus-plughost)"
+description = "Out-of-process VST3 plugin host used by ferraus (speaks the same protocol as ferraus-plughost)"
 version.workspace = true
 edition.workspace = true
-license = "GPL-3.0-only"
+license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 publish = false
 
 [package.metadata.dist]
-# Released as its own GPLv3 app (archive + installers); ferraus finds it next to
-# itself or on PATH.
+# Released as its own app (archive + installers) so a crashing plugin cannot take ferraus down;
+# ferraus finds it next to itself or on PATH.
 dist = true
 
 [package.metadata.wix]

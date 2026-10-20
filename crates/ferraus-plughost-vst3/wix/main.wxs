@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='Out-of-process VST3 plugin host used by ferraus (GPLv3; speaks the same protocol as ferraus-plughost)'
+            Description='Out-of-process VST3 plugin host used by ferraus (speaks the same protocol as ferraus-plughost)'
             Manufacturer='Sunday Ikpe'
             InstallerVersion='450'
             Languages='1033'

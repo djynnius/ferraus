@@ -1,5 +1,5 @@
-# cargo-deny: license and source policy. Core crates stay permissive; the GPL VST3 host is a
-# separate binary crate and is allowed its own license.
+# cargo-deny: license and source policy. Everything stays permissive except the LGPL engraving
+# helper, which is a separate executable.
 [licenses]
 allow = [
   "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
@@ -8,7 +8,6 @@ allow = [
 ]
 confidence-threshold = 0.9
 exceptions = [
-  { allow = ["GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later"], crate = "ferraus-plughost-vst3" },
   # Verovio (engraving) is LGPL and isolated in the separate ferraus-engrave executable
   { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later"], crate = "ferraus-engrave" },
   { allow = ["LGPL-3.0", "LGPL-3.0-only", "LGPL-3.0-or-later", "OFL-1.1"], crate = "verovio" },

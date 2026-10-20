@@ -140,6 +140,8 @@ mirrored without a license.
 
 ## 9. Legal review
 
-Have counsel review `docs/legal/LICENSE-REVIEW.md` (VST3 host under GPLv3 as a separate
-executable; Verovio under LGPL in the separate `ferraus-engrave` executable; model and sound
-licenses) before the 1.0 release (PRD gates G3 and G4).
+The maintainer's decisions are recorded in `docs/decisions/0008-license-review-decisions.md`
+(2026-10-20): the RoFormer weights' MIT license accepted, the VST3 host relicensed to
+Apache-2.0 OR MIT after the VST3 SDK became MIT, Verovio kept in the separate LGPL
+`ferraus-engrave` executable. A counsel review of `docs/legal/LICENSE-REVIEW.md` (model and
+sound licenses included) is still recommended before the 1.0 release (PRD gates G3 and G4).

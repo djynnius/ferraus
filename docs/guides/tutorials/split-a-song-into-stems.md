@@ -11,11 +11,10 @@ the model, and a network connection the first time.
 ## Which tier to use
 
 Separation uses neural-network models from the ferraus model registry, and every tier has a
-verified download. The default tier, `auto`, picks `balanced` in this release (four
-fine-tuned Demucs models, about 660 MB, about 3 minutes for a 4-minute song on a laptop CPU).
-`--tier quality` (a Mel-Band RoFormer for the vocals plus fine-tuned Demucs for drums, bass,
-and other: about 960 MB of models, about 7 minutes) gives the cleanest vocals; it becomes the
-default once its license review is done. The commands below use **`--tier fast`** (Demucs v4
+verified download. The default tier, `auto`, picks `quality` (a Mel-Band RoFormer for the
+vocals plus fine-tuned Demucs for drums, bass, and other: about 960 MB of models, about 7
+minutes for a 4-minute song on a laptop CPU), which gives the cleanest vocals. `--tier balanced`
+(four fine-tuned Demucs models, about 660 MB, about 3 minutes) is the middle ground. The commands below use **`--tier fast`** (Demucs v4
 `htdemucs`, 166 MB, MIT license, under a minute for a 4-minute song) to keep the first run
 quick. See
 [Stems and separation tiers](../concepts/stems.md) for all tiers and their measured quality.

@@ -6,6 +6,13 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
+### Changed
+- `separate --tier auto` (the default) picks `quality` again (Mel-Band RoFormer vocals): the
+  maintainer accepted the weights' MIT license (ADR 0008). Use `--tier balanced` for the
+  faster Demucs-only separation.
+- `ferraus-plughost-vst3` is licensed Apache-2.0 OR MIT (was GPL-3.0-only): Steinberg released
+  the VST3 SDK under MIT with version 3.8 (ADR 0008).
+
 ### Fixed
 - `score read` works on Linux and Windows x86-64: ONNX Runtime's x86 layout optimizations
   rejected the oemer model (a transposed convolution with negative pads), so every page failed

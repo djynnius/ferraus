@@ -1,8 +1,8 @@
 # ferraus plugin-host protocol (version 1)
 
 ferraus never loads a plugin into its own process. Every plugin instance runs in its own
-host process: `ferraus-plughost` for CLAP (Apache-2.0 OR MIT) or `ferraus-plughost-vst3`
-for VST3 (GPL-3.0-only). Both speak this protocol. The types live in
+host process: `ferraus-plughost` for CLAP or `ferraus-plughost-vst3` for VST3 (both
+Apache-2.0 OR MIT). Both speak this protocol. The types live in
 `crates/ferraus-plugins/src/protocol.rs`. The host side is in `src/host_rt.rs` and the
 ferraus side in `src/client.rs`.
 

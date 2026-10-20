@@ -109,13 +109,11 @@ fn default_tier_without_models_is_exit_5_with_pull_hint() {
     let e = run(&r, &[], |_| {}).err().unwrap();
     assert_eq!(e.exit_code, 5, "{e}");
     assert_eq!(e.code, "model_not_cached");
-    // the default tier is auto: the best verified tier not held back (balanced while the
-    // quality tier's RoFormer awaits license review)
+    // the default tier is auto: the best verified tier (quality)
     let hint = e.hint.unwrap();
-    assert!(hint.starts_with("ferraus models pull separate/htdemucs-ft-drums@v4-onnx.2026-05-21 "), "{hint}");
-    assert!(!hint.contains("mel-roformer"), "{hint}");
+    assert!(hint.starts_with("ferraus models pull separate/mel-roformer-kj@2024.08 "), "{hint}");
     let e = run(&r, &[("tier", "quality")], |_| {}).err().unwrap();
-    assert!(e.hint.unwrap().starts_with("ferraus models pull separate/mel-roformer-kj@2024.08 "));
+    assert_eq!(e.hint, Some(hint));
     let e = run(&r, &[("tier", "balanced")], |_| {}).err().unwrap();
     assert_eq!(e.exit_code, 5, "{e}");
     let hint = e.hint.unwrap();
@@ -339,11 +337,10 @@ fn dry_run_plans_without_writing() {
     assert_eq!(c[2]["outputs"].as_array().unwrap().len(), 2);
     assert_eq!(c[2]["unavailable"], json!(["strings"]));
     assert!(!r.dir.path("song.kick.wav").exists());
-    // auto resolves to the best verified tier not held back by auto_skip, records it, and does
-    // not warn (skipping quality is a release decision, not a missing model)
+    // auto resolves to the best verified tier, records it, and does not warn
     let (v, ctx) = run(&r, &[], |c| c.globals.dry_run = true).unwrap();
-    assert_eq!(ctx.notes.get("tier").and_then(|t| t.as_str()), Some("balanced (auto)"));
-    assert_eq!(v["plan"][0]["model"], "separate/htdemucs-ft-drums@v4-onnx.2026-05-21");
+    assert_eq!(ctx.notes.get("tier").and_then(|t| t.as_str()), Some("quality (auto)"));
+    assert_eq!(v["plan"][0]["model"], "separate/mel-roformer-kj@2024.08");
     assert!(ctx.warnings.iter().all(|w| w.code != "tier_fallback"));
     // --stems 2 keeps only the members that produce vocals
     let (v, _) = run(&r, &[("tier", "max"), ("stems", "2")], |c| c.globals.dry_run = true).unwrap();
@@ -1007,4 +1004,15 @@ fn real_mdx_kim_vocal_2() {
     eprintln!("{}", serde_json::to_string_pretty(&report).unwrap());
     assert!(ctx.warnings.iter().any(|w| w.code == "model_license_unclear"));
     assert!(report["si_sdr_vocals_db"].as_f64().unwrap() > 0.0, "{report}");
+}
+
+/// A tier held back with `auto_skip` (e.g. pending license review) is passed over by `auto`
+/// without a fallback warning, and still runs when named.
+#[test]
+fn auto_skip_holds_a_tier_back_from_auto() {
+    let mut m = ferraus_models::Manifest::embedded();
+    assert_eq!(auto_tier(&m, "4"), ("quality".to_string(), false));
+    m.tiers.get_mut("separate").unwrap().get_mut("quality").unwrap().auto_skip = Some("license review".into());
+    assert_eq!(auto_tier(&m, "4"), ("balanced".to_string(), false));
+    assert!(m.tier("separate", "quality").is_some());
 }

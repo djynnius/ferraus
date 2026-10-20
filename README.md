@@ -78,5 +78,5 @@ Run `ferraus doctor` after installing.
 
 ## License
 
-Apache-2.0 OR MIT, at your option. The VST3 host helper (`ferraus-plughost-vst3`) is GPLv3
-because it links the VST3 SDK; it runs as a separate process.
+Apache-2.0 OR MIT, at your option. The score engraving helper (`ferraus-engrave`) is LGPL-3.0
+because it links Verovio; it runs as a separate process.

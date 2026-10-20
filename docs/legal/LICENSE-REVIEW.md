@@ -4,6 +4,11 @@ This document collects the facts counsel needs for the PRD's legal gates: G3 (mo
 audit) and G4 (VST3 host licensing). It was prepared by the engineering side and should be
 reviewed by a qualified lawyer before 1.0.
 
+**Maintainer decisions (2026-10-20, [ADR 0008](../decisions/0008-license-review-decisions.md)):**
+the Mel-Band RoFormer's MIT license is accepted (it is the default `quality` tier again); the
+VST3 host is Apache-2.0 OR MIT because the VST3 SDK is MIT since 3.8; Verovio stays in the
+separate LGPL `ferraus-engrave` executable.
+
 ## Project license
 
 All crates and the `ferraus` binary: **Apache-2.0 OR MIT**. The binary statically links 218
@@ -17,12 +22,12 @@ release). `deny.toml` enforces this policy in CI.
 
 | Executable | License | Why separate | Talks to ferraus via |
 | --- | --- | --- | --- |
-| `ferraus-plughost-vst3` | GPL-3.0-only | links VST3 host code; Steinberg's SDK is GPLv3 or proprietary. (Note: it currently uses the `vst3` crate bindings, which are MIT/Apache; counsel should confirm whether GPL is still required or whether the permissive bindings plus Steinberg's interface definitions change that.) | length-prefixed JSON on pipes + a memory-mapped audio file (`crates/ferraus-plugins/PROTOCOL.md`) |
+| `ferraus-plughost-vst3` | Apache-2.0 OR MIT | process isolation (a crashing plugin cannot take ferraus down). It was GPL-3.0-only while the VST3 SDK was GPLv3 or proprietary; Steinberg released VST 3.8 under MIT on 2025-10-29, and the `vst3` crate's bindings (generated from the 3.8 headers) are MIT OR Apache-2.0 | length-prefixed JSON on pipes + a memory-mapped audio file (`crates/ferraus-plugins/PROTOCOL.md`) |
 | `ferraus-engrave` | LGPL-3.0-or-later | statically links Verovio (LGPL-3.0); fonts under OFL-1.1 | MusicXML on stdin, SVG/PDF/PNG on stdout |
 | `ferraus-plughost` | Apache-2.0 OR MIT | CLAP host (CLAP ABI is MIT) | as above |
 
 Each is released as its own app with its own archive and installer (cargo-dist), so the
-permissive `ferraus` archive contains no GPL/LGPL code. Questions for counsel: is process
+permissive `ferraus` archive contains no LGPL code. Questions for counsel: is process
 separation with this protocol sufficient for "aggregate" treatment; are the release
 artifacts' license notices adequate.
 
@@ -46,7 +51,7 @@ Research-only entries (e.g. RMVPE) are flagged and excluded.
 | Entry | License as recorded | Used by default |
 | --- | --- | --- |
 | separate/htdemucs, htdemucs-ft-{drums,bass,other,vocals}, htdemucs-6s | MIT (Meta Demucs v4; ONNX exports by StemSplitio on Hugging Face, MIT cards) | yes (`fast`, `balanced`, `quality`, `max`, `--stems 6`) |
-| separate/mel-roformer-kj@2024.08 | MIT per the author's (Kimberley Jensen) weights repository and the export's LICENSE file; an unrelated OpenVINO conversion labels it GPL-3.0; training data undisclosed | `quality`, `max` (`auto` picks `balanced` until this review clears it: the registry's `auto_skip` field on the `quality` tier) |
+| separate/mel-roformer-kj@2024.08 | MIT per the author's (Kimberley Jensen) weights repository and the export's LICENSE file; an unrelated OpenVINO conversion labels it GPL-3.0; training data undisclosed | yes (`quality`, the default through `auto`; `max`); MIT accepted by the maintainer (ADR 0008) |
 | separate/drumsep-inagoy@2022 | MIT (inagoy/drumsep; ONNX export by gridshiftstudio) | `--drum-split` |
 | denoise/dfn3 | MIT OR Apache-2.0 (DeepFilterNet) | yes |
 | denoise/rnnoise | BSD-3-Clause | yes |
