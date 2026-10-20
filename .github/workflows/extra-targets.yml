@@ -1,0 +1,137 @@
+# Builds and smoke-tests the release targets whose ONNX Runtime does not come prebuilt with ort
+# (Intel macOS and musl Linux: built from source; Windows on ARM: prebuilt, but its MSI needs
+# WiX 3.14), exactly as the release workflow's build-local-artifacts job does (`dist build`).
+#
+# It also keeps the ONNX Runtime build caches warm on main, where tag-triggered release runs can
+# restore them (GitHub evicts a cache after 7 days without use; the weekly run prevents that).
+name: Extra release targets
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+  push:
+    paths:
+      - .github/actions/onnxruntime/**
+      - .github/build-setup.yml
+      - .github/workflows/extra-targets.yml
+      - dist-workspace.toml
+  pull_request:
+    paths:
+      - .github/actions/onnxruntime/**
+      - .github/build-setup.yml
+      - .github/workflows/extra-targets.yml
+      - dist-workspace.toml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extra-targets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 330
+    env:
+      FERRAUS_HOME: ${{ github.workspace }}/../ferraus-home
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # the same steps the release workflow runs before `dist build` (.github/build-setup.yml)
+      - uses: ./.github/actions/onnxruntime
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install dist
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            powershell -c "irm https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.ps1 | iex"
+          else
+            curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh
+          fi
+      - name: Build artifacts (as the release does)
+        shell: bash
+        run: |
+          dist build --artifacts=local --target ${{ matrix.target }} --print=linkage --output-format=json > dist-manifest.json
+          ls -la target/distrib
+      - name: Unpack ferraus
+        id: unpack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p smoke
+          cd target/distrib
+          if [ -f "ferraus-${{ matrix.target }}.zip" ]; then
+            unzip -o "ferraus-${{ matrix.target }}.zip" -d ../../smoke
+          else
+            tar -xJf "ferraus-${{ matrix.target }}.tar.xz" -C ../../smoke
+          fi
+          cd ../../smoke
+          exe="$(find . -type f \( -name ferraus -o -name ferraus.exe \) | head -1)"
+          echo "exe=$PWD/${exe#./}" >> "$GITHUB_OUTPUT"
+          ls -laR .
+      - name: Linkage
+        shell: bash
+        run: |
+          exe="${{ steps.unpack.outputs.exe }}"
+          case "$RUNNER_OS" in
+            Linux) file "$exe"; ldd "$exe" || true ;;
+            macOS) file "$exe"; otool -L "$exe"; vtool -show-build "$exe" | grep -E 'minos|platform' ;;
+            Windows) file "$exe" || true ;;
+          esac
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FERRAUS_HOME }}/cache/models
+          key: models-${{ runner.os }}-${{ hashFiles('crates/ferraus-models/registry/registry.json') }}
+      - name: Smoke test (version, doctor, ML separation on a generated tone)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ferraus="${{ steps.unpack.outputs.exe }}"
+          mkdir -p "$FERRAUS_HOME" smoke-run
+          "$ferraus" --version
+          "$ferraus" doctor --json > smoke-run/doctor.json || { cat smoke-run/doctor.json; exit 1; }
+          "$ferraus" generate tone --freq 440Hz --dur 3s -o smoke-run/tone.wav --json > smoke-run/tone.json
+          "$ferraus" separate smoke-run/tone.wav --tier fast -y --json > smoke-run/separate.json \
+            || { cat smoke-run/separate.json; exit 1; }
+          grep -q '"ok": *true' smoke-run/separate.json || { cat smoke-run/separate.json; exit 1; }
+          cat smoke-run/separate.json
+      - name: Smoke test inside Alpine (musl)
+        if: endsWith(matrix.target, '-unknown-linux-musl')
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="${{ steps.unpack.outputs.exe }}"
+          docker run --rm -v "$exe:/usr/local/bin/ferraus:ro" -v "$FERRAUS_HOME:/ferraus-home" \
+            -e FERRAUS_HOME=/ferraus-home -w /tmp alpine:3.22 sh -euc '
+              ferraus --version
+              ferraus generate tone --freq 220Hz --dur 2s -o tone.wav --json >/dev/null
+              ferraus separate tone.wav --tier fast --offline --json > sep.json || { cat sep.json; exit 1; }
+              grep -q "\"ok\": *true" sep.json && cat sep.json'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: extra-target-${{ matrix.target }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            target/distrib/
+            dist-manifest.json
+            smoke-run/

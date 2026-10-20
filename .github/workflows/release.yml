@@ -131,6 +131,10 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: "ONNX Runtime for targets without prebuilt binaries"
+        uses: "./.github/actions/onnxruntime"
+        with:
+          "targets": "${{ join(matrix.targets, ',') }}"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

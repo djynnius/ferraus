@@ -14,8 +14,12 @@ tap = "djynnius/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
   "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
   "aarch64-unknown-linux-gnu",
   "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-musl",
+  "x86_64-unknown-linux-musl",
+  "aarch64-pc-windows-msvc",
   "x86_64-pc-windows-msvc",
 ]
 # Path that installers should place binaries in
@@ -42,11 +46,22 @@ allow-dirty = ["ci"]
 # (CODESIGN_* secrets, docs/dev/RELEASE-SETUP.md section 4); then set this to true and run `dist generate`
 macos-sign = false
 
-# ONNX Runtime's prebuilt Linux libraries (ort) need glibc 2.38+, so Linux builds run on
-# Ubuntu 24.04 and the release supports Ubuntu 24.04+, Debian 13+, Fedora 39+. There is no
-# musl build: ort ships no musl library, and no Intel macOS library (Apple silicon only).
-# No Windows ARM64 build yet (WiX 3 cannot build its MSI); Windows 11 on ARM runs the x64 build.
+# Steps run before `dist build` in each build-local-artifacts job (path relative to
+# .github/workflows): they build ONNX Runtime from source for the targets ort ships no prebuilt
+# library for (x86_64-apple-darwin, *-unknown-linux-musl; cached, see .github/actions/onnxruntime)
+# and install WiX 3.14 for the aarch64-pc-windows-msvc MSI (the windows-11-arm image has no WiX)
+github-build-setup = "../build-setup.yml"
+
+# ONNX Runtime's prebuilt Linux libraries (ort) need glibc 2.38+, so the glibc builds run on
+# Ubuntu 24.04 and support Ubuntu 24.04+, Debian 13+, Fedora 39+. The musl builds are fully
+# static (ONNX Runtime built from source with Alpine's GCC and musl): they run on Alpine and on
+# older glibc distributions. Intel macOS links an ONNX Runtime built from source on the Intel
+# runner; Windows ARM64 uses ort's prebuilt library.
 [dist.github-custom-runners]
 global = "ubuntu-24.04"
 x86_64-unknown-linux-gnu = "ubuntu-24.04"
 aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
+x86_64-unknown-linux-musl = "ubuntu-24.04"
+aarch64-unknown-linux-musl = "ubuntu-24.04-arm"
+x86_64-apple-darwin = "macos-15-intel"
+aarch64-pc-windows-msvc = "windows-11-arm"
