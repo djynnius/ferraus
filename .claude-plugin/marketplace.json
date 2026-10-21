@@ -1,0 +1,11 @@
+{
+  "name": "ferraus",
+  "owner": { "name": "Sunday Ikpe", "url": "https://github.com/djynnius" },
+  "plugins": [
+    {
+      "name": "ferraus",
+      "source": "./",
+      "description": "Skill for driving the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, and master audio."
+    }
+  ]
+}

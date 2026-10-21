@@ -43,6 +43,30 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 `ferraus describe --agent` prints the whole command surface in under 4,000 tokens. See
 [AGENTS.md](AGENTS.md).
 
+To set up an agent, paste this into it:
+
+```text
+Install the ferraus CLI and its skill, then use ferraus for any audio, music, or sheet-music task.
+
+1. Install the CLI if `ferraus --version` fails. Use one method: macOS or Linux with Homebrew:
+   `brew install djynnius/tap/ferraus`; otherwise on macOS or Linux:
+   `curl -fsSL https://github.com/djynnius/ferraus/releases/latest/download/ferraus-installer.sh | sh`;
+   on Windows (PowerShell):
+   `powershell -ExecutionPolicy ByPass -c "irm https://github.com/djynnius/ferraus/releases/latest/download/ferraus-installer.ps1 | iex"`.
+   Then run `ferraus doctor --json` and confirm "ok": true.
+2. Install the skill. In Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
+   `claude plugin install ferraus@ferraus`. In another agent: `npx skills add djynnius/ferraus --skill ferraus`
+   and select your agent. Use one method. You can read the skill directly at
+   https://github.com/djynnius/ferraus/blob/main/skills/ferraus/SKILL.md
+   (raw: https://raw.githubusercontent.com/djynnius/ferraus/main/skills/ferraus/SKILL.md).
+3. Optional, if you support MCP: register `ferraus mcp serve --allow <music folder>` as an MCP server
+   (Claude Code: `claude mcp add ferraus -- ferraus mcp serve --allow ~/Music`).
+4. Before the first task, run `ferraus describe --agent` for the command catalog and read
+   https://raw.githubusercontent.com/djynnius/ferraus/main/AGENTS.md for the contract: add `--json` to
+   every call, plan with `--dry-run`, never pass `--overwrite` unless asked, and only download models
+   (`-y`) when the user agrees.
+```
+
 ## Examples
 
 [examples/](examples/) has runnable shell scripts, pipeline files, an MCP client, and a Claude
