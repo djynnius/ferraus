@@ -66,3 +66,36 @@ jobs:
             cp /repo/rpm/ferraus.repo /etc/yum.repos.d/
             dnf install -y ferraus
             ferraus --version'
+
+  # The published repositories, installed exactly as docs/guides/getting-started.md says.
+  live-repos:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:trixie", "ubuntu:24.04"]
+    steps:
+      - name: apt install (${{ matrix.image }})
+        run: |
+          docker run --rm ${{ matrix.image }} sh -euxc '
+            apt-get update -q && apt-get install -y -q curl ca-certificates sudo
+            sudo mkdir -p /etc/apt/keyrings
+            sudo curl -fsSLo /etc/apt/keyrings/ferraus-archive-keyring.asc https://djynnius.github.io/packages/ferraus-archive-keyring.asc
+            sudo curl -fsSLo /etc/apt/sources.list.d/ferraus.sources https://djynnius.github.io/packages/apt/ferraus.sources
+            sudo apt update && sudo apt install -y ferraus
+            ferraus --version
+            ferraus doctor --json | grep -q "\"ok\":true"'
+
+  live-repos-dnf:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: dnf install (Fedora)
+        run: |
+          docker run --rm fedora:latest sh -euxc '
+            dnf install -y -q sudo
+            sudo curl -fsSLo /etc/yum.repos.d/ferraus.repo https://djynnius.github.io/packages/rpm/ferraus.repo
+            sudo dnf install -y ferraus
+            ferraus --version
+            ferraus doctor --json | grep -q "\"ok\":true"'
