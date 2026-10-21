@@ -43,6 +43,21 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 `ferraus describe --agent` prints the whole command surface in under 4,000 tokens. See
 [AGENTS.md](AGENTS.md).
 
+### Install the ferraus skill
+
+The skill teaches an agent when and how to use ferraus (the `--json` contract, dry runs, model
+downloads). Install it with one of:
+
+| Agent | Command |
+| --- | --- |
+| Claude Code | `claude plugin marketplace add djynnius/ferraus`, then `claude plugin install ferraus@ferraus` |
+| Other agents (Cursor, Codex, Gemini CLI, …) | `npx skills add djynnius/ferraus --skill ferraus`, then pick your agent |
+| Any agent, by hand | copy [`skills/ferraus/SKILL.md`](skills/ferraus/SKILL.md) into the agent's skills folder |
+
+The skill drives the `ferraus` command, so install the CLI first (see [Install](#install)).
+
+### One prompt that sets everything up
+
 To set up an agent, paste this into it:
 
 ```text

@@ -66,6 +66,12 @@ ferraus score read minuet.pdf -o minuet.musicxml --review -y --json
 ferraus score perform sonata.musicxml --instrument piano -o sonata.wav --json
 ```
 
+## Skill
+
+The ferraus skill ([skills/ferraus/SKILL.md](skills/ferraus/SKILL.md)) carries this manual into
+agents that load skills. Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
+`claude plugin install ferraus@ferraus`. Other agents: `npx skills add djynnius/ferraus --skill ferraus`.
+
 ## MCP
 
 ```bash
