@@ -87,7 +87,7 @@ pub fn varispeed(x: &[f32], factor: f64) -> Vec<f32> {
             }
             let wsum = sum8(&w);
             let acc: f32 = if lo >= 0 && lo + taps as isize <= n {
-                dot8(&x[lo as usize..lo as usize + taps], &w)
+                crate::util::dot8(&x[lo as usize..lo as usize + taps], &w)
             } else {
                 // near the edges, samples outside the signal count as zero
                 let first = (-lo).max(0) as usize;
@@ -101,20 +101,6 @@ pub fn varispeed(x: &[f32], factor: f64) -> Vec<f32> {
             }
         })
         .collect()
-}
-
-/// Dot product with eight independent accumulators, so the compiler can vectorize it.
-#[inline(always)]
-fn dot8(a: &[f32], b: &[f32]) -> f32 {
-    let mut acc = [0.0f32; 8];
-    let (ca, cb) = (a.chunks_exact(8), b.chunks_exact(8));
-    let tail: f32 = ca.remainder().iter().zip(cb.remainder()).map(|(x, y)| x * y).sum();
-    for (x, y) in ca.zip(cb) {
-        for (s, (p, q)) in acc.iter_mut().zip(x.iter().zip(y)) {
-            *s += p * q;
-        }
-    }
-    acc.iter().sum::<f32>() + tail
 }
 
 #[inline(always)]
