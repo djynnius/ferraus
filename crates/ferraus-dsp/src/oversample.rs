@@ -76,9 +76,9 @@ pub fn kaiser_lowpass(len: usize, fc: f64, beta: f64) -> Vec<f64> {
 pub struct Oversampler {
     factor: usize,
     taps: usize,
-    /// Prototype filter, length `factor * (taps + 1)` (last `factor - 1` entries zero).
+    /// Prototype filter, zero-padded to a multiple of 8 taps for [`crate::util::dot8`].
     h: Vec<f32>,
-    /// Polyphase rows: `phases[p][k] = factor * h[k*factor + p]`.
+    /// Polyphase rows: `phases[p][k] = factor * h[k*factor + p]`, zero-padded the same way.
     phases: Vec<Vec<f32>>,
     up: History,
     down: History,
@@ -97,8 +97,18 @@ impl Oversampler {
         for (i, v) in proto.iter().enumerate() {
             h[i] = *v as f32;
         }
-        let phases = (0..factor).map(|p| (0..=taps).map(|k| factor as f32 * h[k * factor + p]).collect()).collect();
-        Oversampler { factor, taps, h: h[..len].to_vec(), phases, up: History::new(taps + 1), down: History::new(len) }
+        // the padding taps are zero and multiply the oldest history samples
+        let (row_len, down_len) = ((taps + 1).next_multiple_of(8), len.next_multiple_of(8));
+        let phases = (0..factor)
+            .map(|p| {
+                let mut row: Vec<f32> = (0..=taps).map(|k| factor as f32 * h[k * factor + p]).collect();
+                row.resize(row_len, 0.0);
+                row
+            })
+            .collect();
+        h.truncate(len);
+        h.resize(down_len, 0.0);
+        Oversampler { factor, taps, h, phases, up: History::new(row_len), down: History::new(down_len) }
     }
 
     pub fn factor(&self) -> usize {
@@ -133,12 +143,7 @@ impl Oversampler {
         self.up.push(x);
         let hist = self.up.slice();
         for (p, o) in out.iter_mut().enumerate().take(self.factor) {
-            let row = &self.phases[p];
-            let mut acc = 0.0f32;
-            for k in 0..row.len() {
-                acc += row[k] * hist[k];
-            }
-            *o = acc;
+            *o = crate::util::dot8(&self.phases[p], hist);
         }
     }
 
@@ -150,10 +155,7 @@ impl Oversampler {
         }
         self.down.push(block[0]);
         let hist = self.down.slice();
-        let mut acc = 0.0f32;
-        for (a, b) in self.h.iter().zip(hist) {
-            acc += a * b;
-        }
+        let acc = crate::util::dot8(&self.h, hist);
         for v in &block[1..self.factor] {
             self.down.push(*v);
         }

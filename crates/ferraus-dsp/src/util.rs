@@ -169,6 +169,20 @@ pub fn peak(x: &[f32]) -> f32 {
     x.iter().fold(0.0f32, |m, v| m.max(v.abs()))
 }
 
+/// Dot product with eight independent accumulators, so the compiler can vectorize it.
+#[inline(always)]
+pub(crate) fn dot8(a: &[f32], b: &[f32]) -> f32 {
+    let mut acc = [0.0f32; 8];
+    let (ca, cb) = (a.chunks_exact(8), b.chunks_exact(8));
+    let tail: f32 = ca.remainder().iter().zip(cb.remainder()).map(|(x, y)| x * y).sum();
+    for (x, y) in ca.zip(cb) {
+        for (s, (p, q)) in acc.iter_mut().zip(x.iter().zip(y)) {
+            *s += p * q;
+        }
+    }
+    acc.iter().sum::<f32>() + tail
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
