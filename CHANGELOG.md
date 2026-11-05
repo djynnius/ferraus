@@ -4,7 +4,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
-## [Unreleased]
+## [0.1.3] — 2026-11-05
 
 ### Added
 - `mix balance <stems...>`: measures every stem (BS.1770 gated, in the sum's channel layout)
@@ -39,6 +39,10 @@ change to any `--json` schema or exit code is a major version.
   whose inputs `tools/eval/make_session.py` generates. Contract tests check every command and
   pipeline in the skills against the CLI.
 - Cookbook: [stems to master](docs/guides/cookbook/stems-to-master.md).
+- MCP directory listings: `server.json` for the official MCP Registry
+  (`io.github.djynnius/ferraus`, the container image run as `mcp serve --allow /work`) and
+  `glama.json`; the container images carry the `io.modelcontextprotocol.server.name` label the
+  registry checks.
 
 ### Changed
 - The global `--bpm` replaces the detected tempo in `master`, `master plan`, and
