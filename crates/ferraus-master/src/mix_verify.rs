@@ -206,12 +206,14 @@ fn shell_quote(s: &str) -> String {
     }
 }
 
-/// `<dir>/<stem>.fixed.wav` next to the mix.
+/// `<dir>/<stem>.fixed.wav` next to the mix. Only the file name is replaced, so the directory
+/// keeps the separators the user typed (a hint must be runnable as written on every OS).
 fn fixed_path(path: &str) -> String {
     let p = Path::new(path);
-    match p.file_stem() {
-        Some(stem) if path != "-" => {
-            p.with_file_name(format!("{}.fixed.wav", stem.to_string_lossy())).display().to_string()
+    match (p.file_name(), p.file_stem()) {
+        (Some(name), Some(stem)) if path != "-" => {
+            let dir = path.strip_suffix(&*name.to_string_lossy()).unwrap_or("");
+            format!("{dir}{}.fixed.wav", stem.to_string_lossy())
         }
         _ => "mix.fixed.wav".into(),
     }
@@ -1088,6 +1090,10 @@ mod tests {
             cmd,
             "ferraus fx 'takes/my mix.wav' -o 'takes/my mix.fixed.wav' --fx \"dc-remove\" --fx \"gain:by=-2dB\""
         );
+        // the directory keeps the separators as typed, on every OS
+        assert_eq!(fixed_path("takes\\my mix.wav"), "takes\\my mix.fixed.wav");
+        assert_eq!(fixed_path("mix.wav"), "mix.fixed.wav");
+        assert_eq!(fixed_path("-"), "mix.fixed.wav");
         let mut s = vec!["gain:by=-1dB", "widen:amount=80%", "eq:band=peak:1kHz:-3dB:q=1.0", "declip", "dc-remove"];
         s.sort_by_key(|x| stage_rank(x));
         assert_eq!(s, ["dc-remove", "declip", "eq:band=peak:1kHz:-3dB:q=1.0", "widen:amount=80%", "gain:by=-1dB"]);
