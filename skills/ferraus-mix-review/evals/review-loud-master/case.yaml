@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: review-loud-master
+expected_outcome: |
+  A review that identifies it as a master, flags the low PLR / heavy limiting, computes how much Spotify and Apple will turn it down, checks true peak and mono, and gives prioritized notes with runnable fixes, without modifying the audio.
+context:
+  scaffold_script: place-files.sh

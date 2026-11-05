@@ -246,6 +246,9 @@ fn check_example(reg: &ferraus_core::Registry, cmd: &str) -> Result<(), String> 
     }
     let bare = argv.len() == 1 + nwords;
     match Args::build(op, pairs, &|_, _| None) {
+        Ok(args) if matches!(op.runner, ferraus_core::Runner::Chain) && !bare => {
+            ferraus_core::pipeline::validate_chain(&args, reg).map_err(|e| format!("{cmd}\n  {}", e.message))
+        }
         Ok(_) => Ok(()),
         // a bare command name in prose ("ferraus jobs status") is not an invocation
         Err(e) if bare && e.message.contains("requires") => Ok(()),
@@ -318,6 +321,199 @@ fn prd_examples_parse() {
     assert!(bad.is_empty(), "{} PRD examples do not parse:\n{}", bad.len(), bad.join("\n"));
 }
 
+/// Every concrete `ferraus ...` command in a Markdown text: lines of fenced code blocks
+/// (shell continuations joined, block quotes included) and inline code spans.
+fn md_command_candidates(text: &str) -> Vec<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    let mut in_block = false;
+    let mut pending = String::new();
+    for line in text.lines() {
+        // code inside block quotes (test-file recipes) counts too
+        let line = line.trim_start().trim_start_matches('>').trim_start();
+        if line.starts_with("```") {
+            in_block = !in_block;
+            continue;
+        }
+        if in_block {
+            // join shell line continuations
+            if !pending.is_empty() {
+                pending.push(' ');
+                pending.push_str(line.trim_end_matches('\\').trim());
+                if !line.ends_with('\\') {
+                    candidates.push(std::mem::take(&mut pending));
+                }
+            } else if line.starts_with("ferraus ") {
+                if line.ends_with('\\') {
+                    pending = line.trim_end_matches('\\').trim().to_string();
+                } else {
+                    candidates.push(line.to_string());
+                }
+            }
+        } else {
+            for span in line.split('`').skip(1).step_by(2) {
+                if span.starts_with("ferraus ") {
+                    candidates.push(span.to_string());
+                }
+            }
+        }
+    }
+    candidates
+}
+
+/// Recursively list the Markdown files under `dir`.
+fn md_files_under(dir: &Path, out: &mut Vec<PathBuf>) {
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            md_files_under(&p, out);
+        } else if p.extension().map(|x| x == "md").unwrap_or(false) {
+            out.push(p);
+        }
+    }
+}
+
+/// Every concrete `ferraus ...` command in the companion skills (skills/*/SKILL.md and
+/// their references) validates against the CLI, including the stages of `--fx` chains.
+/// Skills are what agents copy from; a stale flag there fails a whole unsupervised job.
+#[test]
+fn skill_examples_parse() {
+    let reg = ferraus_cli::registry();
+    let mut files = Vec::new();
+    md_files_under(&repo_root().join("skills"), &mut files);
+    files.sort();
+    let mut bad = Vec::new();
+    let mut checked = 0;
+    for f in &files {
+        for c in md_command_candidates(&std::fs::read_to_string(f).unwrap()) {
+            if c.contains('<') || c.contains("...") || c.contains('…') {
+                continue;
+            }
+            let second = c.split_whitespace().nth(1).unwrap_or("");
+            if second.starts_with('-') {
+                continue;
+            }
+            checked += 1;
+            if let Err(msg) = check_example(&reg, &c) {
+                bad.push(format!("{}: {msg}", f.strip_prefix(repo_root()).unwrap_or(f).display()));
+            }
+        }
+    }
+    assert!(checked > 50, "only {checked} skill examples found");
+    assert!(bad.is_empty(), "{} skill examples do not parse:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// Every YAML block in the skills (and every .yaml file under skills/) is a valid pipeline,
+/// a list of pipeline stages, or a list of fx chain items: ops exist, arguments parse,
+/// `$refs` and `in:` resolve, chains validate item by item.
+#[test]
+fn skill_pipelines_validate() {
+    use serde_json::{json, Value};
+    let reg = ferraus_cli::registry();
+    let mut docs: Vec<(String, String)> = Vec::new();
+    let mut files = Vec::new();
+    md_files_under(&repo_root().join("skills"), &mut files);
+    for f in &files {
+        let text = std::fs::read_to_string(f).unwrap();
+        let mut block: Option<String> = None;
+        for line in text.lines() {
+            let tl = line.trim_start();
+            match &mut block {
+                None if tl.starts_with("```yaml") => block = Some(String::new()),
+                Some(b) if tl.starts_with("```") => {
+                    docs.push((f.display().to_string(), std::mem::take(b)));
+                    block = None;
+                }
+                Some(b) => {
+                    b.push_str(line);
+                    b.push('\n');
+                }
+                None => {}
+            }
+        }
+    }
+    fn yaml_files(dir: &Path, out: &mut Vec<PathBuf>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                yaml_files(&p, out);
+            } else if p.extension().map(|x| x == "yaml" || x == "yml").unwrap_or(false) {
+                out.push(p);
+            }
+        }
+    }
+    let mut yfiles = Vec::new();
+    yaml_files(&repo_root().join("skills"), &mut yfiles);
+    for f in &yfiles {
+        docs.push((f.display().to_string(), std::fs::read_to_string(f).unwrap()));
+    }
+    let mut bad = Vec::new();
+    let mut checked = 0;
+    for (src, text) in &docs {
+        // dedent (blocks inside lists are indented)
+        let indent =
+            text.lines().filter(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start().len()).min().unwrap_or(0);
+        let text: String = text.lines().map(|l| l.get(indent..).unwrap_or("").to_string() + "\n").collect();
+        let v: Value = match serde_yaml::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => {
+                bad.push(format!("{src}: YAML does not parse: {e}\n{text}"));
+                continue;
+            }
+        };
+        let pipeline_text = match &v {
+            Value::Object(o) if o.contains_key("version") => text.clone(),
+            Value::Array(items) if items.iter().all(|i| i.get("id").is_some()) => {
+                // stages: every `in` and `$ref` that is not a stage becomes an input
+                let ids: Vec<String> = items.iter().filter_map(|i| i["id"].as_str().map(String::from)).collect();
+                let mut inputs = serde_json::Map::new();
+                let mut refs: Vec<String> = Vec::new();
+                for it in items {
+                    match &it["in"] {
+                        Value::String(s) => refs.push(s.clone()),
+                        Value::Array(a) => refs.extend(a.iter().filter_map(|x| x.as_str().map(String::from))),
+                        _ => {}
+                    }
+                    fn walk(v: &Value, out: &mut Vec<String>) {
+                        match v {
+                            Value::String(s) => {
+                                if let Some(r) = ferraus_core::pipeline::arg_ref(s) {
+                                    out.push(r.to_string());
+                                }
+                            }
+                            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+                            Value::Object(o) => o.values().for_each(|x| walk(x, out)),
+                            _ => {}
+                        }
+                    }
+                    walk(&it["args"], &mut refs);
+                }
+                for r in refs {
+                    let base = r.split('.').next().unwrap_or(&r).to_string();
+                    if !ids.contains(&base) {
+                        inputs.insert(base.clone(), json!(format!("{base}.wav")));
+                    }
+                }
+                serde_json::to_string(&json!({"version": 1, "inputs": inputs, "stages": items})).unwrap()
+            }
+            Value::Array(items) if items.iter().all(|i| i.get("op").is_some()) => serde_json::to_string(&json!({
+                "version": 1,
+                "inputs": {"src": "src.wav"},
+                "stages": [{"id": "chain", "op": "fx", "in": "src", "args": {"chain": items}}],
+            }))
+            .unwrap(),
+            _ => continue,
+        };
+        checked += 1;
+        let r = ferraus_core::pipeline::parse(&pipeline_text, &[])
+            .and_then(|p| ferraus_core::pipeline::validate(&p, &reg).map(|_| ()));
+        if let Err(e) = r {
+            bad.push(format!("{src}: {}\n{text}", e.message));
+        }
+    }
+    assert!(checked >= 15, "only {checked} skill YAML blocks found");
+    assert!(bad.is_empty(), "{} skill YAML blocks do not validate:\n{}", bad.len(), bad.join("\n---\n"));
+}
+
 /// Every concrete `ferraus ...` command in the hand-written guides (tutorials, cookbook,
 /// concepts, getting started, troubleshooting) validates against the CLI.
 #[test]
@@ -340,39 +536,7 @@ fn guide_examples_parse() {
     let mut checked = 0;
     for f in &files {
         let text = std::fs::read_to_string(f).unwrap();
-        let mut candidates: Vec<String> = Vec::new();
-        let mut in_block = false;
-        let mut pending = String::new();
-        for line in text.lines() {
-            // code inside block quotes (test-file recipes) counts too
-            let line = line.trim_start().trim_start_matches('>').trim_start();
-            if line.starts_with("```") {
-                in_block = !in_block;
-                continue;
-            }
-            if in_block {
-                // join shell line continuations
-                if !pending.is_empty() {
-                    pending.push(' ');
-                    pending.push_str(line.trim_end_matches('\\').trim());
-                    if !line.ends_with('\\') {
-                        candidates.push(std::mem::take(&mut pending));
-                    }
-                } else if line.starts_with("ferraus ") {
-                    if line.ends_with('\\') {
-                        pending = line.trim_end_matches('\\').trim().to_string();
-                    } else {
-                        candidates.push(line.to_string());
-                    }
-                }
-            } else {
-                for span in line.split('`').skip(1).step_by(2) {
-                    if span.starts_with("ferraus ") {
-                        candidates.push(span.to_string());
-                    }
-                }
-            }
-        }
+        let candidates = md_command_candidates(&text);
         for c in candidates {
             if c.contains('<') || c.contains("...") || c.contains('…') {
                 continue;

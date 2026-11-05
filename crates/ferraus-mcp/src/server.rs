@@ -553,7 +553,10 @@ impl<'a> Server<'a> {
                 "Turn the humming at {recording} into a {instrument} part:\n1. ferraus_denoise with auto=true if the recording is noisy (check ferraus_analyze_problems first).\n2. ferraus_transcribe to MIDI (mode=mono), then ferraus_midi_quantize with grid=1/16 strength=80%.\n3. ferraus_render the MIDI with instrument={instrument}.\nOr do all of it with ferraus_hum to={instrument}. Report the MIDI path, detected tempo and key, and the audio path."),
             ("master-song", "Master a mix to a delivery target with an analyze, plan, verify loop",
                 vec![("mix", "Path to the final mix", true), ("target", "streaming, apple, youtube, club, cd, broadcast, podcast (default streaming)", false), ("reference", "Optional reference track", false)],
-                "Master {mix} for {target}:\n1. ferraus_master_analyze (reference={reference} if given); read the loudness, tonal balance, stereo, and problem list.\n2. ferraus_master_plan with target={target}; inspect the chain and edit values if the analysis suggests it.\n3. ferraus_master with plan=<edited plan file> and report=<json path>.\n4. ferraus_master_verify against {target}. If it fails, adjust the plan and repeat from step 3.\n5. ferraus_compare the mix and the master to confirm nothing was damaged.\nStop when verify passes and the deviations are within 1 dB per band; report the final loudness and true peak."),
+                "Master {mix} for {target}:\n1. ferraus_master_analyze (reference={reference} if given); read the loudness, tonal balance, stereo, and problem list. If context.looks_mastered is true (or PLR is under 10 dB), the mix is already limited: say so and master gently (intensity=light) or ask for the unlimited mix.\n2. ferraus_master_plan with target={target} and trim_silence=off; inspect the chain: cap corrective EQ boosts below 40 Hz at +2 dB, and remove compression or widening the analysis does not call for.\n3. ferraus_master with plan=<edited plan file>, relevel=true (the final gain and limiter are searched again so the edited plan lands on the target), report=<json path>, and ab=true.\n4. ferraus_master_verify against {target}. If it fails, adjust the plan and repeat from step 3.\n5. ferraus_analyze_similarity on the loudness-matched pair (<output>.ab-before.wav, <output>.ab-after.wav): the verdict should not be 'different'.\nStop when verify passes; report every plan edit with its reason, and the loudness, true peak, and crest factor before and after."),
+            ("mix-stems", "Mix a folder of stems to a balanced, ready-to-master mix, deciding from measurements",
+                vec![("folder", "Folder (or space-separated list) of stems, all starting at bar 1", true), ("genre", "pop, hiphop, edm, rock, acoustic, or jazz (default pop)", false)],
+                "Mix the stems in {folder} as a {genre} record, ready for mastering. You cannot listen: take every decision from a measurement and check it with one.\n1. Intake: ferraus_info, ferraus_analyze_loudness, ferraus_analyze_stereo, and ferraus_analyze_problems on every stem. Ignore silence_head/silence_tail (stems start at bar 1 on purpose) and hum on bass, pads, and synths (low notes look like hum); never trim or shift a stem. A stereo stem with correlation above 0.98 is a mono source: collapse it to pan it, or add chorus (not widen) to make it wide.\n2. Faders: ferraus_mix_balance on all stems with genre={genre} and anchor_lufs=-21LUFS; use its gains.\n3. Per stem: ferraus_fx with a chain by role (high-pass, corrective cuts, compress with makeup=0dB, de-ess on vocals), then measure again and correct the fader so ferraus_mix_balance on the processed stems returns gains within 0.5 dB.\n4. Conflicts: ferraus_analyze_masking with the priority stem first (kick then bass; lead vocal then each midrange part) on processed stems; apply each region's suggested_fix to the second stem, or duck it with ferraus_compress sidechain=<priority stem> (sidechain_hpf=0Hz when the key is a kick or bass), until no regions remain.\n5. Sum with ferraus_mix (pans: bass, kick, snare, lead vocal centred; similar parts mirrored left and right), add a reverb send at mix=100%, and keep the true peak at or below -3 dBTP with no limiter.\n6. Vocal balance: integrated LUFS of the vocals minus the rest must sit in -4..0 LU for pop and hiphop (-6..-2 rock, -7..-2 edm, -3..+1 acoustic, -6..-1 jazz).\n7. Gate: ferraus_mix_verify with genre={genre}; apply the fix of each failed check and repeat until it passes.\nReport every decision with the number that justified it, the final gate values, and every output path."),
         ]
     }
 
@@ -583,6 +586,7 @@ impl<'a> Server<'a> {
                 "instrument" => "piano",
                 "target" => "streaming",
                 "reference" => "(none)",
+                "genre" => "pop",
                 _ => "",
             };
             text = text.replace(&format!("{{{p}}}"), &v.unwrap_or_else(|| default.to_string()));
@@ -918,6 +922,22 @@ mod tests {
         assert_eq!(r["result"]["structuredContent"]["error"]["code"], "path_not_allowed");
         let r = s.handle(&json!({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"ferraus_gain","arguments":{"inputs":["in.wav"],"output":"../escape.wav"}}}), None, None).unwrap();
         assert_eq!(r["result"]["isError"], true);
+    }
+
+    #[test]
+    fn mix_stems_prompt_fills_its_arguments() {
+        let d = testing::TempDir::new("mcp-prompt-mix");
+        let s = server(&d.0);
+        let list = s.list_prompts();
+        let names: Vec<&str> =
+            list["prompts"].as_array().unwrap().iter().map(|p| p["name"].as_str().unwrap()).collect();
+        assert!(names.contains(&"mix-stems") && names.contains(&"master-song"), "{names:?}");
+        let r = s.get_prompt("mix-stems", &json!({"folder": "stems/"})).unwrap();
+        let text = r["messages"][0]["content"]["text"].as_str().unwrap();
+        assert!(text.contains("stems/") && text.contains("as a pop record"), "{text}");
+        assert!(text.contains("ferraus_mix_verify") && text.contains("ferraus_analyze_masking"));
+        assert!(!text.contains('{'), "unfilled placeholder: {text}");
+        assert!(s.get_prompt("mix-stems", &json!({})).is_err());
     }
 
     #[test]

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: clean-and-tune-take
+expected_outcome: |
+  The agent measures problems, removes hum and hiss with measured confirmation, tunes to A minor with natural settings, reports mean/max pitch deviation before and after, and delivers a processed vocal with notes.
+context:
+  scaffold_script: place-files.sh

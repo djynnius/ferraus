@@ -55,4 +55,4 @@ Resources: `ferraus://catalog`, `ferraus://presets`, `ferraus://models`, `ferrau
 `ferraus://sounds`, and templates `ferraus://presets/{effect}`, `ferraus://jobs/{id}`,
 `ferraus://docs/{command}`, `ferraus://schema/{command}`.
 
-Prompts: `clean-and-tune-vocal`, `extract-stems-for-remix`, `hum-to-instrument`, `master-song`.
+Prompts: `clean-and-tune-vocal`, `extract-stems-for-remix`, `hum-to-instrument`, `master-song`, `mix-stems`.

@@ -109,6 +109,11 @@
         "default": "80Hz",
         "x-ferraus-kind": "freq"
       },
+      "sidechain": {
+        "type": "string",
+        "description": "External key: compute the gain from this file instead of the input (ducking: compress the bass keyed by the kick) Type: path.",
+        "x-ferraus-kind": "path"
+      },
       "mix": {
         "oneOf": [
           {

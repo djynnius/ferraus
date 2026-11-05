@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: already-limited-input
+expected_outcome: |
+  The agent notices the input already looks mastered (PLR about 7.6 dB, looks_mastered true), does not stack another heavy master on it, explains that streaming normalization turns loud masters down, and either asks for/recommends the unlimited mix or uses a light intensity with a target no louder than the input.
+context:
+  scaffold_script: place-files.sh

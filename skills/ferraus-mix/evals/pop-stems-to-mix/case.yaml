@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: pop-stems-to-mix
+expected_outcome: |
+  A mix/ folder holds mix.yaml (a ferraus pipeline), mix.wav, and MIX_NOTES.md; mix.wav passes `ferraus mix verify --genre pop`; the notes report measured gates (vocal-to-music, stereo, headroom, masking) rather than adjectives.
+context:
+  scaffold_script: place-files.sh

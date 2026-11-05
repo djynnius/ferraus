@@ -612,17 +612,160 @@ fn clipped_mix_runs_declip_first_when_available() {
 
 #[test]
 fn every_op_documents_itself() {
-    let names = ["master", "master analyze", "master plan", "master verify", "master deliver"];
+    let names = ["master", "master analyze", "master plan", "master verify", "master deliver", "mix verify"];
     let ops = ferraus_master::ops();
     assert_eq!(ops.len(), names.len());
     for n in names {
         let op = ops.iter().find(|o| o.name == n).unwrap();
         assert!(!op.about.is_empty(), "{n}");
-        assert!(op.examples.len() >= 2, "{n}");
-        assert!(op.examples.iter().all(|e| e.cmd.starts_with("ferraus master")), "{n}");
+        assert!(op.examples.len() >= if n == "mix verify" { 3 } else { 2 }, "{n}");
+        assert!(op.examples.iter().all(|e| e.cmd.starts_with(&format!("ferraus {n}"))), "{n}");
         for p in &op.params {
             assert!(!p.help.is_empty(), "{n} --{}", p.name);
         }
         assert_eq!(op.category, ferraus_core::Category::Mastering);
     }
+}
+
+/// Apply fx stage strings in order, through the registry (what `ferraus fx --fx ...` runs).
+fn apply_fixes(stages: &[String], mut buf: AudioBuffer) -> AudioBuffer {
+    let mut ctx = ferraus_core::testing::ctx_with(registry());
+    for s in stages {
+        let (name, pairs) = ferraus_core::op::parse_stage_string(s).unwrap();
+        buf = ferraus_core::exec::run_transform_pairs(registry(), &|_, _| None, &name, pairs, buf, &mut ctx)
+            .unwrap_or_else(|e| panic!("{s}: {}", e.message));
+    }
+    buf
+}
+
+fn failed_checks(env: &Value) -> Vec<String> {
+    env["metrics"]["failed_checks"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn mix_verify_fails_with_a_runnable_hint_and_its_fixes_work() {
+    let td = TempDir::new("mix-verify");
+    // a hot, clipped bounce of the synthetic pop song
+    let mut hot = song(&short(style("pop"), 4.0));
+    let peak = hot.peak();
+    hot.scale(1.6 / peak);
+    hot.data.iter_mut().flatten().for_each(|v| *v = v.clamp(-1.0, 1.0));
+    let p = td.path("hot.wav");
+    write(&p, &hot);
+    let report = td.path("hot.report.json");
+    let o = invoke("mix verify", &[&p], &[("genre", "pop")], Some(&report));
+    let env = serde_json::to_value(&o.envelope).unwrap();
+    assert_eq!(env["ok"], false);
+    let err = &env["error"];
+    assert_eq!(err["exit_code"], 9, "{err}");
+    assert_eq!(err["code"], "verification_failed");
+    let failed = failed_checks(&env);
+    for c in ["clipping", "true_peak"] {
+        assert!(failed.iter().any(|f| f == c), "{c} not in {failed:?}");
+        assert!(err["message"].as_str().unwrap().contains(c), "{}", err["message"]);
+    }
+    let hint = err["hint"].as_str().unwrap();
+    assert!(hint.starts_with("ferraus fx ") && hint.contains("--fx \"declip\""), "{hint}");
+    assert_eq!(env["metrics"]["pass"], false);
+    assert_eq!(env["metrics"]["genre"], "pop");
+    // the report is kept when the mix fails
+    let saved: Value = serde_json::from_slice(&std::fs::read(&report).unwrap()).unwrap();
+    assert_eq!(saved["pass"], false);
+    assert!(saved["checks"].as_array().unwrap().len() >= 14);
+    assert_eq!(saved["fix_command"].as_str().unwrap(), hint);
+
+    // the fixes the gate asked for clear those checks
+    let fixes: Vec<String> =
+        env["metrics"]["fixes"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+    let fixed = apply_fixes(&fixes, read_wav(&p));
+    let pf = td.path("hot.fixed.wav");
+    write(&pf, &fixed);
+    let o = invoke("mix verify", &[&pf], &[("genre", "pop")], None);
+    let env = serde_json::to_value(&o.envelope).unwrap();
+    let still: Vec<String> = if o.envelope.ok { vec![] } else { failed_checks(&env) };
+    for c in ["clipping", "true_peak", "integrated_lufs"] {
+        assert!(!still.iter().any(|f| f == c), "{c} still fails after {fixes:?}: {env}");
+    }
+}
+
+#[test]
+fn mix_verify_passes_a_clean_mix_and_rejects_bad_limits() {
+    let td = TempDir::new("mix-verify-ok");
+    // the synthetic pop song at a sensible mix level (-20 LUFS, or lower so the true peak
+    // keeps 3.5 dB of headroom), compared with itself as the reference
+    let mut b = song(&short(style("pop"), 4.0));
+    let l = loudness::loudness(&b);
+    let target = (-20.0f64).min(-3.5 - l.plr_db);
+    b.scale(10f64.powf((target - l.integrated_lufs) / 20.0) as f32);
+    let p = td.path("pop.wav");
+    write(&p, &b);
+    let path = p.display().to_string();
+    let o = invoke("mix verify", &[&p], &[("reference", path.as_str())], None);
+    let env = serde_json::to_value(&o.envelope).unwrap();
+    assert!(o.envelope.ok, "{env}");
+    let r = &env["result"];
+    assert_eq!(r["pass"], true);
+    assert_eq!(r["tonal_reference"], format!("reference: {path}"));
+    let tonal = r["checks"].as_array().unwrap().iter().find(|c| c["check"] == "tonal_balance").unwrap();
+    assert!(tonal["value"].as_f64().unwrap().abs() < 0.5, "{tonal}");
+    assert!(r["summary"].as_str().unwrap().starts_with("ready for mastering"));
+    // limits are validated
+    for (k, v) in [("min-lufs", "-10LUFS"), ("headroom", "+1dBTP"), ("mono-below", "10Hz"), ("tolerance", "0dB")] {
+        let o = invoke("mix verify", &[&p], &[(k, v)], None);
+        let e = o.envelope.error.as_ref().unwrap_or_else(|| panic!("--{k} {v} accepted"));
+        assert_eq!(e.exit_code, 2, "--{k} {v}: {}", e.message);
+    }
+}
+
+/// `master --plan --relevel`: an edited plan (dynamics stages removed) still lands on the
+/// target, while the same plan run as written misses it by the level those stages took out.
+#[test]
+fn relevel_lands_an_edited_plan_on_target() {
+    let td = TempDir::new("m-relevel");
+    let s = short(style("pop"), 6.0);
+    let inp = td.path("pop.wav");
+    write(&inp, &song(&s));
+    let plan_path = td.path("plan.json");
+    let o = invoke("master plan", &[&inp], &[], Some(&plan_path));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let mut plan: Value = serde_json::from_slice(&std::fs::read(&plan_path).unwrap()).unwrap();
+    let stages = plan["stages"].as_array_mut().unwrap();
+    let before = stages.len();
+    stages.retain(|st| st["stage"] != "dynamics");
+    assert!(stages.len() < before, "the pop plan has dynamics stages to remove");
+    let edited = td.path("edited.json");
+    std::fs::write(&edited, serde_json::to_vec(&plan).unwrap()).unwrap();
+    let edited_s = edited.display().to_string();
+
+    let as_written = td.path("as_written.wav");
+    let o = invoke("master", &[&inp], &[("plan", &edited_s)], Some(&as_written));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let written_lufs = loudness::integrated_lufs(&read_wav(&as_written));
+
+    let relevelled = td.path("relevelled.wav");
+    let o = invoke("master", &[&inp], &[("plan", &edited_s), ("relevel", "true")], Some(&relevelled));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let m = read_wav(&relevelled);
+    let l = loudness::loudness(&m);
+    assert!((l.integrated_lufs + 14.0).abs() <= 0.5, "relevelled to {} LUFS", l.integrated_lufs);
+    assert!(l.true_peak_dbtp <= -1.0, "{} dBTP", l.true_peak_dbtp);
+    assert!(
+        (l.integrated_lufs + 14.0).abs() < (written_lufs + 14.0).abs() || (written_lufs + 14.0).abs() <= 0.1,
+        "relevel did not get closer: {} vs {written_lufs}",
+        l.integrated_lufs
+    );
+    let env = serde_json::to_value(&o.envelope).unwrap();
+    assert_eq!(env["metrics"]["target_reached"], true);
+    let notes = env["result"]["notes"].as_array().unwrap();
+    assert!(notes.iter().any(|n| n.as_str().unwrap_or("").starts_with("relevelled")), "{notes:?}");
+    // the rest of the plan ran as written
+    let ops: Vec<&str> =
+        env["result"]["plan"]["stages"].as_array().unwrap().iter().map(|s| s["op"].as_str().unwrap()).collect();
+    assert!(!ops.contains(&"multiband") && ops.ends_with(&["gain", "limit"]), "{ops:?}");
+
+    // a plan without loudness stages cannot be relevelled
+    plan["stages"].as_array_mut().unwrap().retain(|st| st["stage"] != "loudness");
+    std::fs::write(&edited, serde_json::to_vec(&plan).unwrap()).unwrap();
+    let o = invoke("master", &[&inp], &[("plan", &edited_s), ("relevel", "true")], Some(&td.path("x.wav")));
+    assert!(!o.envelope.ok);
 }

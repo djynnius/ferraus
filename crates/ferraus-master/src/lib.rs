@@ -11,6 +11,7 @@
 //! | `master plan` | [`chain`], [`plan`] |
 //! | `master verify` | [`verify`] |
 //! | `master deliver` | [`deliver`] |
+//! | `mix verify` (the gate before mastering) | [`mix_verify`] |
 //!
 //! Data in the binary: [`targets::TARGETS`] (the PRD delivery table) and
 //! [`genres::GENRES`] (tonal curves and crest targets — hand-designed starting points, see
@@ -27,6 +28,7 @@ pub mod analyze;
 pub mod chain;
 pub mod deliver;
 pub mod genres;
+pub mod mix_verify;
 mod ops;
 pub mod plan;
 mod stems;

@@ -1,7 +1,7 @@
 //! # ferraus-edit
 //!
 //! The editing commands: `trim`, `cut`, `split`, `concat`, `resample`, `gain`, `normalize`,
-//! `channels`, `silence detect|trim|pad`, `mix`, `waveform`, and `spectrogram`.
+//! `channels`, `silence detect|trim|pad`, `mix`, `mix balance`, `waveform`, and `spectrogram`.
 //!
 //! Besides the ops, the crate exports reusable building blocks:
 //!
@@ -12,9 +12,12 @@
 //! * [`util::snap_to_zero`], [`util::remove_ranges`], [`range_ops::concat_buffers`],
 //!   [`mix::mix_buffers`], [`mix::pan_gains`], [`visual::stft_power`],
 //!   [`visual::mel_filterbank`].
+//! * [`balance::canonical_role`], [`balance::role_from_name`], [`balance::role_offset`] — the
+//!   stem roles and genre balance template behind `mix balance`.
 
 use ferraus_core::OpSpec;
 
+pub mod balance;
 pub mod channels;
 pub mod level;
 pub mod loudness;
@@ -35,6 +38,7 @@ pub fn ops() -> Vec<OpSpec> {
     v.extend(channels::ops());
     v.extend(silence::ops());
     v.extend(mix::ops());
+    v.extend(balance::ops());
     v.extend(visual::ops());
     v
 }

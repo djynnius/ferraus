@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: streaming-and-apple-master
+expected_outcome: |
+  The agent analyzes, plans with an explicit genre, reviews the plan, renders with a report and A/B pair, verifies against the streaming (and apple) targets, delivers wav24 and mp3, and writes MASTER_NOTES.md with plan edits and before/after numbers.
+context:
+  scaffold_script: place-files.sh

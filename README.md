@@ -13,6 +13,7 @@ ferraus separate song.mp3                         # vocals, drums, bass, other
 ferraus denoise take.wav --auto -o clean.wav      # learn the noise, remove it
 ferraus tune vocal.wav --key auto -o tuned.wav    # pitch-correct to the detected key
 ferraus hum idea.wav --to piano -o idea.piano.wav # humming → MIDI → a real instrument
+ferraus mix balance stems/*.wav --genre pop       # faders that put stems on a genre balance
 ferraus master mix.wav --target streaming         # release-ready master at -14 LUFS
 ```
 
@@ -28,6 +29,9 @@ ferraus master mix.wav --target streaming         # release-ready master at -14 
 * **MIDI and notation**: quantize, groove, hum-to-MIDI, rendering through SoundFonts, SFZ, or
   CLAP/VST3 instruments; scores (lead sheet, grand staff, drums, solfa) from audio or MIDI, and
   sheet-music PDFs performed as audio.
+* **Mixing**: stem balance to genre templates, level-aware masking analysis with the EQ cut
+  that fixes it, sidechain ducking, a pass/fail gate before mastering, and whole sessions as
+  cached pipeline files whose stages report their own measurements.
 * **Mastering**: one command, or an analyze → plan → verify loop an agent can drive.
 
 ## For AI agents
@@ -43,18 +47,33 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 `ferraus describe --agent` prints the whole command surface in under 4,000 tokens. See
 [AGENTS.md](AGENTS.md).
 
-### Install the ferraus skill
+### Install the skills
 
-The skill teaches an agent when and how to use ferraus (the `--json` contract, dry runs, model
-downloads). Install it with one of:
+The `ferraus` skill teaches an agent when and how to use ferraus (the `--json` contract, dry
+runs, model downloads). The companion skills carry an engineer's working method for whole
+jobs: every decision taken from a measurement, every result checked against a numeric gate,
+and the session delivered as an editable pipeline file plus a report. They are what let an
+agent mix and master a producer's stems unsupervised.
+
+| Skill | What it does |
+| --- | --- |
+| [`ferraus`](skills/ferraus/SKILL.md) | the CLI contract and the common one-command tasks; routes to the others |
+| [`ferraus-mix`](skills/ferraus-mix/SKILL.md) | stems → balanced, processed, panned mix with sends, ducking, and a pass/fail gate before mastering |
+| [`ferraus-master`](skills/ferraus-master/SKILL.md) | mix → reviewed and verified masters for every destination, deliverables, albums, alternate versions |
+| [`ferraus-vocals`](skills/ferraus-vocals/SKILL.md) | raw take → repaired, tuned, produced vocal; doubles and vocal effects |
+| [`ferraus-mix-review`](skills/ferraus-mix-review/SKILL.md) | measured, prioritized notes on a mix or master; reference and version comparisons |
+| [`ferraus-stems`](skills/ferraus-stems/SKILL.md) | stem export checks, separation, instrumental/a cappella/TV versions, remix prep |
+| [`ferraus-beats`](skills/ferraus-beats/SKILL.md) | drum patterns, chords, bass lines as DAW-ready MIDI, rendered to audition |
+
+Install them with one of:
 
 | Agent | Command |
 | --- | --- |
-| Claude Code | `claude plugin marketplace add djynnius/ferraus`, then `claude plugin install ferraus@ferraus` |
-| Other agents (Cursor, Codex, Gemini CLI, …) | `npx skills add djynnius/ferraus --skill ferraus`, then pick your agent |
-| Any agent, by hand | copy [`skills/ferraus/SKILL.md`](skills/ferraus/SKILL.md) into the agent's skills folder |
+| Claude Code | `claude plugin marketplace add djynnius/ferraus`, then `claude plugin install ferraus@ferraus` (all skills) |
+| Other agents (Cursor, Codex, Gemini CLI, …) | `npx skills add djynnius/ferraus`, then pick the skills and your agent |
+| Any agent, by hand | copy the folders under [`skills/`](skills/) into the agent's skills folder |
 
-The skill drives the `ferraus` command, so install the CLI first (see [Install](#install)).
+The skills drive the `ferraus` command, so install the CLI first (see [Install](#install)).
 
 ### One prompt that sets everything up
 
@@ -69,11 +88,11 @@ Install the ferraus CLI and its skill, then use ferraus for any audio, music, or
    on Windows (PowerShell):
    `powershell -ExecutionPolicy ByPass -c "irm https://github.com/djynnius/ferraus/releases/latest/download/ferraus-installer.ps1 | iex"`.
    Then run `ferraus doctor --json` and confirm "ok": true.
-2. Install the skill. In Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
-   `claude plugin install ferraus@ferraus`. In another agent: `npx skills add djynnius/ferraus --skill ferraus`
-   and select your agent. Use one method. You can read the skill directly at
-   https://github.com/djynnius/ferraus/blob/main/skills/ferraus/SKILL.md
-   (raw: https://raw.githubusercontent.com/djynnius/ferraus/main/skills/ferraus/SKILL.md).
+2. Install the skills. In Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
+   `claude plugin install ferraus@ferraus`. In another agent: `npx skills add djynnius/ferraus`
+   and select all the ferraus skills and your agent. Use one method. You can read the skills directly at
+   https://github.com/djynnius/ferraus/tree/main/skills
+   (the main one, raw: https://raw.githubusercontent.com/djynnius/ferraus/main/skills/ferraus/SKILL.md).
 3. Optional, if you support MCP: register `ferraus mcp serve --allow <music folder>` as an MCP server
    (Claude Code: `claude mcp add ferraus -- ferraus mcp serve --allow ~/Music`).
 4. Before the first task, run `ferraus describe --agent` for the command catalog and read

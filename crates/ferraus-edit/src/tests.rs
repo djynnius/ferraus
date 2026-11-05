@@ -56,13 +56,25 @@ fn run_custom(
     output: Option<&str>,
     setup: impl FnOnce(&mut OpCtx),
 ) -> (Result<Value>, OpCtx<'static>, TempDir) {
+    let names: Vec<String> = (0..inputs.len()).map(|i| format!("in{i}.wav")).collect();
+    let named: Vec<(&str, &AudioBuffer)> = names.iter().map(|n| n.as_str()).zip(inputs).collect();
+    run_custom_named(name, pairs, &named, output, setup)
+}
+
+/// [`run_custom`] with the inputs written under the given file names.
+fn run_custom_named(
+    name: &str,
+    pairs: &[(&str, &str)],
+    inputs: &[(&str, &AudioBuffer)],
+    output: Option<&str>,
+    setup: impl FnOnce(&mut OpCtx),
+) -> (Result<Value>, OpCtx<'static>, TempDir) {
     let spec = op(name);
     let dir = TempDir::new(&name.replace(' ', "-"));
     let paths: Vec<PathBuf> = inputs
         .iter()
-        .enumerate()
-        .map(|(i, b)| {
-            let p = dir.path(&format!("in{i}.wav"));
+        .map(|(file, b)| {
+            let p = dir.path(file);
             write_wav(&p, b);
             p
         })
@@ -156,6 +168,7 @@ fn every_op_is_documented() {
         "silence trim",
         "silence pad",
         "mix",
+        "mix balance",
         "waveform",
         "spectrogram",
     ] {
@@ -901,6 +914,230 @@ fn mix_normalize_clipping_and_errors() {
     let (_, _, dir) = run_custom("mix", &[], &[a, b], Some("r.wav"), |_| {});
     let out = read_wav(&dir.path("r.wav"));
     assert_eq!((out.sample_rate, out.frames()), (8000, 4000));
+}
+
+// ---------------------------------------------------------------------------------------
+// mix balance
+// ---------------------------------------------------------------------------------------
+
+fn scaled(b: &AudioBuffer, gain_db: f64) -> AudioBuffer {
+    let mut b = b.clone();
+    b.scale(db(gain_db));
+    b
+}
+
+fn gains_of(v: &Value) -> Vec<f64> {
+    v["inputs"].as_array().unwrap().iter().map(|i| i["gain_db"].as_f64().unwrap()).collect()
+}
+
+/// A quiet vocal-ish tone and a loud bass-ish tone, 3 s each.
+fn vocal_and_bass() -> (AudioBuffer, AudioBuffer) {
+    (sine(48000, 1000.0, 3.0, 0.05), sine(48000, 100.0, 3.0, 0.6))
+}
+
+#[test]
+fn balance_puts_each_stem_at_its_template_offset() {
+    let (vocal, bass) = vocal_and_bass();
+    let (r, c, _d) =
+        run_custom("mix balance", &[("roles", "vocal,bass")], &[vocal.clone(), bass.clone()], None, |_| {});
+    let v = r.unwrap();
+    assert_eq!((v["anchor"].as_str(), v["anchor_source"].as_str()), (Some("vocal"), Some("auto")));
+    assert_eq!(v["genre"], "pop");
+    assert_eq!(v["inputs"][1]["role_source"], "given");
+    assert_eq!(v["inputs"][1]["target_lufs"], -25.0);
+    let g = gains_of(&v);
+    // with the gains applied: the anchor vocal at -20 LUFS, the bass 5 dB under it (pop)
+    let lv = loudness::integrated_lufs(&scaled(&vocal, g[0])).unwrap();
+    let lb = loudness::integrated_lufs(&scaled(&bass, g[1])).unwrap();
+    assert!((lv + 20.0).abs() < 0.1, "vocal {lv}");
+    assert!((lb - lv + 5.0).abs() < 0.1, "bass {lb} vs vocal {lv}");
+    // the --gains strings carry the same values, and the mix command uses them
+    for (s, want) in v["gains"].as_array().unwrap().iter().zip(&g) {
+        assert!((units::parse_db(s.as_str().unwrap()).unwrap() - want).abs() < 1e-9, "{s}");
+    }
+    let cmd = v["mix_command"].as_str().unwrap();
+    assert!(cmd.starts_with("ferraus mix "), "{cmd}");
+    assert!(cmd.contains(&format!(
+        "--gains {},{} -o ",
+        v["gains"][0].as_str().unwrap(),
+        v["gains"][1].as_str().unwrap()
+    )));
+    assert_eq!(c.metrics["max_gain_db"].as_f64().unwrap(), g[0].max(g[1]));
+    assert_eq!(c.metrics["min_gain_db"].as_f64().unwrap(), g[0].min(g[1]));
+    assert_eq!(c.notes["roles"], "vocal,bass");
+    assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+    // hip-hop sits the bass 2 dB under the vocal; --anchor-lufs moves everything
+    let pairs = [("roles", "vocal,bass"), ("genre", "hiphop"), ("anchor-lufs", "-18LUFS")];
+    let (r, _, _d) = run_custom("mix balance", &pairs, &[vocal.clone(), bass.clone()], None, |_| {});
+    let g = gains_of(&r.unwrap());
+    let lv = loudness::integrated_lufs(&scaled(&vocal, g[0])).unwrap();
+    let lb = loudness::integrated_lufs(&scaled(&bass, g[1])).unwrap();
+    assert!((lv + 18.0).abs() < 0.1 && (lb + 20.0).abs() < 0.1, "{lv} {lb}");
+}
+
+#[test]
+fn balance_infers_roles_from_file_names() {
+    use crate::balance::role_from_name;
+    for (name, want) in [
+        ("08 Lead Vox.wav", Some("vocal")),
+        ("LeadVox.wav", Some("vocal")),
+        ("BV_harm.wav", Some("bvs")),
+        ("09 BV Oohs.wav", Some("bvs")),
+        ("Backing Vocals.wav", Some("bvs")),
+        ("808.wav", Some("sub")),
+        ("808Bass.wav", Some("sub")),
+        ("Sub Bass.wav", Some("sub")),
+        ("04 Bass.wav", Some("bass")),
+        ("Kick1.wav", Some("kick")),
+        ("Snares.wav", Some("snare")),
+        ("HiHat_01.wav", Some("hats")),
+        ("10 Synth Lead.wav", Some("lead")),
+        ("07 Gtr Arp.wav", Some("guitar")),
+        ("06 Pad.wav", Some("pad")),
+        ("Vocal FX.wav", Some("fx")),
+        ("song.vocals.wav", Some("vocal")),
+        ("song.other.wav", Some("other")),
+        ("take3.wav", None),
+    ] {
+        assert_eq!(role_from_name(std::path::Path::new(name)), want, "{name}");
+    }
+    // end to end: names, an explicit role (auto keeps inference for that input), a default
+    let (vocal, bass) = vocal_and_bass();
+    let pad = sine(48000, 500.0, 3.0, 0.1);
+    let stems = [("08 Lead Vox.wav", &vocal), ("04 Bass.wav", &bass), ("take3.wav", &pad)];
+    let (r, c, _d) = run_custom_named("mix balance", &[], &stems, None, |_| {});
+    let v = r.unwrap();
+    let roles: Vec<(&str, &str)> = v["inputs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| (i["role"].as_str().unwrap(), i["role_source"].as_str().unwrap()))
+        .collect();
+    assert_eq!(roles, [("vocal", "filename"), ("bass", "filename"), ("other", "default")]);
+    assert!(has_warning(&c, "role_default"));
+    // file names with spaces are quoted in the mix command
+    assert!(v["mix_command"].as_str().unwrap().contains("08 Lead Vox.wav'"), "{}", v["mix_command"]);
+    let (r, c, _d) = run_custom_named("mix balance", &[("roles", "auto,auto,pad")], &stems, None, |_| {});
+    assert_eq!(r.unwrap()["inputs"][2]["role"], "pad");
+    assert!(!has_warning(&c, "role_default"));
+}
+
+#[test]
+fn balance_render_reports_and_writes_the_sum() {
+    let (vocal, bass) = vocal_and_bass();
+    let stems = [vocal.clone(), bass.clone()];
+    let pairs = [("roles", "vocal,bass"), ("render", "true")];
+    // --render without -o measures the sum and writes nothing
+    let (r, c, _d) = run_custom("mix balance", &pairs, &stems, None, |_| {});
+    let v = r.unwrap();
+    let g = gains_of(&v);
+    let sum = testing::add(&scaled(&vocal, g[0]), &scaled(&bass, g[1]));
+    let want = loudness::integrated_lufs(&sum).unwrap();
+    assert!((v["render"]["integrated_lufs"].as_f64().unwrap() - want).abs() < 0.02);
+    assert!(v["render"]["true_peak_dbtp"].as_f64().unwrap() < -3.0);
+    assert_eq!(v["render"]["headroom_ok"], true);
+    assert!(v["render"].get("path").is_none());
+    assert!(c.outputs.is_empty());
+    // -o implies --render and writes the sum, which is what the mix command produces
+    let (r, c, dir) = run_custom("mix balance", &[("roles", "vocal,bass")], &stems, Some("bal.wav"), |_| {});
+    let v = r.unwrap();
+    assert_eq!(c.outputs.len(), 1);
+    assert!(v["render"]["path"].as_str().unwrap().ends_with("bal.wav"));
+    let written = read_wav(&dir.path("bal.wav"));
+    let gains = format!("{},{}", v["gains"][0].as_str().unwrap(), v["gains"][1].as_str().unwrap());
+    let (_, _, mdir) = run_custom("mix", &[("gains", &gains)], &stems, Some("m.wav"), |_| {});
+    assert!(testing::rms_diff(&written, &read_wav(&mdir.path("m.wav"))) < 1e-6);
+    // too hot an anchor: the sum loses its headroom and the warning says how far to come down
+    let (r, c, _d) = run_custom(
+        "mix balance",
+        &[("roles", "vocal,bass"), ("anchor-lufs", "-6LUFS"), ("render", "true")],
+        &stems,
+        None,
+        |_| {},
+    );
+    assert_eq!(r.unwrap()["render"]["headroom_ok"], false);
+    let w = c.warnings.iter().find(|w| w.code == "render_headroom").expect("render_headroom warning");
+    assert!(w.message.contains("--anchor-lufs -"), "{}", w.message);
+}
+
+#[test]
+fn balance_dry_run_plans_without_writing() {
+    let (vocal, bass) = vocal_and_bass();
+    let (r, c, dir) = run_custom("mix balance", &[], &[vocal, bass], Some("dry.wav"), |c| c.globals.dry_run = true);
+    let v = r.unwrap();
+    assert_eq!(v["gains"].as_array().unwrap().len(), 2);
+    assert!(v["render"]["integrated_lufs"].is_number());
+    assert_eq!(c.outputs.len(), 1);
+    assert!(!dir.path("dry.wav").exists(), "dry run must not write");
+}
+
+#[test]
+fn balance_measures_mono_stems_as_they_play_in_a_stereo_sum() {
+    // the same tone as a mono and as a stereo stem plays equally loud in the stereo sum
+    // (mix copies the mono one to both channels), so both get the same gain
+    let (vocal, bass) = vocal_and_bass();
+    let stems = [vocal.clone(), stereo(vocal.clone()), stereo(bass)];
+    let (r, _, _d) = run_custom("mix balance", &[("roles", "vocal,vocal,bass")], &stems, None, |_| {});
+    let v = r.unwrap();
+    assert_eq!(v["channels"], 2);
+    assert_eq!((v["inputs"][0]["channels"].as_u64(), v["inputs"][1]["channels"].as_u64()), (Some(1), Some(2)));
+    let g = gains_of(&v);
+    assert_eq!(g[0], g[1]);
+    let in_sum = loudness::integrated_lufs(&scaled(&vocal, g[0]).with_channels(2)).unwrap();
+    assert!((in_sum + 20.0).abs() < 0.1, "{in_sum}");
+    // an all-mono session stays mono and is measured as such
+    let (r, _, _d) = run_custom("mix balance", &[("roles", "vocal")], std::slice::from_ref(&vocal), None, |_| {});
+    let v = r.unwrap();
+    assert_eq!(v["channels"], 1);
+    assert!((loudness::integrated_lufs(&scaled(&vocal, gains_of(&v)[0])).unwrap() + 20.0).abs() < 0.1);
+}
+
+#[test]
+fn balance_anchor_choice() {
+    let (vocal, bass) = vocal_and_bass();
+    let anchor = |pairs: &[(&str, &str)], stems: &[AudioBuffer]| {
+        let v = run_custom("mix balance", pairs, stems, None, |_| {}).0.unwrap();
+        (v["anchor"].as_str().unwrap().to_string(), v["anchor_source"].as_str().unwrap().to_string(), gains_of(&v))
+    };
+    let both = [vocal.clone(), bass.clone()];
+    assert_eq!(anchor(&[("roles", "lead,kick")], &both).0, "lead");
+    assert_eq!(anchor(&[("roles", "pad,kick")], &both).0, "kick");
+    // none of vocal, lead, kick, drums: the loudest stem anchors (the bass here)
+    let (role, source, g) = anchor(&[("roles", "pad,bass")], &both);
+    assert_eq!((role.as_str(), source.as_str()), ("bass", "loudest"));
+    assert!((loudness::integrated_lufs(&scaled(&bass, g[1])).unwrap() + 20.0).abs() < 0.1);
+    // an explicit anchor (synonyms accepted) lands at --anchor-lufs; the vocal 5 dB over it
+    let (role, source, g) = anchor(&[("roles", "vox,bass"), ("anchor", "bass")], &both);
+    assert_eq!((role.as_str(), source.as_str()), ("bass", "given"));
+    assert!((loudness::integrated_lufs(&scaled(&bass, g[1])).unwrap() + 20.0).abs() < 0.1);
+    assert!((loudness::integrated_lufs(&scaled(&vocal, g[0])).unwrap() + 15.0).abs() < 0.1);
+}
+
+#[test]
+fn balance_warnings_and_errors() {
+    let (vocal, bass) = vocal_and_bass();
+    // a silent stem keeps 0 dB; a nearly silent one needs a suspicious boost
+    let (r, c, _d) =
+        run_custom("mix balance", &[("roles", "vocal,pad")], &[vocal.clone(), silence(48000, 3.0)], None, |_| {});
+    let v = r.unwrap();
+    assert_eq!(v["inputs"][1]["gain_db"], 0.0);
+    assert!(has_warning(&c, "silent_stem"));
+    let faint = sine(48000, 100.0, 3.0, 0.002);
+    let (r, c, _d) = run_custom("mix balance", &[("roles", "vocal,bass")], &[vocal.clone(), faint], None, |_| {});
+    assert!(gains_of(&r.unwrap())[1] > 12.0);
+    assert!(has_warning(&c, "large_gain"));
+    // usage errors (exit code 2)
+    let both = [vocal, bass];
+    for pairs in [
+        vec![("roles", "vocal,bass,keys")],
+        vec![("roles", "banjo")],
+        vec![("roles", "vocal,bass"), ("anchor", "kick")],
+        vec![("anchor", "banjo")],
+        vec![("anchor-lufs", "-1dBTP")],
+    ] {
+        let (r, _, _d) = run_custom("mix balance", &pairs, &both, None, |_| {});
+        assert_eq!(r.expect_err("expected a usage error").exit_code, 2, "{pairs:?}");
+    }
 }
 
 // ---------------------------------------------------------------------------------------

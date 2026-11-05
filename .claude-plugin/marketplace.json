@@ -5,7 +5,7 @@
     {
       "name": "ferraus",
       "source": "./",
-      "description": "Skill for driving the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, and master audio."
+      "description": "Skills for the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, mix stems, and master audio, with companion skills that mix and master unsupervised from measurements."
     }
   ]
 }

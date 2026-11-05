@@ -2,7 +2,7 @@
 //! function: it decodes the input(s), runs the analysis, records headline metrics, and
 //! returns the analysis struct (numbers rounded for tidy output) as the JSON result.
 
-use crate::{chords, compare, levels, loudness, problems, spectrum, stereo, tempo, util};
+use crate::{chords, compare, levels, loudness, masking, problems, spectrum, stereo, tempo, util};
 use ferraus_core::op::InputKind;
 use ferraus_core::prelude::*;
 use serde::Serialize;
@@ -61,6 +61,20 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus analyze similarity original.wav processed.wav --json", "Score near 1 means the character is unchanged")
             .example("ferraus analyze similarity mix.wav master.wav --json", "Check that mastering kept the character of the mix")
             .example("ferraus analyze similarity take1.wav take2.wav", "Compare two takes of the same part"),
+        OpSpec::custom("analyze masking", Category::Inspect, "Where stem b masks stem a (same bands, same time), with an EQ cut for b", analyze_masking)
+            .about("For mixing by numbers: a is the stem that keeps its place (vocal, kick), b the one that yields. Per third-octave band (31.5 Hz to 16 kHz) the spectral overlap is 1 when both stems peak there and falls to 0 when either is 18 dB below its own loudest band. It is weighted by co-activity, the share of the --window frames in which a plays that b plays too (a frame plays when its RMS is within --floor of the stem's loudest frame), so a kick that hits a fifth of the time still counts fully against a bass that is always under it, and parts that never play together cannot score above 0.25. With --levels as-is (the default, for balanced or processed stems) it is also weighted by level: margin_db is how far a sits above b in the band while each plays, and the band stops counting as b falls 10 dB under a, so a cut or a fader move on b lowers the score; with --levels ignore (raw stems whose gains mean nothing yet) only the spectral shapes count. score = overlap x (0.25 + 0.75 x co-activity) x level. Runs of bands at or above --threshold are reported worst first with a peak cut for b as a runnable fx stage in suggested_fix (level-aware: the cut that takes the band under the threshold; shape-only: 2 dB at the threshold, up to --max-cut at a score of 1); the top-level suggested_fix joins every region's cut into one eq stage. Both stems are mixed to mono and read from their first sample, so they must start together, as exported stems do.")
+            .inputs(Inputs::exactly(2, InputKind::Audio))
+            .param(param("threshold", ParamKind::Percent).default("50%").help("Band score at or above which a region is reported (0..100%)"))
+            .param(param("window", ParamKind::Time).default("100ms").help("Frame length for deciding when each stem is playing"))
+            .param(param("floor", ParamKind::Gain).default("-30dB").help("A frame counts as playing when its RMS is within this many dB of the stem's loudest frame"))
+            .param(param("max-cut", ParamKind::Gain).default("-4dB").help("Deepest suggested cut for b"))
+            .param(param("levels", ParamKind::Choice).choices(&["as-is", "ignore"]).default("as-is").help("as-is: a band only counts while b is within 10 dB of a there (balanced or processed stems; cuts and fader moves lower the score); ignore: compare spectral shapes only (raw, unbalanced stems)"))
+            .example("ferraus analyze masking kick.wav bass.wav --json", "Where the bass crowds the kick; every suggested_fix is an EQ cut for the bass")
+            .example("ferraus analyze masking vocal.wav keys.wav --threshold 40% --json", "Also report milder overlap between a lead vocal and a keys part")
+            .example("ferraus analyze masking vocals.wav instrumental.wav --max-cut -3dB --json", "Carve room for the vocal in a full instrumental, at most 3 dB per cut")
+            .example("ferraus analyze masking lead.wav pad.wav --window 250ms --floor -24dB --json", "Longer frames and a stricter activity floor for sustained parts")
+            .example("ferraus analyze masking vocal_raw.wav guitar_raw.wav --levels ignore --json", "Raw stems whose levels mean nothing yet: where could they clash once balanced")
+            .example("ferraus fx bass.wav -o bass_eq.wav --fx \"eq:band=peak:80Hz:-3dB:q=1.4\"", "Apply a region's suggested_fix to b"),
         OpSpec::custom("compare", Category::Inspect, "Null test: align b to a and report RMS and peak difference and SI-SDR", compare_op)
             .about("b is aligned to a by FFT cross-correlation (within --max-offset), resampled and channel-matched if needed, then compared sample by sample: RMS and peak of the difference, null depth, best-fit gain, SI-SDR of b against a, and loudness difference. The agent's regression test.")
             .inputs(Inputs::exactly(2, InputKind::Audio))
@@ -240,6 +254,105 @@ fn analyze_similarity(_a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     to_json(&r)
 }
 
+/// Read input `i` mixed to mono (masking works on mono; dropping the channels early halves
+/// the memory held for long stereo stems).
+fn read_mono(ctx: &mut OpCtx, i: usize) -> Result<AudioBuffer> {
+    let b = read(ctx, i)?;
+    Ok(if b.channels() > 1 { AudioBuffer::from_mono(b.sample_rate, b.mono_mix()) } else { b })
+}
+
+fn analyze_masking(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
+    let threshold = args.percent("threshold")?;
+    if !(threshold > 0.0 && threshold <= 1.0) {
+        return Err(Error::usage(format!(
+            "--threshold must be above 0% and at most 100%, got '{}'",
+            args.str_or("threshold", "")
+        )));
+    }
+    let window_s = args.seconds("window")?;
+    if !(0.01..=10.0).contains(&window_s) {
+        return Err(Error::usage(format!(
+            "--window must be between 10ms and 10s, got '{}'",
+            args.str_or("window", "")
+        )));
+    }
+    let floor_db = -args.db("floor")?.abs();
+    if !(1.0..=120.0).contains(&-floor_db) {
+        return Err(Error::usage(format!(
+            "--floor must be between -1dB and -120dB, got '{}'",
+            args.str_or("floor", "")
+        )));
+    }
+    let max_cut_db = -args.db("max-cut")?.abs();
+    if !(0.5..=24.0).contains(&-max_cut_db) {
+        return Err(Error::usage(format!(
+            "--max-cut must be between -0.5dB and -24dB, got '{}'",
+            args.str_or("max-cut", "")
+        )));
+    }
+    if let Some(p) = dry_plan(ctx) {
+        return Ok(p);
+    }
+    let name = |ctx: &OpCtx, i: usize, d: &str| -> String {
+        ctx.inputs
+            .get(i)
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| d.into())
+    };
+    let (a_label, b_label) = (name(ctx, 0, "a"), name(ctx, 1, "b"));
+    let a = read_mono(ctx, 0)?;
+    let b = read_mono(ctx, 1)?;
+    let opts = masking::MaskingOptions {
+        threshold,
+        window_s,
+        floor_db,
+        max_cut_db,
+        levels: args.choice("levels") != "ignore",
+        a_label: a_label.clone(),
+        b_label: b_label.clone(),
+    };
+    if b.sample_rate != a.sample_rate {
+        ctx.note("resampled_b_from_hz", b.sample_rate);
+    }
+    let r = masking::masking(&a, &b, &opts);
+    drop((a, b));
+    for (silent, label) in [(r.a_silent, &a_label), (r.b_silent, &b_label)] {
+        if silent {
+            ctx.warn("silent_input", format!("{label} has no audio above -80 dBFS; it cannot mask or be masked"));
+        }
+    }
+    if !r.a_silent && !r.b_silent && r.co_activity < 0.2 {
+        ctx.warn(
+            "low_co_activity",
+            format!(
+                "{b_label} plays during only {:.0}% of the time {a_label} plays; masking between them is unlikely to matter",
+                r.co_activity * 100.0
+            ),
+        );
+    }
+    if r.length_difference_s.abs() > 1.0 {
+        let d = r.length_difference_s;
+        let rel = if d > 0.0 { "longer" } else { "shorter" };
+        ctx.warn(
+            "length_differs",
+            format!("{b_label} is {:.1} s {rel} than {a_label}; both are read from their first sample, so they must start together", d.abs()),
+        );
+    }
+    ctx.metric("overall", util::tidy(r.overall));
+    ctx.metric("co_activity", util::tidy(r.co_activity));
+    ctx.metric("regions", r.regions.len());
+    let mut out = serde_json::Map::new();
+    for i in 0..2 {
+        let p = ctx.inputs.get(i).map(|p| p.display().to_string()).unwrap_or_default();
+        out.insert(if i == 0 { "a" } else { "b" }.into(), Value::String(p));
+    }
+    if let Value::Object(m) = to_json(&r)? {
+        out.extend(m);
+    }
+    Ok(Value::Object(out))
+}
+
 fn compare_op(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let opts =
         compare::CompareOptions { max_offset_s: args.seconds("max-offset")?.max(0.0), no_align: args.flag("no-align") };
@@ -346,6 +459,7 @@ mod tests {
             "analyze clipping",
             "analyze chords",
             "analyze similarity",
+            "analyze masking",
             "compare",
             "analyze problems",
             "analyze stats",
@@ -418,6 +532,91 @@ mod tests {
         assert!(v["correlation"].as_f64().unwrap() > 0.99);
         let (v, _) = run("analyze chords", &[], vec![p]);
         assert_eq!(v["best_effort"], true);
+    }
+
+    #[test]
+    fn masking_op_end_to_end() {
+        let d = TempDir::new("analysis-masking");
+        let (kick, bass, apart) = (d.path("kick.wav"), d.path("bass.wav"), d.path("apart.wav"));
+        testing::write_wav(&kick, &stereo(sine(22050, 63.0, 2.0, 0.5)));
+        testing::write_wav(&bass, &sine(22050, 60.0, 2.0, 0.3));
+        let (v, c) = run("analyze masking", &[("levels", "ignore")], vec![kick.clone(), bass.clone()]);
+        assert_eq!(v["a"], kick.display().to_string());
+        assert_eq!(v["b"], bass.display().to_string());
+        let regions = v["regions"].as_array().unwrap();
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0]["center_hz"].as_f64().unwrap(), 63.0);
+        assert_eq!(regions[0]["suggested_fix"], "eq:band=peak:63Hz:-4dB:q=1.4");
+        assert_eq!(regions[0]["apply_to"], "b");
+        assert!(v["bands"].as_array().unwrap().iter().all(|b| b["score"].as_f64().unwrap() <= 1.0));
+        assert!(v["summary"].as_str().unwrap().starts_with("bass.wav masks kick.wav"), "{}", v["summary"]);
+        assert_eq!(c.metrics["regions"], 1);
+        assert_eq!(c.metrics["overall"].as_f64().unwrap(), 1.0);
+        assert!(c.warnings.is_empty());
+        let (v, _) =
+            run("analyze masking", &[("max-cut", "3dB"), ("levels", "ignore")], vec![kick.clone(), bass.clone()]);
+        assert_eq!(v["regions"][0]["cut_db"].as_f64().unwrap(), -3.0);
+        // level-aware (the default): the bass sits about 4.4 dB under the kick, so it masks
+        // less and a smaller cut clears it
+        let (v, c) = run("analyze masking", &[], vec![kick.clone(), bass.clone()]);
+        let g = &v["regions"][0];
+        assert!(g["margin_db"].as_f64().is_some_and(|m| (m - 4.4).abs() < 0.5), "{v}");
+        let cut = g["cut_db"].as_f64().unwrap();
+        assert!((-2.0..=-0.5).contains(&cut), "{cut}");
+        assert!(c.metrics["overall"].as_f64().unwrap() < 1.0);
+
+        // the same band, never at the same time
+        let mut x = sine(22050, 60.0, 2.0, 0.3);
+        for (i, s) in x.data[0].iter_mut().enumerate() {
+            if (i / 11025) % 2 == 0 {
+                *s = 0.0;
+            }
+        }
+        let mut y = sine(22050, 63.0, 2.0, 0.5);
+        for (i, s) in y.data[0].iter_mut().enumerate() {
+            if (i / 11025) % 2 == 1 {
+                *s = 0.0;
+            }
+        }
+        testing::write_wav(&kick, &y);
+        testing::write_wav(&apart, &x);
+        let (v, c) = run("analyze masking", &[], vec![kick.clone(), apart]);
+        assert!(v["co_activity"].as_f64().unwrap() < 0.05);
+        assert!(v["regions"].as_array().unwrap().is_empty());
+        assert!(v["suggested_fix"].is_null());
+        assert!(c.warnings.iter().any(|w| w.code == "low_co_activity"));
+
+        // silence and a different length
+        let quiet = d.path("quiet.wav");
+        testing::write_wav(&quiet, &AudioBuffer::new(22050, 1, 22050 * 4));
+        let (v, c) = run("analyze masking", &[], vec![kick, quiet]);
+        assert!(v["regions"].as_array().unwrap().is_empty());
+        assert!(c.warnings.iter().any(|w| w.code == "silent_input"));
+        assert!(c.warnings.iter().any(|w| w.code == "length_differs"));
+        assert!(!c.warnings.iter().any(|w| w.code == "low_co_activity"));
+    }
+
+    #[test]
+    fn masking_rejects_bad_params_and_plans_a_dry_run() {
+        let s = spec("analyze masking");
+        let Runner::Custom(f) = s.runner else { unreachable!() };
+        for bad in [("threshold", "0%"), ("threshold", "150%"), ("window", "1ms"), ("floor", "0dB"), ("max-cut", "0dB")]
+        {
+            let a = testing::args(&s, &[bad]);
+            let mut c = testing::ctx();
+            c.globals.dry_run = true;
+            c.inputs = vec!["/nonexistent/a.wav".into(), "/nonexistent/b.wav".into()];
+            let e = f(&a, &mut c).unwrap_err();
+            assert_eq!(e.kind, ferraus_core::ErrorKind::Usage, "{bad:?}");
+        }
+        let a = testing::args(&s, &[]);
+        let mut c = testing::ctx();
+        c.command = s.name.to_string();
+        c.globals.dry_run = true;
+        c.inputs = vec!["/nonexistent/a.wav".into(), "/nonexistent/b.wav".into()];
+        let v = f(&a, &mut c).unwrap();
+        assert_eq!(v["analyze"], "analyze masking");
+        assert_eq!(v["inputs"].as_array().unwrap().len(), 2);
     }
 
     #[test]

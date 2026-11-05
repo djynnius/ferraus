@@ -116,3 +116,54 @@ replacement chain as JSON (`--set 'stages.master.args.chain=[{"op":"normalize","
 Outputs are never overwritten without `--overwrite`, so the second run above needs it. Give
 it, or change *every* output path: outputs are written in order, and a run that stops at an
 existing file has already written the outputs listed before it.
+
+## Read another stage's output in an argument
+
+Some effects read a second file: a compressor's sidechain key, `match-eq`'s reference, a
+noise profile. Write the argument as `$name` (a pipeline input) or `$stage` (a stage's main
+output; `$stage.role` for one output of a multi-output stage such as `separate`):
+
+```yaml
+version: 1
+inputs:
+  kick: stems/kick.wav
+  bass: stems/bass.wav
+stages:
+  - id: kick_fx
+    op: fx
+    in: kick
+    args: { chain: [ { op: highpass, freq: 30Hz, order: 4 } ] }
+  - id: bass_duck
+    op: compress
+    in: bass
+    args: { sidechain: $kick_fx, sidechain_hpf: 0Hz, threshold: -20dB, ratio: 4:1, attack: 1ms, release: 90ms, makeup: 0dB }
+outputs:
+  - { from: bass_duck, path: out/bass_ducked.wav }
+```
+
+A `$` reference works like `in:`: the referenced stage runs first, and the stage's cache key
+includes the referenced file's content, so editing `kick_fx` recomputes `bass_duck` too. A
+plain path in an argument is passed through as written (relative to the current directory)
+and is not part of the cache key, so prefer declaring such files under `inputs` and
+referencing them.
+
+## Measurements in the run
+
+Each entry of `result.plan` carries what its stage measured:
+
+* effects report their metrics in `result.metrics` (a compressor's
+  `gain_reduction_mean_db` and `gain_reduction_max_db`, a mix stage's `peak_db`), and an
+  `fx` chain reports them per element in `result.chain_metrics` (two compressors in one chain
+  stay apart);
+* analysis commands can be stages too (`op: analyze loudness`, `analyze stereo`,
+  `analyze masking`, `mix balance`); their whole report is the stage's `result`.
+
+A cached stage returns the result saved when it was computed, so a re-run reports the same
+numbers without recomputing anything. Stage results are 32-bit float WAV files, so the cache
+grows quickly on long or many-stem jobs: `ferraus pipeline prune --max-size 2GB` removes the
+least recently used results (`--days 0` removes them all; `--dry-run` lists them first). A mixing session therefore measures itself on every
+run: see [Stems to master](stems-to-master.md).
+
+`pipeline validate` (and every run, before it starts) checks each item of an `fx` chain like
+a stage: the effect exists, can be a chain element, and its arguments parse. A misspelled
+flag inside a chain is a usage error (exit 2) naming the stage and the chain item.

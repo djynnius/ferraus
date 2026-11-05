@@ -43,7 +43,7 @@ const TIGHTEN: &[(&str, &str)] =
 pub fn ops() -> Vec<OpSpec> {
     vec![
         OpSpec::transform("compress", Category::Dynamics, "Compress dynamic range (feed-forward, soft knee)", compress)
-            .about("Feed-forward log-domain compressor with a soft knee, lookahead, RMS or peak detection, and a sidechain high-pass so bass does not pump the gain. 'auto' makeup adds back half the reduction a 0 dBFS signal would get. --mix below 100% gives parallel (New York) compression. Optional stages run around the compressor in this order: --highpass, compression, --character tube saturation, --deess, --lowpass; the 'tighten' preset (high-pass 60 Hz, 4:1, 5 ms / 60 ms, de-ess) uses them.")
+            .about("Feed-forward log-domain compressor with a soft knee, lookahead, RMS or peak detection, and a sidechain high-pass so bass does not pump the gain. 'auto' makeup adds back half the reduction a 0 dBFS signal would get. --mix below 100% gives parallel (New York) compression. Optional stages run around the compressor in this order: --highpass, compression, --character tube saturation, --deess, --lowpass; the 'tighten' preset (high-pass 60 Hz, 4:1, 5 ms / 60 ms, de-ess) uses them. --sidechain <file> keys the gain from another file instead of the input (ducking: the kick pushes the bass down, a voice-over pushes the music down): the key is resampled to the input's rate and padded with silence or cut to the input's length, --sidechain-hpf still filters it (set 0Hz so a kick's low end drives the ducking fully), and 'auto' makeup resolves to 0 dB because the input no longer drives the reduction.")
             .param(param("threshold", ParamKind::Gain).default("-18dB").help("Level above which gain is reduced (dBFS)"))
             .param(param("ratio", ParamKind::Ratio).default("3:1").help("Input dB over threshold per output dB (4:1, or 4)"))
             .param(param("attack", ParamKind::Time).default("10ms").help("Time to clamp down on a level rise"))
@@ -53,6 +53,7 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("lookahead", ParamKind::Time).default("5ms").help("How far ahead the detector looks (latency is compensated)"))
             .param(param("detector", ParamKind::Choice).choices(&["rms", "peak"]).default("rms").help("Level detector: rms (10 ms, smooth) or peak (fast)"))
             .param(param("sidechain-hpf", ParamKind::Freq).default("80Hz").help("High-pass on the detector so lows do not drive the gain (0Hz = off)"))
+            .param(param("sidechain", ParamKind::Path).help("External key: compute the gain from this file instead of the input (ducking: compress the bass keyed by the kick)"))
             .param(param("mix", ParamKind::Percent).default("100%").help("Dry/wet: below 100% blends in the uncompressed signal (parallel compression); 0% returns the input"))
             .param(param("character", ParamKind::Choice).choices(&["clean", "tube"]).default("clean").help("clean, or tube: adds a tube-style saturation stage after the gain"))
             .param(param("highpass", ParamKind::Freq).advanced().help("Optional high-pass before compression, e.g. 60Hz (set by the tighten preset)"))
@@ -65,7 +66,9 @@ pub fn ops() -> Vec<OpSpec> {
             .preset("tighten", "Compress and tighten: high-pass 60 Hz, compress 4:1 5 ms/60 ms, de-ess (add --lowpass 16kHz to also cut the top)", TIGHTEN)
             .example("ferraus compress vox.wav --preset vocal -o vox_comp.wav", "Vocal preset")
             .example("ferraus compress drums.wav --ratio 6:1 --attack 1ms --mix 40% -o drums_par.wav", "Parallel compression")
-            .example("ferraus compress take.wav --preset tighten --lowpass 16kHz -o tight.wav", "Compress, cut the extremes, and tighten"),
+            .example("ferraus compress take.wav --preset tighten --lowpass 16kHz -o tight.wav", "Compress, cut the extremes, and tighten")
+            .example("ferraus compress bass.wav --sidechain kick.wav --threshold -20dB --ratio 4:1 --attack 2ms --release 120ms -o bass_ducked.wav", "Duck the bass under the kick: the kick drives the gain, so the bass dips on every hit")
+            .example("ferraus compress music.wav --sidechain voiceover.wav --threshold -35dB --ratio 6:1 --attack 10ms --release 400ms --sidechain-hpf 150Hz -o music_ducked.wav", "Duck a music bed whenever the voice-over speaks"),
         OpSpec::transform("limit", Category::Dynamics, "True-peak brickwall limiter", limit)
             .about("Lookahead brickwall limiter that detects inter-sample peaks with oversampling, so the output never exceeds the ceiling when measured as true peak. The gain envelope ramps down over the lookahead window (no clicks) and recovers with the release time.")
             .param(param("ceiling", ParamKind::Gain).default("-1dBTP").help("Maximum output level (true peak, dBTP)"))
@@ -174,13 +177,24 @@ fn compress(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> 
         return Ok(buf);
     }
     let rate = sr(&buf);
-    let p = compressor_params(a)?;
+    let key = sidechain_key(a, &buf, ctx)?;
+    let mut p = compressor_params(a)?;
+    let auto_makeup = a.raw("makeup").map(|v| v.eq_ignore_ascii_case("auto")).unwrap_or(false);
+    if key.is_some() && auto_makeup {
+        // auto makeup restores what the input lost above the threshold; with an external
+        // key the input does not drive the reduction, so there is nothing to restore
+        p.makeup_db = 0.0;
+    }
     let dry = buf.clone();
     let mut wet = buf;
     if let Some(f) = freq_or_off(a, "highpass")? {
         per_channel(&mut wet, |_, ch| Cascade::butterworth_highpass(2, f, rate).process_block(ch));
     }
-    let stats = Compressor::new(p.clone(), rate).process(&mut wet.data);
+    let comp = Compressor::new(p.clone(), rate);
+    let stats = match &key {
+        Some(k) => comp.process_sidechain(&mut wet.data, &k.data),
+        None => comp.process(&mut wet.data),
+    };
     if a.choice("character") == "tube" {
         per_channel(&mut wet, |_, ch| Saturator::new(SatType::Tube, 6.0, 0.0, rate).process(ch));
     }
@@ -190,12 +204,41 @@ fn compress(a: &Args, buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> 
     if let Some(f) = freq_or_off(a, "lowpass")? {
         per_channel(&mut wet, |_, ch| Cascade::butterworth_lowpass(2, f, rate).process_block(ch));
     }
-    if a.raw("makeup").map(|v| v.eq_ignore_ascii_case("auto")).unwrap_or(false) {
+    if auto_makeup {
         ctx.note("makeup_resolved", format!("{:.2}dB", p.makeup_db));
     }
     ctx.metric("gain_reduction_max_db", round2(stats.max_reduction_db));
     ctx.metric("gain_reduction_mean_db", round2(stats.mean_reduction_db));
     Ok(apply_own_mix(m, dry, wet))
+}
+
+/// Shortfall of the key, in seconds, above which `--sidechain` warns that the input's tail
+/// gets no gain reduction.
+const SIDECHAIN_SHORT_S: f64 = 0.05;
+
+/// The `--sidechain` key: decoded, resampled to the input's rate, and padded with silence
+/// or truncated to the input's frame count. `None` without `--sidechain`.
+fn sidechain_key(a: &Args, input: &AudioBuffer, ctx: &mut OpCtx) -> Result<Option<AudioBuffer>> {
+    let Some(path) = a.path("sidechain") else {
+        return Ok(None);
+    };
+    let mut key = ctx.read_audio_path(&path)?;
+    if key.sample_rate != input.sample_rate {
+        key = ferraus_core::resample::resample(&key, input.sample_rate, ferraus_core::resample::Quality::High);
+    }
+    let short_s = (input.frames() as f64 - key.frames() as f64) / sr(input);
+    if short_s > SIDECHAIN_SHORT_S {
+        ctx.warn(
+            "sidechain_length",
+            format!(
+                "the sidechain key {} is {short_s:.2} s shorter than the input; the last {short_s:.2} s get no gain reduction",
+                path.display()
+            ),
+        );
+    }
+    key.resize(input.frames());
+    ctx.note("sidechain", path.display().to_string());
+    Ok(Some(key))
 }
 
 fn round2(x: f32) -> f64 {
@@ -389,7 +432,7 @@ fn clip(a: &Args, mut buf: AudioBuffer, ctx: &mut OpCtx) -> Result<AudioBuffer> 
 mod tests {
     use super::*;
     use crate::oversample::true_peak;
-    use ferraus_core::testing::{noise, run, sine};
+    use ferraus_core::testing::{args, noise, run, run_ctx, sine, stereo, write_wav, TempDir};
 
     fn spec(name: &str) -> OpSpec {
         ops().into_iter().find(|o| o.name == name).unwrap()
@@ -466,6 +509,146 @@ mod tests {
         assert!(a.switch("deess", false));
         // the optional low-pass is off unless asked for
         assert!(a.raw("lowpass").is_none());
+    }
+
+    /// A 1 kHz key that plays for `on` seconds and rests for `on` seconds, repeatedly.
+    fn bursts(rate: u32, secs: f64, on: f64, amp: f32) -> AudioBuffer {
+        let mut k = sine(rate, 1000.0, secs, amp);
+        let period = (2.0 * on * rate as f64) as usize;
+        for (i, v) in k.data[0].iter_mut().enumerate() {
+            if i % period >= period / 2 {
+                *v = 0.0;
+            }
+        }
+        k
+    }
+
+    /// Level of `y` relative to `x` in dB over frames `a..b` of channel `c`.
+    fn rel_db(x: &AudioBuffer, y: &AudioBuffer, c: usize, a: usize, b: usize) -> f64 {
+        20.0 * (crate::util::rms(&y.data[c][a..b]) as f64 / crate::util::rms(&x.data[c][a..b]) as f64).log10()
+    }
+
+    /// Ducking settings for the sidechain tests: hard knee, no detector high-pass, no makeup.
+    const DUCK: &[(&str, &str)] = &[
+        ("threshold", "-20dB"),
+        ("ratio", "4:1"),
+        ("knee", "0dB"),
+        ("attack", "2ms"),
+        ("release", "40ms"),
+        ("sidechain-hpf", "0Hz"),
+        ("makeup", "0dB"),
+    ];
+
+    fn write_key(dir: &TempDir, name: &str, key: &AudioBuffer) -> String {
+        let path = dir.path(name);
+        write_wav(&path, key);
+        path.display().to_string()
+    }
+
+    fn ducking(key: &str) -> Vec<(&str, &str)> {
+        let mut pairs = DUCK.to_vec();
+        pairs.push(("sidechain", key));
+        pairs
+    }
+
+    #[test]
+    fn sidechain_ducks_during_key_bursts_only() {
+        let dir = TempDir::new("compress-sc");
+        let rate = 48000;
+        // key bursts at -6 dBFS peak (-9 dB RMS): 11 dB over -20 dB at 4:1 is 8.2 dB down
+        let key = write_key(&dir, "kick.wav", &bursts(rate, 2.0, 0.25, 0.5));
+        let x = sine(rate, 220.0, 2.0, 0.25);
+        let (y, c) = run_ctx(&spec("compress"), &ducking(&key), x.clone()).unwrap();
+        let want = dynamics::compressor_curve(-9.03, -20.0, 4.0, 0.0) as f64;
+        let at = |t: f64| (t * rate as f64) as usize;
+        for burst in [0.0, 0.5, 1.0, 1.5] {
+            let during = rel_db(&x, &y, 0, at(burst + 0.08), at(burst + 0.23));
+            assert!((during - want).abs() < 1.0, "burst at {burst}: {during} dB, want {want}");
+            // the last 50 ms of each rest: the gain has recovered
+            let between = rel_db(&x, &y, 0, at(burst + 0.45), at(burst + 0.5));
+            assert!(between.abs() < 0.5, "rest after {burst}: {between} dB");
+        }
+        assert_eq!(c.notes["sidechain"], json!(key));
+        assert!(c.metrics["gain_reduction_max_db"].as_f64().unwrap() > 7.0);
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+    }
+
+    #[test]
+    fn without_sidechain_the_compressor_is_unchanged() {
+        let s = spec("compress");
+        let x = stereo(noise(48000, 0.5, 0.5, 11));
+        // the default chain is exactly the self-keyed compressor with auto makeup
+        let p = compressor_params(&args(&s, &[])).unwrap();
+        let mut want = x.clone();
+        Compressor::new(p, 48000.0).process(&mut want.data);
+        let (y, c) = run_ctx(&s, &[], x.clone()).unwrap();
+        assert_eq!(y, want);
+        assert!(!c.notes.contains_key("sidechain"));
+        assert_eq!(c.notes["makeup_resolved"], json!("6.00dB"));
+        // keying the compressor with the input itself is the same as no key at all
+        let dir = TempDir::new("compress-self");
+        let key = write_key(&dir, "self.wav", &x);
+        let keyed = run(&s, &[("sidechain", key.as_str()), ("makeup", "2dB")], x.clone()).unwrap();
+        assert_eq!(keyed, run(&s, &[("makeup", "2dB")], x).unwrap());
+    }
+
+    #[test]
+    fn sidechain_resolves_auto_makeup_to_zero() {
+        let dir = TempDir::new("compress-makeup");
+        let key = write_key(&dir, "quiet.wav", &sine(48000, 1000.0, 1.0, 0.001));
+        let x = sine(48000, 220.0, 1.0, 0.5);
+        // a key far below the threshold: no reduction, and no makeup either
+        let (y, c) = run_ctx(&spec("compress"), &[("sidechain", key.as_str())], x.clone()).unwrap();
+        assert_eq!(c.notes["makeup_resolved"], json!("0.00dB"));
+        assert!(rel_db(&x, &y, 0, 12000, 48000).abs() < 0.01);
+    }
+
+    #[test]
+    fn short_key_leaves_the_tail_alone_and_warns() {
+        let dir = TempDir::new("compress-short");
+        let rate = 48000;
+        let key = write_key(&dir, "short.wav", &sine(rate, 1000.0, 1.0, 0.5));
+        let x = sine(rate, 220.0, 2.0, 0.25);
+        let (y, c) = run_ctx(&spec("compress"), &ducking(&key), x.clone()).unwrap();
+        assert!(c.warnings.iter().any(|w| w.code == "sidechain_length"), "{:?}", c.warnings);
+        assert_eq!(y.frames(), x.frames());
+        assert!(rel_db(&x, &y, 0, 24000, 46000) < -7.0);
+        assert!(rel_db(&x, &y, 0, 72000, 96000).abs() < 0.1);
+        // a key within 50 ms of the input's length does not warn
+        let near = write_key(&dir, "near.wav", &sine(rate, 1000.0, 1.97, 0.5));
+        let (_, c) = run_ctx(&spec("compress"), &ducking(&near), x).unwrap();
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+    }
+
+    #[test]
+    fn key_at_another_rate_is_resampled() {
+        let dir = TempDir::new("compress-rate");
+        // a 44.1 kHz key bursting at the same times as the 48 kHz one above
+        let key = write_key(&dir, "kick44.wav", &bursts(44100, 2.0, 0.25, 0.5));
+        let x = sine(48000, 220.0, 2.0, 0.25);
+        let (y, c) = run_ctx(&spec("compress"), &ducking(&key), x.clone()).unwrap();
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+        let during = rel_db(&x, &y, 0, 27840, 35040); // 0.58 s .. 0.73 s
+        let between = rel_db(&x, &y, 0, 45600, 48000); // 0.95 s .. 1.0 s
+        assert!(during < -7.0 && during > -9.5, "{during}");
+        assert!(between.abs() < 0.5, "{between}");
+    }
+
+    #[test]
+    fn mono_key_ducks_both_channels_of_a_stereo_input() {
+        let dir = TempDir::new("compress-mono-key");
+        let key = write_key(&dir, "mono.wav", &bursts(48000, 1.0, 0.25, 0.5));
+        let left = sine(48000, 220.0, 1.0, 0.25);
+        let right = sine(48000, 330.0, 1.0, 0.1);
+        let x = AudioBuffer::from_planar(48000, vec![left.data[0].clone(), right.data[0].clone()]);
+        let y = run(&spec("compress"), &ducking(&key), x.clone()).unwrap();
+        assert_eq!(y.channels(), 2);
+        let (l, r) = (rel_db(&x, &y, 0, 4000, 11000), rel_db(&x, &y, 1, 4000, 11000));
+        assert!(l < -7.0, "{l}");
+        assert!((l - r).abs() < 0.01, "linked gain: {l} vs {r}");
+        // a missing key is an input error (exit code 3)
+        let gone = dir.path("gone.wav").display().to_string();
+        assert_eq!(run(&spec("compress"), &ducking(&gone), x).unwrap_err().exit_code, 3);
     }
 
     #[test]

@@ -1,10 +1,10 @@
 {
   "name": "ferraus",
-  "description": "Skill for driving the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, and master audio.",
+  "description": "Skills for the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, mix stems, and master audio, with companion skills that mix and master unsupervised from measurements.",
   "version": "0.1.2",
   "author": { "name": "Sunday Ikpe", "url": "https://github.com/djynnius" },
   "homepage": "https://djynnius.github.io/ferraus/",
   "repository": "https://github.com/djynnius/ferraus",
   "license": "Apache-2.0 OR MIT",
-  "keywords": ["audio", "music", "cli", "stems", "mcp"]
+  "keywords": ["audio", "music", "cli", "stems", "mixing", "mastering", "mcp"]
 }

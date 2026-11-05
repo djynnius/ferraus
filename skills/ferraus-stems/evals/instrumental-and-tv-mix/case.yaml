@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: instrumental-and-tv-mix
+expected_outcome: |
+  Two files: an instrumental with no lead or backing vocals and a TV mix with backing vocals but no lead, both the same length as the stems, built with ferraus mix from the same gains.
+context:
+  scaffold_script: place-files.sh

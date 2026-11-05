@@ -18,7 +18,8 @@ correction, MIDI, notation in both directions, CLAP/VST3 instrument hosting, and
   and the cookbook: [clean, tune, and master a vocal](cookbook/clean-tune-master-vocal.md),
   [stems for a remix](cookbook/stems-for-remix.md), [hum to an instrument](cookbook/hum-to-instrument.md),
   [sheet music to a performance](cookbook/sheet-music-to-performance.md),
-  [batch podcast cleanup](cookbook/batch-podcast-cleanup.md), [pipeline files](cookbook/pipeline-files.md).
+  [batch podcast cleanup](cookbook/batch-podcast-cleanup.md), [pipeline files](cookbook/pipeline-files.md),
+  [stems to master](cookbook/stems-to-master.md).
   Runnable versions of these recipes (shell scripts, pipeline files, an MCP client, and a
   Claude agent loop) are in the repository's
   [examples folder](https://github.com/djynnius/ferraus/tree/main/examples).

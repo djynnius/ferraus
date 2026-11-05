@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: validate-stem-export
+expected_outcome: |
+  The agent checks rates, lengths and alignment, sums the stems and null-tests against the bounce, and finds that 05 Keys.wav is 250 ms longer / late, explaining the cause and fix.
+context:
+  scaffold_script: place-files.sh

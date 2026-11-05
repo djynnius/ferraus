@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: trap-drums-and-808
+expected_outcome: |
+  drums.mid and an 808/bass .mid of 4 bars at 140 BPM, drums on channel 10 with GM notes (kick 36, snare/clap 38/39, hats 42 with fast rolls), the 808 in F minor following the kick, and rendered WAVs.
