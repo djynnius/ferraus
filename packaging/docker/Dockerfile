@@ -12,5 +12,7 @@ COPY --from=build /src/target/release/ferraus-plughost /usr/local/lib/ferraus/fe
 ENV FERRAUS_HOME=/data
 VOLUME ["/data", "/work"]
 WORKDIR /work
+# lets the official MCP Registry verify that this image belongs to the listing in server.json
+LABEL io.modelcontextprotocol.server.name="io.github.djynnius/ferraus"
 ENTRYPOINT ["ferraus"]
 CMD ["--help"]
