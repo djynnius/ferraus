@@ -4,6 +4,48 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
+## [Unreleased]
+
+### Added
+- `mix balance <stems...>`: measures every stem (BS.1770 gated, in the sum's channel layout)
+  and proposes the gains that put a multitrack on a genre balance template (pop, hiphop, edm,
+  rock, acoustic, jazz), with roles from `--roles` or the file names, a `mix_command`, and
+  `--render` to measure the balanced sum.
+- `analyze masking <a> <b>`: where stem b crowds stem a in the same third-octave bands while
+  both play, with a runnable EQ cut for b per region. Level-aware by default (a band counts
+  only while b is within 10 dB of a there, so cuts and fader moves lower the score and the cut
+  suggested is the one that clears it); `--levels ignore` compares spectral shapes only.
+- `mix verify <mix>`: the pass/fail gate before mastering (headroom, loudness window, PLR,
+  clipping, DC, phase, mono bass, mono loss, tonal balance against the genre curve or a
+  reference, mud, harshness, sub rumble, head silence, problems), exit code 9 with a runnable
+  `fix` per failed check.
+- `compress --sidechain <file>`: external key input for ducking (bass under the kick, a music
+  bed under a voice-over).
+- `master --relevel` (with `--plan`): searches the final gain and limiter again so an edited
+  plan still lands on its target.
+- `pipeline prune`: removes cached stage results not used for `--days` days (a cache hit
+  counts as use), then the least recently used ones until the cache fits `--max-size`;
+  `--dry-run` lists them. A mixing session writes hundreds of megabytes per run.
+- MCP prompt `mix-stems`: the measured mixing workflow for clients without skills;
+  `master-song` now covers already-limited mixes, plan review, `relevel`, and the
+  loudness-matched A/B check.
+- Pipeline files: `$name` / `$stage` / `$stage.role` in a stage argument reads a pipeline
+  input or another stage's output (sidechain keys, references), ordered and cached by content
+  like `in:`. Stages report their measurements in `result.plan[].result` (`metrics`, and
+  `chain_metrics` per element of an `fx` chain), and cached stages return the saved result.
+- Companion skills for agents: `ferraus-mix` (stems to a mix ready for mastering),
+  `ferraus-master`, `ferraus-vocals`, `ferraus-mix-review`, `ferraus-stems`, `ferraus-beats`,
+  each with measured decisions, pass/fail gates, references, and `claude plugin eval` cases
+  whose inputs `tools/eval/make_session.py` generates. Contract tests check every command and
+  pipeline in the skills against the CLI.
+- Cookbook: [stems to master](docs/guides/cookbook/stems-to-master.md).
+
+### Changed
+- The global `--bpm` replaces the detected tempo in `master`, `master plan`, and
+  `master analyze` (multiband and limiter release times follow it).
+- `pipeline validate` (and every run) checks each item of an `fx` chain: the effect exists,
+  can be a chain element, and its arguments parse.
+
 ## [0.1.2] — 2026-10-20
 
 ### Added

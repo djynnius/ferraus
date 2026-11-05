@@ -33,6 +33,14 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus pipeline validate job.yaml --json", "Validate stage names, arguments, and references")
             .example("ferraus pipeline validate job.json", "Check a JSON pipeline file; exit code 2 means a stage or argument is wrong")
             .example("ferraus pipeline validate job.yaml --set stages.master.args.lufs=-16LUFS", "Check that an override is valid before running it"),
+        OpSpec::custom("pipeline prune", Category::Chains, "Remove cached pipeline stage results not used recently", pipeline_prune)
+            .about("Pipeline stages cache their results as float WAV files under the ferraus cache (see 'ferraus doctor' for the path; FERRAUS_HOME moves it). A mixing session writes hundreds of megabytes per full run. This removes entries not used for --days days (a cache hit counts as use), then, with --max-size, the least recently used entries until the cache fits. Removed stages are recomputed the next time a pipeline needs them; outputs a pipeline already wrote are never touched. --dry-run lists what would go.")
+            .inputs(Inputs::NONE)
+            .param(param("days", ParamKind::Int).default("7").range("0..36500").help("Remove entries not used for this many days (0 removes every entry)"))
+            .param(param("max-size", ParamKind::Str).help("Then remove the least recently used entries until the cache is at most this size, e.g. 2GB or 500MB"))
+            .example("ferraus pipeline prune --json", "Remove stage results not used for a week")
+            .example("ferraus pipeline prune --days 0 --dry-run --json", "List every cached stage result and its size without removing anything")
+            .example("ferraus pipeline prune --days 30 --max-size 2GB", "Keep a month of results, but never more than 2 GB"),
         OpSpec::custom("pipeline explain", Category::Chains, "Print the resolved plan with every default filled in", pipeline_validate)
             .param(param("set", ParamKind::Str).repeatable().help("Override any field before explaining"))
             .inputs(Inputs::exactly(1, crate::op::InputKind::Any))
@@ -138,6 +146,24 @@ fn pipeline_validate(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let resolved = crate::pipeline::validate(&p, registry)?;
     let order: Vec<String> = crate::pipeline::topo_order(&p)?.into_iter().map(|i| p.stages[i].id.clone()).collect();
     Ok(json!({"valid": true, "order": order, "stages": resolved, "outputs": p.outputs}))
+}
+
+fn pipeline_prune(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
+    let days = args.int("days")?.max(0) as u64;
+    let max_size = match args.str("max-size").filter(|v| !v.trim().is_empty()) {
+        Some(v) => Some(crate::units::parse_bytes(&v).map_err(|e| Error::usage(format!("--max-size: {}", e.message)))?),
+        None => None,
+    };
+    let dir = crate::paths::pipeline_cache_dir();
+    let report = crate::pipeline::prune_cache(
+        &dir,
+        std::time::Duration::from_secs(days * 86_400),
+        max_size,
+        ctx.globals.dry_run,
+    )?;
+    ctx.metric("removed", report["removed"].clone());
+    ctx.metric("freed_bytes", report["freed_bytes"].clone());
+    Ok(report)
 }
 
 /// User presets live in `<config>/presets/<effect>/<name>.toml` as flat key = "value" tables.

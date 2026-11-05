@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: compare-two-mix-versions
+expected_outcome: |
+  The agent loudness-matches before judging, compares with measurements (null test / similarity, vocal balance, tone, stereo), and says which version passes more checks and where each is better, noting v2 is louder.
+context:
+  scaffold_script: place-files.sh

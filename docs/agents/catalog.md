@@ -8,6 +8,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `analyze clipping: Count and locate clipped runs [--threshold --min-run]`
 - `analyze key: Key and scale with confidence [--method]`
 - `analyze loudness: EBU R128 loudness: integrated, short-term, momentary, range, true peak [--timeline]`
+- `analyze masking <audio>x2: Where stem b masks stem a (same bands, same time), with an EQ cut for b [--threshold --window --floor]`
 - `analyze pitch: Pitch curve as JSON or CSV [--tracker --hop --range]`
 - `analyze problems: Diagnose clipping, DC, clicks, hum, hiss, phase, silence, and more [--min-severity]`
 - `analyze silence: List silent regions with start, end, and floor level [--threshold --min]`
@@ -36,6 +37,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `generate tone: Generate a test tone or sweep [--freq --dur --shape]`
 - `invert-phase: Invert polarity [--channel]`
 - `mix <audio...>: Sum several files with per-input gain, pan, and offset [--gains --pans --offsets]`
+- `mix balance <audio...>: Propose stem gains that put a multitrack on a genre balance template [--roles --genre --anchor]`
 - `normalize: Set loudness (LUFS), peak, or RMS level to a target [--lufs --peak --rms]`
 - `resample: Change the sample rate with a high-quality sinc resampler [--to --quality]`
 - `reverse: Play the audio backwards`
@@ -161,6 +163,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 
 - `fx: Apply a chain of effects in order in one pass [--fx]`
 - `pipeline explain <file>: Print the resolved plan with every default filled in [--set]`
+- `pipeline prune: Remove cached pipeline stage results not used recently [--days --max-size]`
 - `pipeline run <file>: Run a pipeline file (YAML or JSON) with stage caching [--set --no-cache]`
 - `pipeline validate <file>: Check a pipeline file without running it [--set]`
 - `presets list [effect]: List built-in and user presets`
@@ -192,6 +195,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `master deliver: Write the deliverable set [--formats --tags --isrc]`
 - `master plan: The exact chain master would apply, every parameter resolved, editable [--target --lufs --true-peak]`
 - `master verify: Pass or fail against a delivery spec [--target --lufs --true-peak]`
+- `mix verify: Pass or fail for a mix before mastering [--genre --reference --headroom]`
 
 ## Media bridge
 

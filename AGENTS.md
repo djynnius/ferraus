@@ -31,7 +31,9 @@ and `ferraus docs <command>` prints any command's full reference page.
 3. Chain effects in one pass: `ferraus fx in.wav -o out.wav --fx "denoise:auto" --fx "compress:preset=vocal" --fx "normalize:lufs=-14"`.
    Every effect command is an fx stage with the same parameter names.
 4. Multi-step jobs belong in a pipeline file (`ferraus pipeline run job.yaml`): stages are
-   cached by content hash, so editing one stage recomputes only what changed.
+   cached by content hash, so editing one stage recomputes only what changed. `$name` in a
+   stage argument reads another stage's output (a sidechain key, a reference), and every
+   stage's measurements (gain reduction, analysis results) come back in `result.plan[]`.
 5. Check your work: `ferraus compare original.wav processed.wav --json` (alignment, RMS
    difference, SI-SDR) and, for masters, `ferraus master verify master.wav --target streaming`.
 6. Long work: `--async` returns a job id (`ferraus jobs wait <id>`); over MCP use
@@ -54,6 +56,12 @@ ferraus tune vocal.clean.wav --key auto --strength 85% -o vocal.tuned.wav --json
 ferraus mix vocal.tuned.wav beat.wav --gains 0dB,-3dB -o mix.wav --json
 ferraus master mix.wav --target streaming -o master.wav --report report.json --json
 
+# mix stems: faders from a genre template, conflicts with their fixes, a gate before mastering
+ferraus mix balance stems/*.wav --genre pop --json
+ferraus analyze masking vocal.wav keys.wav --json
+ferraus compress bass.wav --sidechain kick.wav --sidechain-hpf 0Hz --threshold -20dB --ratio 4:1 -o bass_duck.wav --json
+ferraus mix verify mix.wav --genre pop --json
+
 # stems for a remix (--tier fast for a quick sketch, --tier balanced for a middle ground; the default auto picks quality, the cleanest vocals)
 ferraus separate song.mp3 --stems 4 -y --json
 
@@ -66,11 +74,15 @@ ferraus score read minuet.pdf -o minuet.musicxml --review -y --json
 ferraus score perform sonata.musicxml --instrument piano -o sonata.wav --json
 ```
 
-## Skill
+## Skills
 
 The ferraus skill ([skills/ferraus/SKILL.md](skills/ferraus/SKILL.md)) carries this manual into
-agents that load skills. Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
-`claude plugin install ferraus@ferraus`. Other agents: `npx skills add djynnius/ferraus --skill ferraus`.
+agents that load skills. Companion skills hold the working method for whole jobs, each with
+measured decisions and a pass/fail gate: `ferraus-mix` (stems to a mix ready for mastering),
+`ferraus-master`, `ferraus-vocals`, `ferraus-mix-review`, `ferraus-stems`, `ferraus-beats`
+(all under [skills/](skills/)). Claude Code: `claude plugin marketplace add djynnius/ferraus`, then
+`claude plugin install ferraus@ferraus`. Other agents: `npx skills add djynnius/ferraus`.
+Every command and pipeline in the skills is validated against the CLI by the contract tests.
 
 ## MCP
 
@@ -80,7 +92,7 @@ claude mcp add ferraus -- ferraus mcp serve --allow ~/music
 
 Tools are `ferraus_<command>` (`ferraus_denoise_profile`), arguments are the command's flags
 with `_` instead of `-` plus `inputs` and `output`. Prompts: `clean-and-tune-vocal`,
-`extract-stems-for-remix`, `hum-to-instrument`, `master-song`. See
+`extract-stems-for-remix`, `hum-to-instrument`, `master-song`, `mix-stems`. See
 [docs/guides/concepts/mcp.md](docs/guides/concepts/mcp.md) and the agent recipes in
 [docs/guides/cookbook/](docs/guides/cookbook/).
 

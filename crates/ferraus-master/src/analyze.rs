@@ -26,6 +26,19 @@ pub fn measure(buf: &AudioBuffer, reference: Option<&AudioBuffer>) -> MasteringA
     mastering_analysis(buf, reference)
 }
 
+/// [`measure`], with the tempo taken from the global `--bpm` when one is given. Tempo
+/// detectors make octave errors (100 BPM read as 200), and the planner derives multiband
+/// release times from the tempo, so a known tempo replaces the detected one (reported with
+/// confidence 1).
+pub fn measure_at(buf: &AudioBuffer, reference: Option<&AudioBuffer>, bpm: Option<f64>) -> MasteringAnalysis {
+    let mut m = mastering_analysis(buf, reference);
+    if let Some(b) = bpm.filter(|b| b.is_finite() && *b > 0.0) {
+        m.context.tempo_bpm = b;
+        m.context.tempo_confidence = 1.0;
+    }
+    m
+}
+
 /// Tonal balance against the reference (when given) or the genre curve.
 pub fn tone_against(m: &MasteringAnalysis, genre: &str, has_reference: bool) -> (String, ToneBalance) {
     match (&m.tone_balance, has_reference) {
@@ -218,6 +231,17 @@ pub fn summary(m: &MasteringAnalysis, tone: &ToneBalance) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_given_tempo_replaces_the_detected_one() {
+        let b = ferraus_core::testing::clicks(44100, 0.5, 4.0, 0.8); // 120 BPM
+        let m = measure_at(&b, None, Some(60.0));
+        assert_eq!(m.context.tempo_bpm, 60.0);
+        assert_eq!(m.context.tempo_confidence, 1.0);
+        let d = measure_at(&b, None, None);
+        assert_eq!(d.context.tempo_bpm, measure(&b, None).context.tempo_bpm);
+        assert_eq!(measure_at(&b, None, Some(f64::NAN)).context.tempo_bpm, d.context.tempo_bpm);
+    }
+
     use super::*;
 
     #[test]

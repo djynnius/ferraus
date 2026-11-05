@@ -15,6 +15,7 @@
 //! | [`compare`] | [`compare::compare`] → [`compare::CompareReport`]; [`compare::similarity`], [`compare::mfcc`] |
 //! | [`problems`] | [`problems::diagnose`] → [`problems::ProblemsReport`] and the individual detectors |
 //! | [`mastering`] | [`mastering::dynamics`], [`mastering::looks_mastered`], [`mastering::mastering_analysis`] |
+//! | [`masking`] | [`masking::masking`] → [`masking::MaskingReport`] (where two stems compete, with EQ cuts) |
 //!
 //! Loudness values that cannot be measured are `-inf` in Rust and `null` in JSON.
 
@@ -22,6 +23,7 @@ pub mod chords;
 pub mod compare;
 pub mod levels;
 pub mod loudness;
+pub mod masking;
 pub mod mastering;
 mod ops;
 pub mod problems;
@@ -35,6 +37,7 @@ pub use compare::{compare, similarity, CompareOptions, CompareReport, Similarity
 pub use ferraus_core::AudioBuffer;
 pub use levels::{detect_clipping, detect_silence, stats, ClippingReport, SilenceReport, StatsReport};
 pub use loudness::{loudness, loudness_with, true_peak, LoudnessReport, LoudnessTimeline};
+pub use masking::{masking, MaskingOptions, MaskingReport};
 pub use mastering::{mastering_analysis, DynamicsReport, MasteredHeuristic, MasteringAnalysis};
 pub use problems::{diagnose, Problem, ProblemsReport, Severity};
 pub use spectrum::{BandLevel, Resolution, SpectrumReport, ToneBalance};
@@ -44,7 +47,7 @@ pub use tempo::{detect_tempo, TempoOptions, TempoResult};
 use ferraus_core::OpSpec;
 
 /// Ops this crate contributes to the command registry: `analyze tempo|loudness|silence|
-/// spectrum|clipping|chords|similarity|problems|stats|stereo` and `compare`.
+/// spectrum|clipping|chords|similarity|masking|problems|stats|stereo` and `compare`.
 pub fn ops() -> Vec<OpSpec> {
     ops::ops()
 }

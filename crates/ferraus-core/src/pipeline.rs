@@ -48,6 +48,45 @@ impl StageInput {
     }
 }
 
+/// A file reference in a stage argument: `$name` (a pipeline input or a stage's main output)
+/// or `$stage.role` (one output of a multi-output stage). Lets a stage read a second file
+/// that the pipeline tracks: a sidechain key, a match-eq reference, a noise profile. Only
+/// identifier-shaped values count, so a literal `$` elsewhere in text is left alone.
+pub fn arg_ref(v: &str) -> Option<&str> {
+    let r = v.strip_prefix('$')?;
+    let mut parts = r.splitn(2, '.');
+    let id = parts.next()?;
+    let ident = |t: &str| !t.is_empty() && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    let starts_ok = id.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    (starts_ok && ident(id) && parts.next().is_none_or(ident)).then_some(r)
+}
+
+/// Every `$ref` in a stage's arguments, including inside an fx `chain`.
+pub fn arg_refs(s: &Stage) -> Vec<String> {
+    fn walk(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::String(t) => {
+                if let Some(r) = arg_ref(t) {
+                    out.push(r.to_string());
+                }
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            Value::Object(o) => o.values().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(&s.args, &mut out);
+    out
+}
+
+/// Everything a stage reads: its `in` references, then the `$refs` in its arguments.
+fn stage_deps(s: &Stage) -> Vec<String> {
+    let mut v = s.input.as_ref().map(|x| x.refs()).unwrap_or_default();
+    v.extend(arg_refs(s));
+    v
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OutputSpec {
     pub from: String,
@@ -121,15 +160,17 @@ pub fn topo_order(p: &PipelineFile) -> Result<Vec<usize>> {
     }
     let mut deps: Vec<Vec<usize>> = vec![vec![]; p.stages.len()];
     for (i, s) in p.stages.iter().enumerate() {
-        for r in s.input.as_ref().map(|x| x.refs()).unwrap_or_default() {
+        let n_in = s.input.as_ref().map(|x| x.refs().len()).unwrap_or(0);
+        for (k, r) in stage_deps(s).into_iter().enumerate() {
             let base = r.split('.').next().unwrap_or(&r);
             if let Some(&j) = ids.get(base) {
+                if j == i {
+                    return Err(Error::usage(format!("stage '{}' references its own output '${r}'", s.id)));
+                }
                 deps[i].push(j);
             } else if !p.inputs.contains_key(base) && !p.inputs.contains_key(&r) {
-                return Err(Error::usage(format!(
-                    "stage '{}' reads '{r}', which is neither an input nor a stage",
-                    s.id
-                )));
+                let what = if k < n_in { format!("reads '{r}'") } else { format!("has an argument '${r}'") };
+                return Err(Error::usage(format!("stage '{}' {what}, which is neither an input nor a stage", s.id)));
             }
         }
     }
@@ -171,13 +212,32 @@ pub fn validate(p: &PipelineFile, registry: &Registry) -> Result<Vec<Value>> {
         let args = Args::build(spec, pairs, &|_, _| None)
             .map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
         if let Runner::Chain = spec.runner {
-            crate::exec::chain_stages(&args).map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
+            validate_chain(&args, registry).map_err(|e| Error::usage(format!("stage '{}': {}", s.id, e.message)))?;
         }
         resolved.push(
             json!({"id": s.id, "op": spec.name, "in": s.input.as_ref().map(|i| i.refs()), "args": args.to_json()}),
         );
     }
     Ok(resolved)
+}
+
+/// Every item of an `fx` chain names a single-input effect whose arguments parse, so a
+/// misspelled flag inside a chain fails at validation instead of mid-run.
+pub fn validate_chain(args: &Args, registry: &Registry) -> Result<()> {
+    for (i, (name, pairs)) in crate::exec::chain_stages(args)?.into_iter().enumerate() {
+        let spec = registry
+            .require(&name)
+            .map_err(|e| Error::usage(format!("chain item {} ({name}): {}", i + 1, e.message)))?;
+        if !spec.is_transform() {
+            return Err(Error::usage(format!(
+                "chain item {} ({name}) cannot be used as an fx stage (it is not a single-input audio effect)",
+                i + 1
+            )));
+        }
+        Args::build(spec, pairs, &|_, _| None)
+            .map_err(|e| Error::usage(format!("chain item {} ({name}): {}", i + 1, e.message)))?;
+    }
+    Ok(())
 }
 
 /// Stage args → raw pairs. A `chain` array is passed as JSON text.
@@ -219,7 +279,7 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
     std::fs::create_dir_all(&cache_root)?;
 
     // name → (key, map role→path)
-    let mut produced: HashMap<String, (String, BTreeMap<String, PathBuf>)> = HashMap::new();
+    let mut produced: Produced = HashMap::new();
     for (name, path) in &p.inputs {
         let pb = resolve_path(base_dir, path);
         let h = sha256_file(&pb)
@@ -235,7 +295,7 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
     let ids: HashMap<&str, usize> = p.stages.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
     let mut level = vec![0usize; p.stages.len()];
     for &i in &order {
-        for r in p.stages[i].input.as_ref().map(|x| x.refs()).unwrap_or_default() {
+        for r in stage_deps(&p.stages[i]) {
             let base = r.split('.').next().unwrap_or(&r);
             if let Some(&j) = ids.get(base) {
                 level[i] = level[i].max(level[j] + 1);
@@ -264,30 +324,25 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
             let spec = registry.require(&s.op)?;
             done += 1;
             ctx.progress.stage(&s.id, done, n);
-            let args = Args::build(spec, stage_pairs(s)?, &|_, _| None)?;
+            let mut ref_keys = Vec::new();
+            let mut resolved = s.clone();
+            resolve_arg_refs(&mut resolved.args, &produced, &s.id, &mut ref_keys)?;
+            let args = Args::build(spec, stage_pairs(&resolved)?, &|_, _| None)?;
             let mut input_paths = Vec::new();
             let mut input_keys = Vec::new();
             for r in s.input.as_ref().map(|x| x.refs()).unwrap_or_default() {
-                let (base, role) = match r.split_once('.') {
-                    Some((b, role)) if produced.contains_key(b) => (b.to_string(), role.to_string()),
-                    _ => (r.clone(), "main".to_string()),
-                };
-                let (key, files) =
-                    produced.get(&base).ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
-                let path = files
-                    .get(&role)
-                    .or_else(|| if role == "main" { files.values().next() } else { None })
-                    .ok_or_else(|| {
-                        Error::usage(format!(
-                            "stage '{}' reads '{r}', but '{base}' has no output named '{role}' (has: {})",
-                            s.id,
-                            files.keys().cloned().collect::<Vec<_>>().join(", ")
-                        ))
-                    })?;
-                input_paths.push(path.clone());
-                input_keys.push(format!("{key}:{role}"));
+                let (path, key) = lookup(&produced, &r, &s.id)?;
+                input_paths.push(path);
+                input_keys.push(key);
             }
-            let key_src = json!({"op": spec.name, "args": args.to_json(), "inputs": input_keys, "v": crate::envelope::FERRAUS_VERSION});
+            // argument files are keyed by content, not by their (cache-dependent) paths
+            let key_src = json!({
+                "op": spec.name,
+                "args": Args::build(spec, stage_pairs(s)?, &|_, _| None)?.to_json(),
+                "inputs": input_keys,
+                "refs": ref_keys,
+                "v": crate::envelope::FERRAUS_VERSION,
+            });
             let key = sha256_bytes(serde_json::to_string(&key_src)?.as_bytes());
             let dir = cache_root.join(&key);
             let manifest = dir.join("manifest.json");
@@ -295,11 +350,21 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
                 if let Ok(m) = serde_json::from_slice::<BTreeMap<String, PathBuf>>(&std::fs::read(&manifest)?) {
                     if m.values().all(|p| p.exists()) {
                         report.cached += 1;
+                        // a cache hit counts as use: `pipeline prune` removes the least recently used
+                        let _ = std::fs::File::options()
+                            .write(true)
+                            .open(&manifest)
+                            .and_then(|f| f.set_modified(std::time::SystemTime::now()));
+                        // the result (notes, metrics) saved when the stage was computed
+                        let saved = std::fs::read(dir.join("result.json"))
+                            .ok()
+                            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                            .unwrap_or(Value::Null);
                         stage_reports.insert(
                             i,
                             json!({
                                 "id": s.id, "op": spec.name, "args": args.to_json(), "cached": true, "timing_ms": 0,
-                                "key": key, "result": Value::Null, "outputs": m.keys().cloned().collect::<Vec<_>>(),
+                                "key": key, "result": saved, "outputs": m.keys().cloned().collect::<Vec<_>>(),
                             }),
                         );
                         produced.insert(s.id.clone(), (key, m));
@@ -344,6 +409,7 @@ pub fn run(p: &PipelineFile, base_dir: &Path, ctx: &mut OpCtx, use_cache: bool) 
         for (j, (i, r, ms)) in jobs.iter().zip(results) {
             let (files, result, child) = r?;
             ctx.absorb(child);
+            std::fs::write(j.dir.join("result.json"), serde_json::to_vec(&result)?)?;
             std::fs::write(j.dir.join("manifest.json"), serde_json::to_vec_pretty(&files)?)?;
             report.computed += 1;
             let s = &p.stages[i];
@@ -425,11 +491,19 @@ fn compute_stage(
         }
         Runner::Chain => {
             let mut buf = child.read_audio(0)?;
+            // metrics per chain element (two compressors would otherwise overwrite each other)
+            let mut per_stage = Vec::new();
             for (name, pairs) in crate::exec::chain_stages(args)? {
                 buf = crate::exec::run_transform_pairs(registry, &|_, _| None, &name, pairs, buf, child)?;
+                let m = std::mem::take(&mut child.metrics);
+                per_stage.push(json!({"op": name, "metrics": m}));
             }
             child.write_audio(&dir.join("main.wav"), &buf, Some("main"))?;
-            Value::Null
+            if per_stage.iter().any(|s| s["metrics"].as_object().is_some_and(|m| !m.is_empty())) {
+                json!({ "chain_metrics": per_stage })
+            } else {
+                Value::Null
+            }
         }
     };
     let mut files = BTreeMap::new();
@@ -445,7 +519,145 @@ fn compute_stage(
             m.insert(k.clone(), val.clone());
         }
     }
+    // a transform's measurements (gain reduction, levels) are what an agent tunes from
+    if !child.metrics.is_empty() {
+        if result.is_null() {
+            result = json!({});
+        }
+        if let Value::Object(m) = &mut result {
+            m.entry("metrics").or_insert_with(|| Value::Object(child.metrics.clone()));
+        }
+    }
     Ok((files, result))
+}
+
+type Produced = HashMap<String, (String, BTreeMap<String, PathBuf>)>;
+
+/// Path and cache key (`hash:role`) of `r` (`name` or `stage.role`) among produced results.
+fn lookup(produced: &Produced, r: &str, stage: &str) -> Result<(PathBuf, String)> {
+    let (base, role) = match r.split_once('.') {
+        Some((b, role)) if produced.contains_key(b) => (b.to_string(), role.to_string()),
+        _ => (r.to_string(), "main".to_string()),
+    };
+    let (key, files) = produced.get(&base).ok_or_else(|| Error::internal(format!("missing stage result {base}")))?;
+    let path =
+        files.get(&role).or_else(|| if role == "main" { files.values().next() } else { None }).ok_or_else(|| {
+            Error::usage(format!(
+                "stage '{stage}' reads '{r}', but '{base}' has no output named '{role}' (has: {})",
+                files.keys().cloned().collect::<Vec<_>>().join(", ")
+            ))
+        })?;
+    Ok((path.clone(), format!("{key}:{role}")))
+}
+
+/// Replace every `$ref` string in `v` with the produced file's path; collect content keys.
+fn resolve_arg_refs(v: &mut Value, produced: &Produced, stage: &str, keys: &mut Vec<String>) -> Result<()> {
+    match v {
+        Value::String(t) => {
+            if let Some(r) = arg_ref(t).map(str::to_string) {
+                let (path, key) = lookup(produced, &r, stage)?;
+                *t = path.display().to_string();
+                keys.push(key);
+            }
+        }
+        Value::Array(a) => {
+            for x in a {
+                resolve_arg_refs(x, produced, stage, keys)?;
+            }
+        }
+        Value::Object(o) => {
+            for x in o.values_mut() {
+                resolve_arg_refs(x, produced, stage, keys)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Remove cached stage results (`pipeline prune`): entries whose manifest was last written
+/// or used more than `max_age` ago, then the least recently used ones until the cache is at
+/// most `max_size` bytes. With `dry_run` nothing is removed. Entries without a manifest
+/// (a stage that never finished) count as unused since their directory was last modified.
+pub fn prune_cache(dir: &Path, max_age: std::time::Duration, max_size: Option<u64>, dry_run: bool) -> Result<Value> {
+    fn size_of(p: &Path) -> u64 {
+        std::fs::read_dir(p)
+            .map(|rd| {
+                rd.flatten()
+                    .map(|e| {
+                        let m = e.metadata();
+                        match m {
+                            Ok(m) if m.is_dir() => size_of(&e.path()),
+                            Ok(m) => m.len(),
+                            Err(_) => 0,
+                        }
+                    })
+                    .sum()
+            })
+            .unwrap_or(0)
+    }
+    let now = std::time::SystemTime::now();
+    let mut entries: Vec<(PathBuf, std::time::SystemTime, u64)> = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let path = e.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let used = std::fs::metadata(path.join("manifest.json"))
+                .or_else(|_| std::fs::metadata(&path))
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::UNIX_EPOCH);
+            entries.push((path.clone(), used, size_of(&path)));
+        }
+    }
+    let before: u64 = entries.iter().map(|e| e.2).sum();
+    let n_before = entries.len();
+    // oldest use first
+    entries.sort_by_key(|e| e.1);
+    let mut remove = vec![false; entries.len()];
+    for (i, e) in entries.iter().enumerate() {
+        let age = now.duration_since(e.1).unwrap_or_default();
+        if max_age.is_zero() || age > max_age {
+            remove[i] = true;
+        }
+    }
+    if let Some(limit) = max_size {
+        let mut kept: u64 = entries.iter().zip(&remove).filter(|(_, r)| !**r).map(|(e, _)| e.2).sum();
+        for (i, e) in entries.iter().enumerate() {
+            if kept <= limit {
+                break;
+            }
+            if !remove[i] {
+                remove[i] = true;
+                kept -= e.2;
+            }
+        }
+    }
+    let mut freed = 0u64;
+    let mut removed = 0usize;
+    for (e, r) in entries.iter().zip(&remove) {
+        if !*r {
+            continue;
+        }
+        if !dry_run {
+            std::fs::remove_dir_all(&e.0)?;
+        }
+        freed += e.2;
+        removed += 1;
+    }
+    let mb = |b: u64| (b as f64 / 1e6 * 10.0).round() / 10.0;
+    Ok(json!({
+        "dir": dir.display().to_string(),
+        "dry_run": dry_run,
+        "entries_before": n_before,
+        "removed": removed,
+        "kept": n_before - removed,
+        "size_before_mb": mb(before),
+        "freed_bytes": freed,
+        "freed_mb": mb(freed),
+        "size_after_mb": mb(before - freed),
+    }))
 }
 
 pub(crate) fn resolve_path(base: &Path, p: &str) -> PathBuf {
@@ -505,5 +717,69 @@ outputs:
         assert!(topo_order(&parse(bad, &[]).unwrap()).is_err());
         let bad2 = "version: 1\nstages:\n  - {id: a, op: gain, in: nope}\n";
         assert!(topo_order(&parse(bad2, &[]).unwrap()).is_err());
+    }
+
+    #[test]
+    fn prune_removes_old_then_least_recently_used() {
+        let d = crate::testing::TempDir::new("pipe-prune");
+        let mk = |name: &str, bytes: usize, age_s: u64| {
+            let e = d.path(name);
+            std::fs::create_dir_all(&e).unwrap();
+            std::fs::write(e.join("main.wav"), vec![0u8; bytes]).unwrap();
+            std::fs::write(e.join("manifest.json"), b"{}").unwrap();
+            let t = std::time::SystemTime::now() - std::time::Duration::from_secs(age_s);
+            std::fs::File::options().write(true).open(e.join("manifest.json")).unwrap().set_modified(t).unwrap();
+        };
+        mk("old", 1000, 10 * 86_400);
+        mk("mid", 3000, 2 * 86_400);
+        mk("new", 2000, 60);
+        let week = std::time::Duration::from_secs(7 * 86_400);
+        // dry run: reports, removes nothing
+        let r = prune_cache(&d.0, week, None, true).unwrap();
+        assert_eq!(r["removed"], 1);
+        assert!(d.path("old").exists());
+        // the week rule takes "old"; the size limit then takes "mid" (least recently used)
+        let r = prune_cache(&d.0, week, Some(2500), false).unwrap();
+        assert_eq!(r["removed"], 2, "{r}");
+        assert_eq!(r["freed_bytes"].as_u64().unwrap(), 4000 + 2 * 2); // payload + manifests
+        assert!(!d.path("old").exists() && !d.path("mid").exists() && d.path("new").exists());
+        // days 0 empties the cache
+        let r = prune_cache(&d.0, std::time::Duration::ZERO, None, false).unwrap();
+        assert_eq!(r["kept"], 0);
+        // a missing cache directory is not an error
+        let r = prune_cache(&d.path("nope"), week, None, false).unwrap();
+        assert_eq!(r["entries_before"], 0);
+    }
+
+    #[test]
+    fn arg_ref_syntax() {
+        assert_eq!(arg_ref("$kick"), Some("kick"));
+        assert_eq!(arg_ref("$stems.vocals"), Some("stems.vocals"));
+        assert_eq!(arg_ref("$kick_fx-2"), Some("kick_fx-2"));
+        for literal in ["kick.wav", "$", "$1st", "$a b", "$a.b.c", "price $5", "$uicide$", "$.x", "$a."] {
+            assert_eq!(arg_ref(literal), None, "{literal}");
+        }
+    }
+
+    #[test]
+    fn argument_refs_order_stages() {
+        // `duck` is listed first but reads the kick stage through its sidechain argument
+        let text = "version: 1\ninputs: {bass: b.wav, kick: k.wav}\nstages:\n  \
+            - {id: duck, op: compress, in: bass, args: {sidechain: $kick_fx}}\n  \
+            - {id: kick_fx, op: fx, in: kick, args: {chain: [{op: gain, by: -2dB}]}}\n  \
+            - {id: verb, op: fx, in: bass, args: {chain: [{op: match-eq, reference: $kick}]}}\n";
+        let p = parse(text, &[]).unwrap();
+        assert_eq!(arg_refs(&p.stages[0]), vec!["kick_fx"]);
+        assert_eq!(arg_refs(&p.stages[2]), vec!["kick"]);
+        let order = topo_order(&p).unwrap();
+        let pos = |id: &str| order.iter().position(|&i| p.stages[i].id == id).unwrap();
+        assert!(pos("kick_fx") < pos("duck"));
+        let bad =
+            "version: 1\ninputs: {bass: b.wav}\nstages:\n  - {id: a, op: gain, in: bass, args: {reference: $nope}}\n";
+        let e = topo_order(&parse(bad, &[]).unwrap()).unwrap_err();
+        assert!(e.message.contains("$nope"), "{}", e.message);
+        let selfref =
+            "version: 1\ninputs: {bass: b.wav}\nstages:\n  - {id: a, op: gain, in: bass, args: {reference: $a}}\n";
+        assert!(topo_order(&parse(selfref, &[]).unwrap()).is_err());
     }
 }

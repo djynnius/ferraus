@@ -228,6 +228,94 @@ fn pipeline_runs_and_caches() {
 }
 
 #[test]
+fn pipeline_argument_refs_are_tracked() {
+    let d = TempDir::new("cli-pipe-refs");
+    fixture(&d);
+    testing::write_wav(&d.path("ref.wav"), &testing::stereo(testing::noise(44100, 2.0, 0.3, 7)));
+    // `matched` reads the output of `dark` through an argument, not through `in`
+    std::fs::write(
+        d.path("job.yaml"),
+        "version: 1\ninputs:\n  src: tone.wav\n  ref: ref.wav\nstages:\n  - id: matched\n    op: match-eq\n    in: src\n    args: { reference: $dark, amount: 50% }\n  - id: dark\n    op: lowpass\n    in: ref\n    args: { freq: 2kHz }\noutputs:\n  - { from: matched, path: out/matched.wav }\n",
+    )
+    .unwrap();
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["computed"], 2, "{v}");
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml", "--overwrite"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["cached"], 2, "{v}");
+    // new content in the referenced file invalidates both the producer and the reader
+    testing::write_wav(&d.path("ref.wav"), &testing::stereo(testing::noise(44100, 2.0, 0.3, 8)));
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml", "--overwrite"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["computed"], 2, "{v}");
+    // an unknown reference is a usage error before anything runs
+    std::fs::write(
+        d.path("bad.yaml"),
+        "version: 1\ninputs: { src: tone.wav }\nstages:\n  - { id: m, op: match-eq, in: src, args: { reference: $nope } }\n",
+    )
+    .unwrap();
+    let (code, v) = run_json(&d.0, &["pipeline", "validate", "bad.yaml"]);
+    assert_eq!(code, 2, "{v}");
+}
+
+#[test]
+fn pipeline_stage_metrics_survive_cache() {
+    let d = TempDir::new("cli-pipe-metrics");
+    fixture(&d);
+    std::fs::write(
+        d.path("job.yaml"),
+        "version: 1\ninputs: { src: tone.wav }\nstages:\n  - { id: comp, op: compress, in: src, args: { threshold: -30dB, ratio: 4:1 } }\n  - id: chain\n    op: fx\n    in: comp\n    args: { chain: [ { op: compress, threshold: -40dB }, { op: limit, ceiling: -12dBTP } ] }\noutputs:\n  - { from: chain, path: out.wav }\n",
+    )
+    .unwrap();
+    let check = |v: &Value| {
+        let plan = v["result"]["plan"].as_array().unwrap();
+        let gr = &plan[0]["result"]["metrics"]["gain_reduction_max_db"];
+        assert!(gr.as_f64().is_some_and(|x| x > 1.0), "compress stage metrics missing: {v}");
+        let chain = plan[1]["result"]["chain_metrics"].as_array().unwrap();
+        assert_eq!(chain.len(), 2, "{v}");
+        assert_eq!(chain[1]["op"], "limit");
+        assert!(chain[0]["metrics"]["gain_reduction_mean_db"].is_number(), "{v}");
+    };
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml"]);
+    assert_eq!(code, 0, "{v}");
+    check(&v);
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml", "--overwrite"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["cached"], 2, "{v}");
+    check(&v);
+}
+
+#[test]
+fn pipeline_validate_checks_chain_items() {
+    let d = TempDir::new("cli-pipe-chain-check");
+    fixture(&d);
+    let job = |chain: &str| {
+        format!("version: 1\ninputs: {{ src: tone.wav }}\nstages:\n  - {{ id: c, op: fx, in: src, args: {{ chain: {chain} }} }}\n")
+    };
+    std::fs::write(
+        d.path("ok.yaml"),
+        job("[ { op: highpass, freq: 80Hz }, { op: compress, preset: vocal, makeup: 0dB } ]"),
+    )
+    .unwrap();
+    let (code, v) = run_json(&d.0, &["pipeline", "validate", "ok.yaml"]);
+    assert_eq!(code, 0, "{v}");
+    // a misspelled flag, a bad unit, an unknown effect, and a non-effect in a chain
+    for (chain, needle) in [
+        ("[ { op: highpass, frequency: 80Hz } ]", "chain item 1 (highpass)"),
+        ("[ { op: gain, by: 0dB }, { op: widen, amount: wide } ]", "chain item 2 (widen)"),
+        ("[ { op: reverbb } ]", "chain item 1 (reverbb)"),
+        ("[ { op: mix } ]", "not a single-input audio effect"),
+    ] {
+        std::fs::write(d.path("bad.yaml"), job(chain)).unwrap();
+        let (code, v) = run_json(&d.0, &["pipeline", "validate", "bad.yaml"]);
+        assert_eq!(code, 2, "{chain}: {v}");
+        let msg = v["error"]["message"].as_str().unwrap_or("");
+        assert!(msg.contains(needle), "{chain}: {msg}");
+    }
+}
+
+#[test]
 fn help_json_and_schema() {
     let out = bin().args(["compress", "--help", "--json"]).output().unwrap();
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();

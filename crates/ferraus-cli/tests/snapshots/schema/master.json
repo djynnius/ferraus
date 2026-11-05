@@ -225,6 +225,24 @@
         "description": "Run this (edited) plan instead of planning: the JSON from 'master plan' Type: path.",
         "x-ferraus-kind": "path"
       },
+      "relevel": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "With --plan: search the final gain and limiter again so an edited plan still lands on its target (the other stages run as written) Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
       "stems": {
         "oneOf": [
           {

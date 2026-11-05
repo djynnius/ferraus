@@ -4,6 +4,7 @@ analyze chords
 analyze clipping
 analyze key
 analyze loudness
+analyze masking
 analyze pitch
 analyze problems
 analyze silence
@@ -105,6 +106,8 @@ midi transpose
 midi trim
 midi velocity
 mix
+mix balance
+mix verify
 models info
 models list
 models path
@@ -120,6 +123,7 @@ pan
 phase-align
 phaser
 pipeline explain
+pipeline prune
 pipeline run
 pipeline validate
 pitch

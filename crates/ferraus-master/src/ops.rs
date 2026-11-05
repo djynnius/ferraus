@@ -1,10 +1,11 @@
 //! The mastering commands: `master`, `master analyze`, `master plan`, `master verify`,
-//! `master deliver`.
+//! `master deliver`, and the pre-mastering gate `mix verify`.
 
 use crate::analyze::{self, AnalyzeRequest};
 use crate::chain::{self, LoudnessOutcome, Options};
 use crate::deliver;
 use crate::genres::GENRE_NAMES;
+use crate::mix_verify::{self, MixInput, MixLimits};
 use crate::plan::{run_plan_guarded, run_stage, Plan, StageTrace};
 use crate::stems;
 use crate::targets::{self, Target, TARGET_NAMES};
@@ -61,9 +62,11 @@ pub fn ops() -> Vec<OpSpec> {
             .param(param("report", ParamKind::Path).help("Write the before/after report (JSON) here"))
             .param(param("ab", ParamKind::Flag).help("Also write a loudness-matched before/after pair (within 0.2 LU) for listening: <output>.ab-before.wav and <output>.ab-after.wav"))
             .param(param("plan", ParamKind::Path).help("Run this (edited) plan instead of planning: the JSON from 'master plan'"))
+            .param(param("relevel", ParamKind::Flag).help("With --plan: search the final gain and limiter again so an edited plan still lands on its target (the other stages run as written)"))
             .param(param("stems", ParamKind::Flag).help("Best-effort stem-aware mastering: separate (best verified tier), per-stem chains, then sum and master"))
             .example("ferraus master mix.wav -o master.wav", "Master for streaming (-14 LUFS, -1 dBTP) with every default")
             .example("ferraus master mix.wav --plan plan.json -o master_v1.wav --report r1.json", "Run an edited plan and write the before/after report")
+            .example("ferraus master mix.wav --plan plan_no_glue.json --relevel -o master_v2.wav", "Run a plan with a stage removed and let the final gain and limiter land it on the target again")
             .example("ferraus master mix.wav --reference ref.wav --match-amount 75% --ab -o master.wav", "Move toward a reference's tonal balance and write an A/B pair")
             .example("ferraus master mix.wav --target club --genre edm --intensity heavy -o club.wav", "A loud club master"),
         OpSpec::custom("master analyze", Category::Mastering, "The measurement report an agent decides from", master_analyze)
@@ -101,6 +104,21 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus master deliver master.wav --tags title=Song,artist=Me --isrc US-RC1-76-07839 --loudness-sheet -o release/song.wav", "WAV 24, WAV 16, and MP3 with tags and a loudness sheet")
             .example("ferraus master deliver master.wav --formats wav24,flac,aac -o release/song.wav", "Lossless and AAC deliverables")
             .example("ferraus master deliver episode.wav --formats mp3 --tags title=Episode1,artist=Show -o out/episode1.wav", "A single tagged MP3 for a podcast feed"),
+        OpSpec::custom("mix verify", Category::Mastering, "Pass or fail for a mix before mastering", mix_verify)
+            .inputs(Inputs::ONE_AUDIO)
+            .about("The gate between mixing and mastering: checks that a mix leaves the master stage room to work and is technically and tonally sound. Fails (exit code 9, the failed checks in the message, a runnable fx command as the hint) on: true peak above --headroom (-3 dBTP, 4x oversampled; fix: gain); integrated loudness outside --min-lufs..--max-lufs (-26 to -12 LUFS; louder means the mix was limited already; fix: one gain that also respects the headroom); peak-to-loudness ratio below --min-plr (10 dB: the mix is already limited or squashed, re-bounce it without the bus limiter; below 12 dB warns); any clipped run (flat tops at or below full scale; fix: declip; float overs above 0 dBFS are left to the gain); DC offset above 0.005 (above 0.001 warns; fix: dc-remove); broadband L/R correlation below 0 (below 0.2 warns; fix: flip the right channel's polarity when below -0.3, else narrow the side with widen); L/R correlation below --mono-below (120 Hz) under 0.85 when at least 1% of the energy is down there (fix: widen with mono bass); a tonal-balance deviation beyond --tolerance (6 dB) in any 1/3-octave band between 60 Hz and 12.5 kHz, averaged over an octave, against the genre curve (--genre, auto guesses as master analyze does) or a --reference track, with the overall level removed (fix: peak EQ moving each out-of-tolerance region halfway back); and any high-severity problem from analyze problems that no other check covers (hum, noise floor, hiss, clicks, rumble, silence; medium ones warn). It warns, without failing, on: more than 3 dB lost when folded to mono, 200-400 Hz (mud) or 2-5 kHz (harsh) or below 40 Hz (sub_rumble) more than 4 dB above the curve, and more than 1 s of head silence below -60 dBFS. Every check reports value, limit, details, and a runnable fix; result.fixes lists the fx stages of the failed checks in processing order and result.fix_command runs them. -o writes the report (JSON), kept even when the mix fails.")
+            .param(param("genre", ParamKind::Choice).choices(GENRE_CHOICES).default("auto").help("Genre curve for the tonal checks; auto guesses from tempo, spectral tilt, low-end share, and crest factor (as master analyze does; mixes are more dynamic than masters, so name the genre when you know it)"))
+            .param(param("reference", ParamKind::Path).help("Compare the tonal balance with this reference track instead of the genre curve"))
+            .param(param("headroom", ParamKind::Gain).default("-3dBTP").help("Highest acceptable true peak (dBTP, 4x oversampled): the room the master stage needs"))
+            .param(param("min-lufs", ParamKind::Gain).default("-26LUFS").help("Quietest acceptable integrated loudness (LUFS)"))
+            .param(param("max-lufs", ParamKind::Gain).default("-12LUFS").help("Loudest acceptable integrated loudness (LUFS); a louder mix has been limited already"))
+            .param(param("min-plr", ParamKind::Gain).default("10dB").help("Lowest acceptable peak-to-loudness ratio, true peak minus integrated loudness (dB); below it the mix is already limited (within 2 dB above it warns). An unlimited mix usually measures 12-18 dB; 5 dB of bus limiting brings it to about 10"))
+            .param(param("tolerance", ParamKind::Gain).default("6dB").help("Largest allowed tonal deviation from the curve or reference (dB, 1/3-octave bands averaged over an octave, overall level removed)"))
+            .param(param("mono-below", ParamKind::Freq).default("120Hz").help("The mix should be mono below this frequency (L/R correlation at least 0.85); 0Hz turns the check off"))
+            .example("ferraus mix verify mix.wav --json", "Gate a mix before mastering: pass, or exit 9 with a fix per failed check")
+            .example("ferraus mix verify mix.wav --genre hiphop --headroom -6dBTP --json", "Check a hip-hop mix against its curve and ask for 6 dB of headroom")
+            .example("ferraus mix verify mix.wav --reference ref.wav --tolerance 4dB -o mix_report.json", "Compare the tonal balance with a reference track and keep the report")
+            .example("ferraus mix verify mix.wav --genre edm --min-plr 8dB --mono-below 150Hz", "A dense electronic mix: allow more bus compression, keep the low end mono up to 150 Hz"),
     ]
 }
 
@@ -302,13 +320,20 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             Some(p) if Path::new(p).exists() => Some((p.clone(), ctx.read_audio_path(Path::new(p))?)),
             _ => None,
         };
-        let (out, trace, guard) = run_plan_guarded(ctx, &plan, input.clone())?;
-        if let Some(g) = guard {
-            ctx.warn("true_peak_guard", g.clone());
-            plan.notes.push(g);
-        }
-        let outcome = outcome_from_run(&plan, &trace, &out);
-        let bm = analyze::measure(&input, reference.as_ref().map(|r| &r.1));
+        let (out, trace, outcome) = if a.flag("relevel") {
+            let (p, out, trace, outcome) = chain::relevel(ctx, &plan, input.clone())?;
+            plan = p;
+            (out, trace, outcome)
+        } else {
+            let (out, trace, guard) = run_plan_guarded(ctx, &plan, input.clone())?;
+            if let Some(g) = guard {
+                ctx.warn("true_peak_guard", g.clone());
+                plan.notes.push(g);
+            }
+            let outcome = outcome_from_run(&plan, &trace, &out);
+            (out, trace, outcome)
+        };
+        let bm = analyze::measure_at(&input, reference.as_ref().map(|r| &r.1), ctx.bpm());
         (plan, out, trace, outcome, reference, bm)
     } else {
         let opts = options_from_args(a, ctx, input.channels())?;
@@ -321,7 +346,7 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
                 stems_info = info;
             }
         }
-        let m = analyze::measure(&input, opts.reference.as_ref().map(|r| &r.1));
+        let m = analyze::measure_at(&input, opts.reference.as_ref().map(|r| &r.1), ctx.bpm());
         let built = chain::build(ctx, input.clone(), &m, &opts)?;
         declip = built.declip.clone();
         let mut plan = built.plan;
@@ -360,7 +385,7 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
     // before/after
     let refbuf = reference.as_ref().map(|r| &r.1);
-    let after_m = analyze::measure(&verify_buf, refbuf);
+    let after_m = analyze::measure_at(&verify_buf, refbuf, ctx.bpm());
     let (label, before_tone) = analyze::tone_against(&before_m, &plan.genre.name, refbuf.is_some());
     let (_, after_tone) = analyze::tone_against(&after_m, &plan.genre.name, refbuf.is_some());
 
@@ -457,7 +482,7 @@ fn master_analyze(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     let target = targets::resolve(a, buf.channels())?;
     let reference = read_reference(a, ctx)?;
-    let m = analyze::measure(&buf, reference.as_ref().map(|r| &r.1));
+    let m = analyze::measure_at(&buf, reference.as_ref().map(|r| &r.1), ctx.bpm());
     let path = input_path.display().to_string();
     let req = AnalyzeRequest {
         buf: &buf,
@@ -485,7 +510,7 @@ fn master_plan(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         return Err(Error::input("the mix has no audio"));
     }
     let opts = options_from_args(a, ctx, input.channels())?;
-    let m = analyze::measure(&input, opts.reference.as_ref().map(|r| &r.1));
+    let m = analyze::measure_at(&input, opts.reference.as_ref().map(|r| &r.1), ctx.bpm());
     let built = chain::build(ctx, input, &m, &opts)?;
     let plan = serde_json::to_value(&built.plan)?;
     if ctx.globals.output.is_some() {
@@ -528,6 +553,97 @@ fn master_verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             r.failure_lines().join("; ")
         ))
         .with_hint(format!("ferraus master {} --target {} -o fixed.wav", input_path.display(), target.name)));
+    }
+    Ok(v)
+}
+
+// ---------------------------------------------------------------------------------------
+// mix verify
+// ---------------------------------------------------------------------------------------
+
+fn mix_limits(a: &Args) -> Result<MixLimits> {
+    let lim = MixLimits {
+        headroom_dbtp: a.db("headroom")?,
+        min_lufs: a.db("min-lufs")?,
+        max_lufs: a.db("max-lufs")?,
+        min_plr_db: a.db("min-plr")?,
+        tolerance_db: a.db("tolerance")?,
+        mono_below_hz: a.freq("mono-below")?,
+    };
+    if !(-24.0..=0.0).contains(&lim.headroom_dbtp) {
+        return Err(Error::usage("--headroom must be between -24dBTP and 0dBTP"));
+    }
+    for (name, v) in [("--min-lufs", lim.min_lufs), ("--max-lufs", lim.max_lufs)] {
+        if !(-60.0..=0.0).contains(&v) {
+            return Err(Error::usage(format!("{name} must be between -60LUFS and 0LUFS")));
+        }
+    }
+    if lim.min_lufs >= lim.max_lufs {
+        return Err(Error::usage("--min-lufs must be below --max-lufs"));
+    }
+    if !(0.0..=30.0).contains(&lim.min_plr_db) {
+        return Err(Error::usage("--min-plr must be between 0dB and 30dB"));
+    }
+    if !(1.0..=24.0).contains(&lim.tolerance_db) {
+        return Err(Error::usage("--tolerance must be between 1dB and 24dB"));
+    }
+    if lim.mono_below_hz != 0.0 && !(30.0..=500.0).contains(&lim.mono_below_hz) {
+        return Err(Error::usage("--mono-below must be 0Hz (off) or between 30Hz and 500Hz"));
+    }
+    Ok(lim)
+}
+
+fn mix_verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
+    let input_path = ctx.input(0)?.to_path_buf();
+    let limits = mix_limits(a)?;
+    let buf = ctx.read_audio(0)?;
+    if buf.is_empty() {
+        return Err(Error::input("the mix has no audio"));
+    }
+    let reference = read_reference(a, ctx)?;
+    let m = analyze::measure_at(&buf, reference.as_ref().map(|r| &r.1), ctx.bpm());
+    let path = input_path.display().to_string();
+    let genre = a.str_or("genre", "auto");
+    let r = mix_verify::verify_mix(
+        &MixInput {
+            buf: &buf,
+            analysis: &m,
+            genre: &genre,
+            reference: reference.as_ref().map(|(p, _)| p.as_str()),
+            path: &path,
+        },
+        &limits,
+    );
+    let v = serde_json::to_value(&r)?;
+    if ctx.globals.output.is_some() {
+        let p = ctx.output_path(None, "json")?;
+        ctx.write_file(&p, &serde_json::to_vec_pretty(&v)?, Some("report"))?;
+    }
+    ctx.metric("pass", r.pass);
+    ctx.metric("checks", v["checks"].clone());
+    ctx.metric("failed_checks", json!(r.failed));
+    ctx.metric("fixes", json!(r.fixes));
+    ctx.metric("genre", &r.genre);
+    ctx.note("genre", &r.genre);
+    ctx.note("genre_source", &r.genre_source);
+    for w in &r.warnings {
+        ctx.warn("verify_warning", w.clone());
+    }
+    if !r.pass {
+        let again = format!("ferraus mix verify {}", input_path.display());
+        let limited = r.failed.iter().any(|c| c == "plr");
+        let hint = match (&r.fix_command, limited) {
+            (Some(cmd), false) => cmd.clone(),
+            (Some(cmd), true) => format!("re-bounce the mix without the bus limiter or clipper (no fx stage restores crushed peaks), then run: {again}; the other failed checks are fixed by: {cmd}"),
+            (None, true) => format!("re-bounce the mix without the bus limiter or clipper (no fx stage restores crushed peaks), then run: {again}"),
+            (None, false) => format!("fix the failed checks (metrics.checks), then run: {again}"),
+        };
+        return Err(Error::verification(format!(
+            "{} is not ready for mastering: {}",
+            input_path.display(),
+            r.failure_lines().join("; ")
+        ))
+        .with_hint(hint));
     }
     Ok(v)
 }

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: revision-vocal-up-and-wider
+expected_outcome: |
+  The agent edits mix/mix.yaml (vocal level in the final stage or vocal bus, more width on pads/BVs), re-runs the cached pipeline, and reports before/after numbers for vocal-to-music balance and stereo correlation, keeping every gate passing.
+context:
+  scaffold_script: place-files.sh

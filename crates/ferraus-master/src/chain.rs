@@ -911,6 +911,50 @@ fn stereo_settings(buf: &AudioBuffer, want: f64, bass_mono: f64) -> (f64, f64, O
     (amount, round_to(mono_below, 0), note)
 }
 
+/// Run an edited plan with its loudness stages searched again (`master --plan --relevel`).
+/// The trailing `gain` and `limit` stages of a plan were computed for the chain the planner
+/// proposed; after an edit (a stage removed, an EQ boost capped) the same gain lands
+/// somewhere else. This runs every stage before them as written, then repeats the
+/// planner's gain/limiter search on the result, keeping the plan's limiter release.
+/// Returns the plan with the new loudness stages, the output, and the trace.
+pub fn relevel(
+    ctx: &mut OpCtx,
+    plan: &Plan,
+    buf: AudioBuffer,
+) -> Result<(Plan, AudioBuffer, Vec<StageTrace>, LoudnessOutcome)> {
+    let n_tail =
+        plan.stages.iter().rev().take_while(|s| s.stage == "loudness" && (s.op == "gain" || s.op == "limit")).count();
+    if n_tail == 0 {
+        return Err(Error::usage(
+            "--relevel needs a plan that ends in its loudness stages (gain, then limit); this plan has none",
+        ));
+    }
+    let head = Plan { stages: plan.stages[..plan.stages.len() - n_tail].to_vec(), ..plan.clone() };
+    let release_s = plan.stages[plan.stages.len() - n_tail..]
+        .iter()
+        .find(|s| s.op == "limit")
+        .and_then(|s| s.args.get("release"))
+        .and_then(|v| v.as_str())
+        .and_then(|v| units::parse_duration_s(v).ok())
+        .unwrap_or(0.075);
+    let (pre, mut trace) =
+        if head.stages.is_empty() { (buf, Vec::new()) } else { crate::plan::run_plan(ctx, &head, buf)? };
+    let mut sim = Sim { ctx, stages: Vec::new(), trace: Vec::new() };
+    // loudness_stage uses half the release base as the limiter release
+    let (out, outcome) = loudness_stage(&mut sim, pre, &plan.target, &plan.intensity, 2.0 * release_s)?;
+    let Sim { stages, trace: tail_trace, .. } = sim;
+    trace.extend(tail_trace);
+    let mut new_plan = head;
+    new_plan.stages.extend(stages);
+    new_plan.expected = None;
+    new_plan.notes.push(format!(
+        "relevelled: the loudness stages were searched again for the edited chain (gain {}, limiter {} dB)",
+        fmt_db(outcome.gain_db),
+        outcome.limiter_gain_reduction_db
+    ));
+    Ok((new_plan, out, trace, outcome))
+}
+
 /// Gain to the target, then the true-peak limiter, iterated so the result lands on the
 /// target without the limiter exceeding the intensity's gain-reduction bound.
 fn loudness_stage(

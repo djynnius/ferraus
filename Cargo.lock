@@ -838,6 +838,7 @@ dependencies = [
  "ferraus-synth",
  "serde",
  "serde_json",
+ "serde_yaml",
  "toml",
 ]
 

@@ -251,7 +251,8 @@ pub struct GenreFeatures {
     pub correlation: f64,
 }
 
-fn share(bands: &[BandLevel], lo: f64, hi: f64) -> f64 {
+/// Share of the band energy (0..1, bands from 20 Hz up) between `lo` and `hi` Hz.
+pub fn share(bands: &[BandLevel], lo: f64, hi: f64) -> f64 {
     let p = |b: &BandLevel| 10f64.powf(b.db / 10.0);
     let total: f64 = bands.iter().filter(|b| b.center_hz >= 20.0).map(p).sum();
     if total <= 0.0 {

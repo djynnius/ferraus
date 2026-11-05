@@ -1,0 +1,231 @@
+{
+  "command": "mix balance",
+  "summary": "Propose stem gains that put a multitrack on a genre balance template",
+  "category": "edit",
+  "best_effort": false,
+  "fx_stage": false,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/mix_balance.args.json",
+    "title": "ferraus mix balance arguments",
+    "description": "Propose stem gains that put a multitrack on a genre balance template",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "roles": {
+        "type": "string",
+        "description": "Role per input, in input order: vocal, bvs, lead, kick, snare, hats, drums, perc, bass, sub, guitar, keys, piano, synth, pad, strings, brass, fx, other (synonyms such as vox, bv, 808, gtr work; auto or a missing value infers it from the file name) Type: list.",
+        "x-ferraus-kind": "list"
+      },
+      "genre": {
+        "type": "string",
+        "enum": [
+          "pop",
+          "hiphop",
+          "edm",
+          "rock",
+          "acoustic",
+          "jazz"
+        ],
+        "description": "Balance template: how far each role sits under the lead vocal Type: choice.",
+        "default": "pop",
+        "x-ferraus-kind": "choice"
+      },
+      "anchor": {
+        "type": "string",
+        "description": "Role everything is relative to (it lands at --anchor-lufs); auto = vocal, else lead, kick, drums, else the loudest stem Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "anchor_lufs": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Loudness of the anchor stem; -20LUFS leaves the sum of 6-10 stems near -15 LUFS with bus headroom Type: gain.",
+        "default": "-20LUFS",
+        "x-ferraus-kind": "gain"
+      },
+      "render": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Also sum the stems with the proposed gains and measure the sum (loudness, true peak); -o implies it and writes the sum Type: flag.",
+        "x-ferraus-kind": "flag"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/mix_balance.result.json",
+    "title": "ferraus mix balance result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "mix balance"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}
