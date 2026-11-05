@@ -189,13 +189,19 @@ pub fn si_sdr(reference: &[f32], estimate: &[f32]) -> f64 {
 /// A temp directory unique to the test, removed on drop.
 pub struct TempDir(pub std::path::PathBuf);
 
+/// Makes every `TempDir` of a process distinct: tests run on parallel threads, and two of
+/// them with the same name can read the same clock value (Windows' clock is coarse), in
+/// which case the first to finish deleted the other's files.
+static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 impl TempDir {
     pub fn new(name: &str) -> TempDir {
         let p = std::env::temp_dir().join(format!(
-            "ferraus-test-{}-{}-{}",
+            "ferraus-test-{}-{}-{}-{}",
             name,
             std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+            TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         std::fs::create_dir_all(&p).unwrap();
         TempDir(p)
@@ -218,4 +224,23 @@ pub fn write_wav(path: &std::path::Path, b: &AudioBuffer) {
 
 pub fn read_wav(path: &std::path::Path) -> AudioBuffer {
     crate::wav::decode(&std::fs::read(path).unwrap()).unwrap().0
+}
+
+#[cfg(test)]
+mod temp_dir_tests {
+    use super::TempDir;
+
+    #[test]
+    fn same_name_never_shares_a_directory() {
+        // many threads asking for the same name at once (as parallel tests do)
+        let dirs: Vec<TempDir> = std::thread::scope(|s| {
+            let hs: Vec<_> = (0..16).map(|_| s.spawn(|| TempDir::new("same-name"))).collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let mut paths: Vec<_> = dirs.iter().map(|d| d.0.clone()).collect();
+        paths.sort();
+        paths.dedup();
+        assert_eq!(paths.len(), 16);
+        assert!(dirs.iter().all(|d| d.0.is_dir()));
+    }
 }
