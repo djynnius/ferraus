@@ -8,6 +8,7 @@ pub mod glue;
 pub mod progress;
 pub mod system;
 pub mod tools;
+pub mod update;
 
 use ferraus_core::Registry;
 
@@ -37,6 +38,7 @@ pub fn registry() -> Registry {
     r.extend(ferraus_mcp::ops());
     r.extend(system::ops());
     r.extend(tools::ops());
+    r.extend(update::ops());
     r
 }
 

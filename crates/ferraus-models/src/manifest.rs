@@ -258,7 +258,7 @@ impl Manifest {
                     m.schema_version, MANIFEST_SCHEMA_VERSION
                 ),
             )
-            .with_hint("ferraus self-update"));
+            .with_hint("ferraus update"));
         }
         Ok(m)
     }

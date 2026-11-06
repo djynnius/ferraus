@@ -35,7 +35,7 @@ pub fn exit_codes_for(op: &OpSpec) -> Vec<ErrorKind> {
     if plugin_cmds.iter().any(|m| n.starts_with(m)) {
         v.push(ErrorKind::Plugin);
     }
-    if n.starts_with("sounds") || n.starts_with("doctor") || n.starts_with("self-update") {
+    if n.starts_with("sounds") || n.starts_with("doctor") || n == "update" {
         v.push(ErrorKind::Network);
     }
     v.push(ErrorKind::Cancelled);

@@ -18,7 +18,7 @@ pub const TOOL_PREFIX: &str = "ferraus_";
 /// get the in-server job tools instead of the CLI's process-based `jobs` commands.
 pub const CLI_ONLY: &[&str] = &[
     "mcp serve",
-    "self-update",
+    "update",
     "self-uninstall",
     "completions",
     "man",
@@ -174,9 +174,13 @@ impl<'a> Server<'a> {
             || op.name.ends_with(" info")
             || op.name.ends_with(" validate")
             || op.name.ends_with(" explain");
+        // `tags --set/--remove/--art` writes the file, unlike the rest of Inspect.
+        let read_only = read_only && op.name != "tags";
         let network = op.name.starts_with("models pull")
+            || op.name == "models registry update"
             || op.name.starts_with("sounds install")
-            || op.name.starts_with("accelerate")
+            || op.name == "sounds update"
+            || op.name == "accelerate install"
             || op.name.starts_with("doctor");
         json!({
             "name": Self::tool_name(op),
@@ -868,6 +872,24 @@ mod tests {
     fn server(dir: &Path) -> Server<'static> {
         let cfg = ServerConfig { allow: vec![absolutize(dir)], base_globals: Globals::default() };
         Server::new(registry(), &testing::SIMPLE_IO, cfg)
+    }
+
+    fn noop(_: &ferraus_core::Args, _: &mut ferraus_core::OpCtx) -> Result<Value> {
+        Ok(Value::Null)
+    }
+
+    #[test]
+    fn annotations_mark_network_and_writing_tools() {
+        let ann = |name: &'static str, cat: Category| {
+            let op = OpSpec::custom(name, cat, "x", noop);
+            Server::tool_def(&op)["annotations"].clone()
+        };
+        for name in ["models registry update", "sounds update", "accelerate install", "models pull", "sounds install"] {
+            assert_eq!(ann(name, Category::System)["openWorldHint"], true, "{name}");
+        }
+        assert_eq!(ann("accelerate status", Category::System)["openWorldHint"], false);
+        assert_eq!(ann("tags", Category::Inspect)["readOnlyHint"], false);
+        assert_eq!(ann("info", Category::Inspect)["readOnlyHint"], true);
     }
 
     #[test]

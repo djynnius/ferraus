@@ -245,7 +245,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `doctor: Report what is installed: version, paths, FFmpeg, models, devices, plugins [--install-ffmpeg --install-audiveris]`
 - `licenses: Print every third-party license and attribution`
 - `self-uninstall: Remove everything the URL installer placed [--purge]`
-- `self-update: Update ferraus to the latest release (opt-in, never automatic) [--version]`
+- `update: Check for a newer release and update ferraus [--check --version]`
 
 ## Docs
 

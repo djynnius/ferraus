@@ -160,7 +160,6 @@ score play
 score read
 score to-json
 self-uninstall
-self-update
 separate
 silence detect
 silence pad
@@ -184,6 +183,7 @@ transient
 tremolo
 trim
 tune
+update
 verify
 vibrato
 vocoder

@@ -1,23 +1,41 @@
 {
-  "command": "self-update",
-  "summary": "Update ferraus to the latest release (opt-in, never automatic)",
+  "command": "update",
+  "summary": "Check for a newer release and update ferraus",
   "category": "system",
   "best_effort": false,
   "fx_stage": false,
   "arguments": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://djynnius.github.io/ferraus/schema/v1/self_update.args.json",
-    "title": "ferraus self-update arguments",
-    "description": "Update ferraus to the latest release (opt-in, never automatic)",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/update.args.json",
+    "title": "ferraus update arguments",
+    "description": "Check for a newer release and update ferraus",
     "type": "object",
     "properties": {
       "output": {
         "type": "string",
         "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
       },
+      "check": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Only report the current and newest version and how to update; change nothing Type: flag.",
+        "x-ferraus-kind": "flag"
+      },
       "version": {
         "type": "string",
-        "description": "Install this version instead of the latest, e.g. 1.2.0 Type: text.",
+        "description": "Install this release instead of the newest, e.g. 0.1.4 (an older one goes back) Type: text.",
         "x-ferraus-kind": "str"
       }
     },
@@ -26,8 +44,8 @@
   },
   "result": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://djynnius.github.io/ferraus/schema/v1/self_update.result.json",
-    "title": "ferraus self-update result",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/update.result.json",
+    "title": "ferraus update result",
     "type": "object",
     "required": [
       "ok",
@@ -45,7 +63,7 @@
         "type": "boolean"
       },
       "command": {
-        "const": "self-update"
+        "const": "update"
       },
       "ferraus_version": {
         "type": "string"

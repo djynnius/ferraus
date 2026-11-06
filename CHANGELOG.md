@@ -6,6 +6,24 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
+### Added
+- `ferraus update`: `--check` reports the newest release, its notes, and the command that updates
+  this copy; without `--check` it updates a copy the release installer placed by running that
+  release's installer (pinned to the version it checked, into the same folder, VST3 host and
+  engraver included) and confirms the new version. Homebrew, apt, dnf, scoop, cargo, MSI, and
+  container copies are left to their package manager, with the command to run. `--version`
+  installs a specific release; ferraus never checks on its own.
+
+### Changed
+- `ferraus self-update` is now an alias of `ferraus update`. It used to rerun the installer
+  without checking the version first, and on a package-manager install it put a second copy in
+  `~/.ferraus/bin`.
+
+### Fixed
+- MCP tool annotations: `models registry update` and `sounds update` are marked as reaching the
+  network (`openWorldHint`), `accelerate status` no longer is, and `tags` is no longer marked
+  read-only (`--set`, `--remove`, and `--art` write the file).
+
 ## [0.1.4] — 2026-11-05
 
 ### Added
