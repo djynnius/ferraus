@@ -384,14 +384,25 @@ fn replay(_args: &Args, ctx: &mut OpCtx) -> Result<Value> {
         globals.outdir = Path::new(&o.path).parent().map(|p| p.to_path_buf());
     }
     globals.force = true;
-    let inv = Invocation {
-        command: sc.command.clone(),
-        args: pairs,
-        inputs: sc.inputs.iter().map(|i| i.path.clone()).collect(),
-        globals,
-        argv: sc.argv.clone(),
-        stdin: None,
+    // Files read through a path parameter (a sidechain key, the music a vocal rides against)
+    // are recorded as inputs too; they travel as their flag, not as positional inputs.
+    let side_files: Vec<&str> = spec
+        .effective_params()
+        .iter()
+        .filter(|p| p.kind == ParamKind::Path)
+        .filter_map(|p| sc.params.get(&p.key()).or_else(|| sc.params.get(p.name)).and_then(|v| v.as_str()))
+        .collect();
+    let same_file = |a: &str, b: &str| {
+        a == b
+            || match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+                (Ok(x), Ok(y)) => x == y,
+                _ => false,
+            }
     };
+    let inputs: Vec<String> =
+        sc.inputs.iter().map(|i| i.path.clone()).filter(|p| !side_files.iter().any(|s| same_file(p, s))).collect();
+    let inv =
+        Invocation { command: sc.command.clone(), args: pairs, inputs, globals, argv: sc.argv.clone(), stdin: None };
     let rt =
         Runtime { registry, io: ctx.io, progress: ctx.progress, presets: &|_, _| None, cancel: ctx.cancel.clone() };
     let out = rt.invoke(inv);

@@ -16,6 +16,7 @@ and collapses to mono without losing anything important. All of that is measurab
 | fake stereo (correlation > 0.98), to pan | `{ op: channels, to: mono }`, then pan it | a stereo file of a mono source |
 | fake stereo or mono, to make wide | `{ op: chorus, mix: 50% }` on the 2-channel file, then `widen` | measured on a fake-stereo pad: correlation 1.0 → 0.69 with no mono loss; `widen` alone, a short ping-pong delay or reverb barely moved it |
 | movement | `{ op: autopan, rate: 1/2, depth: 40% }` or `{ op: pan, points: "0s=-60,8s=60" }` | fx, risers, arps |
+| mono part or a mono stack of several voices, to make wide (Haas) | `{ op: channels, to: stereo }`, then `{ op: phase-align, mode: shift, shift: "L=0ms,R=20ms" }` (12-25 ms) | measured on a mono source: correlation 1.0 → 0.09, mono fold-down 2.6 dB quieter. Backing vocals, doubles and pads only, never the lead, bass or kick (in mono it comb-filters); write the chain in YAML (the `--fx` string form cannot carry the comma in `shift`) |
 
 ## The default map (pop; other genres below)
 
@@ -37,6 +38,7 @@ Positions in ferraus pan units. "Pair" means two parts of similar range mirrored
 | keys, piano (mono) | ±30..50 opposite the guitar | |
 | pads, strings | 0 at 130-150%, `mono_below: 200Hz` | widest bed |
 | synth lead | 0..±15 (centre only when no vocal plays at the same time) | |
+| call and response: parts that trade phrases with each other or answer the vocal (harmonica, slide, a second guitar) | small mirrored offsets, ±5..25; the part that plays alone at that moment stays centre | the "handoff": each gets a sliver of its own space without leaving the middle |
 | arps, plucks | ±30..60, or autopan with depth 30-50% | |
 | brass section | ±20..40 | |
 | fx, risers | wide, moving | |
@@ -57,7 +59,17 @@ Positions in ferraus pan units. "Pair" means two parts of similar range mirrored
 5. **Depth before width.** A crowded mix is more often fixed by pushing parts back (lower
    level, darker, wetter: space-and-movement.md) than by panning them further out.
 6. **Do not chase width.** Width that collapses in mono is worse than no width.
-7. **Width needs side signal.** `widen` scales the difference between the channels; a mono
+7. **Keep printed stereo that works.** Stems that arrive as stereo with the producer's
+   placement baked in (a stereo BV stack, a keys part already spread) keep it; move them only
+   when a gate or a masking region says so, and say so in the report.
+8. **Handoffs get slivers.** Parts that answer each other (call and response) are clearer a
+   few units apart (±5..25) than stacked in the centre, and still read as one band. Panning
+   them hard is a production choice, not a fix.
+9. **One pulse in the middle.** When a single percussion part carries the subdivision (the
+   only 1/8 or 1/16 pulse, as when the drums arrive as one stereo sum without separate hats),
+   keep it near centre (0..±15): the groove needs a focus point. Two shakers panned hard
+   apart smear it; keep one, or tuck the second low.
+10. **Width needs side signal.** `widen` scales the difference between the channels; a mono
    or fake-stereo source has none. Create it (chorus, a stereo reverb or delay return,
    a double), or place the part with panning instead.
 
@@ -84,6 +96,7 @@ session; the others are standard techniques whose effect you measure on your own
 | a double of a mono part: `{ op: pitch, cents: 8 }` + `{ op: delay, time: 18ms, feedback: 0%, mix: 100% }`, panned opposite the original and 6-8 dB under it | strong width; check `mono_loss_db` (short delays comb-filter in mono) |
 | more level on stereo returns (pads and BVs to the hall) | width that lives behind the dry parts |
 | `delay` with `pingpong: true` on arps and plucks | movement and width in the gaps |
+| Haas on a mono BV stack (`phase-align` shift, 12-25 ms) | strong width from one mono file; mono fold-down about 3 dB quieter on that part, so keep the part under the lead and re-check `mono_loss_db` on the mix |
 | `widen` on a fake-stereo part | nothing: there is no side signal to scale |
 
 Re-measure `correlation`, `mono_loss_db` and `correlation_below_120hz` after each move.

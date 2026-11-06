@@ -1,7 +1,8 @@
 //! # ferraus-edit
 //!
 //! The editing commands: `trim`, `cut`, `split`, `concat`, `resample`, `gain`, `normalize`,
-//! `channels`, `silence detect|trim|pad`, `mix`, `mix balance`, `waveform`, and `spectrogram`.
+//! `channels`, `silence detect|trim|pad`, `mix`, `mix balance`, `patch`, `waveform`, and
+//! `spectrogram`.
 //!
 //! Besides the ops, the crate exports reusable building blocks:
 //!
@@ -22,6 +23,7 @@ pub mod channels;
 pub mod level;
 pub mod loudness;
 pub mod mix;
+pub mod patch;
 pub mod range_ops;
 pub mod silence;
 pub mod util;
@@ -39,6 +41,7 @@ pub fn ops() -> Vec<OpSpec> {
     v.extend(silence::ops());
     v.extend(mix::ops());
     v.extend(balance::ops());
+    v.extend(patch::ops());
     v.extend(visual::ops());
     v
 }

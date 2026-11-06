@@ -16,6 +16,9 @@ pub struct Stft {
     pub size: usize,
     pub hop: usize,
     window: Vec<f32>,
+    /// Overlap-add normalization for hops that divide `size`: the sum of the squared
+    /// windows that overlap any one sample.
+    ola_norm: f32,
     fwd: Arc<dyn RealToComplex<f32>>,
     inv: Arc<dyn ComplexToReal<f32>>,
 }
@@ -24,14 +27,11 @@ impl Stft {
     /// `size` must be even; `hop` ≤ `size / 2` for good reconstruction.
     pub fn new(size: usize, hop: usize) -> Stft {
         let size = size.max(16) & !1;
+        let hop = hop.clamp(1, size);
         let mut planner = RealFftPlanner::<f32>::new();
-        Stft {
-            size,
-            hop: hop.clamp(1, size),
-            window: hann(size).into_iter().map(|w| w.sqrt()).collect(),
-            fwd: planner.plan_fft_forward(size),
-            inv: planner.plan_fft_inverse(size),
-        }
+        let window: Vec<f32> = hann(size).into_iter().map(|w| w.sqrt()).collect();
+        let ola_norm = (window.iter().map(|w| (*w as f64).powi(2)).sum::<f64>() / hop as f64) as f32;
+        Stft { size, hop, window, ola_norm, fwd: planner.plan_fft_forward(size), inv: planner.plan_fft_inverse(size) }
     }
 
     /// Number of bins per frame (`size/2 + 1`).
@@ -64,6 +64,46 @@ impl Stft {
             start += self.hop;
         }
         frames
+    }
+
+    /// Number of frames [`Stft::analyze`] returns for a signal of `len` samples.
+    pub fn frame_count(&self, len: usize) -> usize {
+        (len + self.size) / self.hop + 1
+    }
+
+    /// Frame `index` of [`Stft::analyze`]`(x)` alone, into `out` (`bins()` long); `buf` is
+    /// `size` samples of scratch. Lets long signals stream frame by frame.
+    pub fn analyze_frame(&self, x: &[f32], index: usize, buf: &mut [f32], out: &mut [Complex<f32>]) {
+        let n = self.size;
+        let start = index * self.hop;
+        for (i, b) in buf.iter_mut().enumerate() {
+            let idx = start + i;
+            let s = if idx >= n && idx - n < x.len() { x[idx - n] } else { 0.0 };
+            *b = s * self.window[i];
+        }
+        self.fwd.process(buf, out).expect("fft sizes match");
+    }
+
+    /// Inverse of [`Stft::analyze_frame`]: overlap-add `spec` as frame `index` into `out`
+    /// (the signal, `len` samples). Summing every frame this way reconstructs the signal
+    /// exactly like [`Stft::synthesize`] when `hop` divides `size` (the overlap is then
+    /// constant); frames left out contribute nothing, so a signal of differences can be
+    /// built from only the frames that differ. `buf` is `size` samples of scratch.
+    pub fn overlap_add_frame(&self, spec: &mut [Complex<f32>], index: usize, buf: &mut [f32], out: &mut [f32]) {
+        let n = self.size;
+        spec[0].im = 0.0;
+        if let Some(last) = spec.last_mut() {
+            last.im = 0.0;
+        }
+        self.inv.process(spec, buf).expect("fft sizes match");
+        let scale = 1.0 / (n as f32 * self.ola_norm);
+        let start = index * self.hop;
+        for i in 0..n {
+            let j = start + i;
+            if j >= n && j - n < out.len() {
+                out[j - n] += buf[i] * self.window[i] * scale;
+            }
+        }
     }
 
     /// Overlap-add frames back to a signal of length `len` (inverse of [`Stft::analyze`]).
@@ -167,5 +207,24 @@ mod tests {
         let y = s.synthesize(&mut f, x.len());
         let err = x.iter().zip(&y).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
         assert!(err < 1e-4, "{err}");
+    }
+
+    #[test]
+    fn streaming_frames_match_the_batch_transform() {
+        let x: Vec<f32> =
+            (0..3001).map(|i| ((i as f32) * 0.031).sin() * 0.4 + ((i * 7 % 13) as f32 - 6.0) * 0.01).collect();
+        let s = Stft::new(256, 64);
+        let frames = s.analyze(&x);
+        assert_eq!(s.frame_count(x.len()), frames.len());
+        let mut buf = vec![0.0f32; s.size];
+        let mut spec = vec![Complex::new(0.0f32, 0.0); s.bins()];
+        let mut y = vec![0.0f32; x.len()];
+        for (t, f) in frames.iter().enumerate() {
+            s.analyze_frame(&x, t, &mut buf, &mut spec);
+            assert_eq!(&spec, f, "frame {t}");
+            s.overlap_add_frame(&mut spec, t, &mut buf, &mut y);
+        }
+        let err = x.iter().zip(&y).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        assert!(err < 1e-5, "{err}");
     }
 }

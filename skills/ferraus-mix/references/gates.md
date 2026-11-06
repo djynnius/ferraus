@@ -15,7 +15,7 @@ measure the reference the same way and use its values ±1 dB as the window.
 | 3 | Dynamics | stage `result.metrics` / `chain_metrics` | gain reduction inside the role ranges (role-recipes.md) |
 | 4 | Masking | `mask_*` stages (`analyze masking`, level-aware) on post-fader stems | no `regions` on any priority pair with `co_activity` ≥ 0.2 |
 | 5 | Stereo | `analyze stereo` on the mix | stereo-placement.md table |
-| 6 | Vocal-to-music | `analyze loudness` on a cappella and instrumental | genre window below |
+| 6 | Vocal-to-music | `analyze loudness` on a cappella and instrumental; the `vox_ride` stage | genre window below; ride `offset_after.spread_lu` ≤ 3 LU (the vocal holds its place word by word) |
 | 7 | Space | `analyze loudness` on each return family and its dry bus | genre windows below |
 | 8 | Headroom | `analyze loudness` on the mix | true peak ≤ -3 dBTP; aim for -24..-14 LUFS (`mix verify` fails outside -26..-12) |
 | 9 | Final | `mix verify` | `pass: true` |
@@ -54,7 +54,7 @@ resort for intelligibility, not the first.
 
 `ferraus analyze loudness prints/acapella.wav --timeline --step 1s --json` and the same for
 the instrumental give short-term curves. Compute V2M per section (verse, chorus, bridge:
-section times from the producer, or from changes in the instrumental's short-term loudness).
+section times from the producer, or from `analyze sections` on the rough mix).
 A section more than 1.5 LU away from the song's V2M gets a gain ride on the vocal bus:
 
 ```yaml

@@ -1,0 +1,263 @@
+{
+  "command": "ride",
+  "summary": "Vocal rider: hold a vocal's level against the music, word by word",
+  "category": "dynamics",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/ride.args.json",
+    "title": "ferraus ride arguments",
+    "description": "Vocal rider: hold a vocal's level against the music, word by word",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "against": {
+        "type": "string",
+        "description": "The music the vocal sits in (the instrumental, or every other stem summed), starting at the same time as the vocal; resampled to the vocal's rate. Without it the vocal rides toward its own typical level Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "target": {
+        "type": "string",
+        "description": "Vocal-minus-music loudness offset to hold while singing, in LU (-2LU, -2dB, or a bare number; negative sits the vocal under the music): auto holds the take's typical offset, so the overall balance stays where the fader put it. Without --against: the level relative to the vocal's own typical level (auto = 0) Type: text.",
+        "default": "auto",
+        "x-ferraus-kind": "str"
+      },
+      "range": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Largest boost or cut, the same both ways (4dB rides between -4 and +4 dB) Type: gain.",
+        "default": "4dB",
+        "x-ferraus-kind": "gain"
+      },
+      "amount": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Share of each correction applied: 100% holds the target, 50% makes every move half as big Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      },
+      "window": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Detector length, centred on each moment: 400ms follows words, 1.5s phrases, 4s sections Type: time.",
+        "default": "400ms",
+        "x-ferraus-kind": "time"
+      },
+      "smooth": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "How fast the gain moves: every change becomes a centred ramp this long (0s = a new value every 10 ms) Type: time.",
+        "default": "120ms",
+        "x-ferraus-kind": "time"
+      },
+      "floor": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Singing detector: the vocal counts as singing where its 50 ms level is within this many dB of its loudest window; elsewhere (breaths, bleed, pauses) the gain holds. Raise to -20dB to leave louder breaths alone Type: gain.",
+        "default": "-30dB",
+        "x-ferraus-kind": "gain"
+      },
+      "band": {
+        "type": "string",
+        "description": "Band-limit both detectors to low..high (e.g. 200Hz..5kHz) so only that range drives the ride; --target then refers to the levels in that band, not full-band loudness Type: text.",
+        "x-ferraus-kind": "str"
+      },
+      "mix": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "examples": [
+          "50%"
+        ],
+        "description": "Dry/wet balance: 0% returns the input unchanged, 100% is fully processed Type: percent.",
+        "default": "100%",
+        "x-ferraus-kind": "percent"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/ride.result.json",
+    "title": "ferraus ride result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "ride"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

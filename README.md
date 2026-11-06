@@ -30,7 +30,9 @@ ferraus master mix.wav --target streaming         # release-ready master at -14 
   CLAP/VST3 instruments; scores (lead sheet, grand staff, drums, solfa) from audio or MIDI, and
   sheet-music PDFs performed as audio.
 * **Mixing**: stem balance to genre templates, level-aware masking analysis with the EQ cut
-  that fixes it, sidechain ducking, a pass/fail gate before mastering, and whole sessions as
+  that fixes it, sidechain ducking, a vocal rider that holds the vocal against the music word
+  by word, dynamic resonance control, song structure (sections, repeats, roles), patching a
+  bad note from a clean repeat, a pass/fail gate before mastering, and whole sessions as
   cached pipeline files whose stages report their own measurements.
 * **Mastering**: one command, or an analyze → plan → verify loop an agent can drive.
 

@@ -1,0 +1,230 @@
+{
+  "command": "patch",
+  "summary": "Replace a time range with audio from elsewhere or another take",
+  "category": "edit",
+  "best_effort": false,
+  "fx_stage": true,
+  "arguments": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/patch.args.json",
+    "title": "ferraus patch arguments",
+    "description": "Replace a time range with audio from elsewhere or another take",
+    "type": "object",
+    "properties": {
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "description": "Input file paths (audio or video files); globs allowed; '-' reads stdin"
+      },
+      "output": {
+        "type": "string",
+        "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "range": {
+        "type": "string",
+        "examples": [
+          "0s..2s"
+        ],
+        "description": "The stretch to replace as start..end, e.g. 53.2s..54.4s or 33b..34b Type: range.",
+        "x-ferraus-kind": "range"
+      },
+      "from": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Where the replacement starts in the source (time, e.g. 21.4s or 17b); it runs as long as --range Type: time.",
+        "x-ferraus-kind": "time"
+      },
+      "source": {
+        "type": "string",
+        "description": "Take the replacement from this file (another take, a double); default: the input itself Type: path.",
+        "x-ferraus-kind": "path"
+      },
+      "crossfade": {
+        "type": "string",
+        "examples": [
+          "1.5s"
+        ],
+        "description": "Crossfade (duration) centred on each edge of the range; 0ms for a hard splice Type: time.",
+        "default": "10ms",
+        "x-ferraus-kind": "time"
+      },
+      "crossfade_curve": {
+        "type": "string",
+        "enum": [
+          "equal-power",
+          "linear"
+        ],
+        "description": "equal-power for material that differs (another take), linear for near-identical material (the same loop again) Type: choice.",
+        "default": "equal-power",
+        "x-ferraus-kind": "choice"
+      },
+      "gain": {
+        "type": "string",
+        "examples": [
+          "-6dB"
+        ],
+        "description": "Level change applied to the replacement, for a pass played louder or softer Type: gain.",
+        "default": "0dB",
+        "x-ferraus-kind": "gain"
+      }
+    },
+    "required": [
+      "inputs",
+      "range",
+      "from"
+    ],
+    "additionalProperties": false
+  },
+  "result": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://djynnius.github.io/ferraus/schema/v1/patch.result.json",
+    "title": "ferraus patch result",
+    "type": "object",
+    "required": [
+      "ok",
+      "command",
+      "ferraus_version",
+      "schema_version",
+      "inputs",
+      "outputs",
+      "params",
+      "warnings",
+      "timing_ms"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "command": {
+        "const": "patch"
+      },
+      "ferraus_version": {
+        "type": "string"
+      },
+      "schema_version": {
+        "const": 1
+      },
+      "inputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            },
+            "sample_rate": {
+              "type": "integer"
+            },
+            "channels": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "duration_s": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Every parameter after defaults, presets, and run-time detection"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metrics": {
+        "type": "object"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "result": {
+        "description": "Command-specific result data"
+      },
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "exit_code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "timing_ms": {
+        "type": "integer"
+      },
+      "dry_run": {
+        "type": "boolean"
+      }
+    }
+  }
+}

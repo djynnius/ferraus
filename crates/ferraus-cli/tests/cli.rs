@@ -126,6 +126,50 @@ fn replay_and_verify() {
 }
 
 #[test]
+fn replay_keeps_side_files_as_flags() {
+    // a sidechain key is recorded as an input, but replays as --sidechain, not as a second input
+    let d = TempDir::new("cli-replay-side");
+    fixture(&d);
+    let key = testing::stereo(testing::sine(44100, 60.0, 2.0, 0.8));
+    testing::write_wav(&d.path("key.wav"), &key);
+    let (code, v) = run_json(
+        &d.0,
+        &[
+            "compress",
+            "tone.wav",
+            "--sidechain",
+            "key.wav",
+            "--sidechain-hpf",
+            "0Hz",
+            "--threshold",
+            "-20dB",
+            "-o",
+            "c.wav",
+        ],
+    );
+    assert_eq!(code, 0, "{v}");
+    let (code, v) = run_json(&d.0, &["replay", "c.wav.ferraus.json", "--overwrite"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["result"]["outputs"][0]["identical"], true, "{v}");
+}
+
+#[test]
+fn pipeline_transform_results_reach_the_plan() {
+    // ride returns its keyframes as a result; a pipeline stage must keep them
+    let d = TempDir::new("cli-pipe-ride");
+    fixture(&d);
+    std::fs::write(
+        d.path("job.yaml"),
+        "version: 1\ninputs: { vox: tone.wav, music: tone.wav }\nstages:\n  - { id: ridden, op: ride, in: vox, args: { against: $music } }\n",
+    )
+    .unwrap();
+    let (code, v) = run_json(&d.0, &["pipeline", "run", "job.yaml"]);
+    assert_eq!(code, 0, "{v}");
+    let r = &v["result"]["plan"][0]["result"];
+    assert!(r["points"].as_str().is_some_and(|p| p.contains('=')), "{v}");
+}
+
+#[test]
 fn dry_run_writes_nothing() {
     let d = TempDir::new("cli-dry");
     fixture(&d);
