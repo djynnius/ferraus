@@ -6,6 +6,8 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-11-05
+
 ### Added
 - `analyze sections <mix>`: song structure without a model. Sections on the bar grid
   (downbeats, `--bpm`), labels for repeats (A, B, A, B, C, B), a best-effort role per section
@@ -36,6 +38,11 @@ change to any `--json` schema or exit code is a major version.
   - `ferraus-stems`: an editing pass before the mix (`patch` from a clean repeat, `repair`,
     `remove-sound`).
 - MCP prompt `mix-stems` covers the vocal ride and patching from a clean repeat.
+
+### Changed
+- The Apple silicon macOS build is made on GitHub's macOS 15 runners (the macOS 14 image was
+  retired); it still runs on macOS 13.4 and later.
+- A new banner on the README and the docs site home page.
 
 ### Fixed
 - `replay` of a command that reads a side file (`compress --sidechain`, `ride --against`,
