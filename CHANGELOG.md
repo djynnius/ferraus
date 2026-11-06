@@ -42,6 +42,7 @@ change to any `--json` schema or exit code is a major version.
 ### Changed
 - The Apple silicon macOS build is made on GitHub's macOS 15 runners (the macOS 14 image was
   retired); it still runs on macOS 13.4 and later.
+- A new banner on the README and the docs site home page.
 
 ### Fixed
 - `replay` of a command that reads a side file (`compress --sidechain`, `ride --against`,

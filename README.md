@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/guides/images/banner.jpg" alt="ferraus banner: a person in headphones wearing a steel mask engraved FERRAUS, in front of a terminal showing the hum-to-piano example script" width="100%"></p>
+<p align="center"><img src="docs/guides/images/banner.jpg" alt="ferraus banner: a smiling engineer in headphones at a mixing console in a recording studio, under a brushed-steel ferraus sign" width="100%"></p>
 
 # ferraus
 
