@@ -183,6 +183,37 @@ On Linux the `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` variables 
 `FERRAUS_HOME=<dir>` moves all three (to `<dir>/config`, `<dir>/cache`, and `<dir>/data`),
 which is handy for a sandbox or a test; `FERRAUS_CONFIG` points at another config file.
 
+## Update
+
+```bash
+ferraus update --check
+```
+
+`--check` compares this binary with the newest release on GitHub and prints both versions, the
+release notes, and the command that updates your copy. ferraus never checks on its own.
+
+`ferraus update` then updates a copy that the release installer placed (`curl ... | sh` or
+`irm ... | iex`): it runs that release's installer, pinned to the version it just checked, into the
+folder the installer used before, and updates the VST3 host and the score engraver too when the
+installers put them there. The installer checks every download against the SHA-256 it carries.
+`ferraus update --version 0.1.3` installs a specific release, including an older one, and
+`--dry-run` shows the installer it would run without running it.
+
+Package managers keep their own copies, so for those `ferraus update` changes nothing and names
+the command instead:
+
+| Installed with | Update with |
+| --- | --- |
+| Homebrew | `brew upgrade djynnius/tap/ferraus` |
+| apt | `sudo apt update && sudo apt install --only-upgrade ferraus` |
+| dnf | `sudo dnf upgrade --refresh ferraus` |
+| scoop | `scoop update ferraus` |
+| `cargo install` | `cargo install ferraus --locked` |
+| MSI | the new `.msi` from the releases page |
+| Docker | `docker pull ghcr.io/djynnius/ferraus` |
+
+`ferraus self-update` is the older name of `ferraus update` and still works.
+
 ## Uninstall
 
 * Release installer: `ferraus self-uninstall -y` (`--purge` also removes models, sounds, and config).

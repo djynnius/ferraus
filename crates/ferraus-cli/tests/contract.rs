@@ -105,7 +105,8 @@ fn render_markdown_catalog(reg: &ferraus_core::Registry) -> String {
 fn resolve_command<'a>(reg: &'a ferraus_core::Registry, words: &[&str]) -> Option<(&'a ferraus_core::OpSpec, usize)> {
     for n in (1..=words.len().min(3)).rev() {
         let name = words[..n].join(" ");
-        if let Some(op) = reg.get(&name).filter(|o| o.name == name) {
+        // aliases (`self-update` for `update`) are real commands too
+        if let Some(op) = reg.get(&name).filter(|o| o.name == name || o.aliases.contains(&name.as_str())) {
             return Some((op, n));
         }
     }

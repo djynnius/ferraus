@@ -1,4 +1,4 @@
-//! Docs, completions, man page, doctor, licenses, self-update, and self-uninstall.
+//! Docs, completions, man page, doctor, licenses, and self-uninstall (`update` is in update.rs).
 
 use ferraus_core::prelude::*;
 use std::path::PathBuf;
@@ -57,12 +57,6 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus bench --save bench.json && ferraus bench --baseline bench.json", "Detect performance regressions")
             .example("ferraus bench --duration 30s --json", "Measure every effect on a 30-second signal; results as JSON")
             .example("ferraus bench --baseline bench.json --tolerance 25%", "Fail only when an effect is more than 25% slower than the baseline"),
-        OpSpec::custom("self-update", Category::System, "Update ferraus to the latest release (opt-in, never automatic)", self_update)
-            .inputs(Inputs::NONE)
-            .param(param("version", ParamKind::Str).help("Install this version instead of the latest, e.g. 1.2.0"))
-            .example("ferraus self-update", "Install the newest signed release")
-            .example("ferraus self-update --version 1.2.0", "Pin a version")
-            .example("ferraus self-update --dry-run --json", "Show which version would be installed without changing anything"),
         OpSpec::custom("self-uninstall", Category::System, "Remove everything the URL installer placed", self_uninstall)
             .inputs(Inputs::NONE)
             .param(param("purge", ParamKind::Flag).help("Also delete the config, cache (models), and data (sounds, jobs) directories"))
@@ -216,37 +210,6 @@ fn doctor(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
 
 fn licenses(_a: &Args, _ctx: &mut OpCtx) -> Result<Value> {
     Ok(json!({ "text": include_str!("../THIRD-PARTY-LICENSES.md") }))
-}
-
-fn self_update(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
-    if ctx.globals.offline {
-        return Err(Error::new(ErrorKind::Network, "offline", "self-update needs the network and --offline is set"));
-    }
-    let base = "https://github.com/djynnius/ferraus/releases";
-    let (cmd, args): (&str, Vec<String>) = if cfg!(windows) {
-        let url = match a.str("version") {
-            Some(v) => format!("{base}/download/v{v}/ferraus-installer.ps1"),
-            None => format!("{base}/latest/download/ferraus-installer.ps1"),
-        };
-        ("powershell", vec!["-ExecutionPolicy".into(), "ByPass".into(), "-c".into(), format!("irm {url} | iex")])
-    } else {
-        let url = match a.str("version") {
-            Some(v) => format!("{base}/download/v{v}/ferraus-installer.sh"),
-            None => format!("{base}/latest/download/ferraus-installer.sh"),
-        };
-        ("sh", vec!["-c".into(), format!("curl --proto '=https' --tlsv1.2 -fsSL {url} | sh")])
-    };
-    if ctx.globals.dry_run {
-        return Ok(json!({"would_run": [cmd, args]}));
-    }
-    let status = std::process::Command::new(cmd)
-        .args(&args)
-        .status()
-        .map_err(|e| Error::new(ErrorKind::Network, "update_failed", e.to_string()))?;
-    if !status.success() {
-        return Err(Error::new(ErrorKind::Network, "update_failed", format!("installer exited with {status}")));
-    }
-    Ok(json!({"updated": true}))
 }
 
 fn self_uninstall(a: &Args, ctx: &mut OpCtx) -> Result<Value> {

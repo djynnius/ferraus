@@ -131,6 +131,10 @@ sudo curl -fsSLo /etc/apt/sources.list.d/ferraus.sources https://djynnius.github
 sudo apt update && sudo apt install ferraus
 ```
 
+Update: `ferraus update --check` says whether a newer release is out and how to get it; `ferraus update`
+installs it when the release installer put ferraus there, and otherwise prints the Homebrew, apt, dnf,
+scoop, or cargo command.
+
 Builds: macOS 13.4+ on Apple silicon and Intel; Linux on x86-64 and ARM64, both with glibc
 2.38+ (Ubuntu 24.04+, Debian 13+, Fedora 39+) and as a fully static musl build for Alpine and
 older distributions (the shell installer picks it when glibc is too old; it cannot load CLAP or
