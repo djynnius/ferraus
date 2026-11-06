@@ -1,7 +1,7 @@
 {
   "name": "ferraus",
   "description": "Skills for the ferraus audio workstation CLI: edit, clean, separate, tune, transcribe, notate, mix stems, and master audio, with companion skills that mix and master unsupervised from measurements.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "author": { "name": "Sunday Ikpe", "url": "https://github.com/djynnius" },
   "homepage": "https://djynnius.github.io/ferraus/",
   "repository": "https://github.com/djynnius/ferraus",
