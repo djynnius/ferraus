@@ -13,8 +13,11 @@ Run ferraus with `--json`; check flags with `ferraus docs <command>`.
 
 ## Validate a stem export
 
-A good export: one sample rate and bit depth, every file the same length, all starting at
-the song's bar 1 (silence included), no clipping, and the stems sum back to the full mix.
+A good export: one sample rate and bit depth, all starting at the song's bar 1 (silence
+included), no clipping, and the stems sum back to the full mix. Equal lengths are the ideal,
+but parts that stop early are often exported shorter; what matters is the start (matching
+head silence on parts that play from the top, a few ms of bleed offset between two mics of
+one source).
 
 ```bash
 ferraus info "stems/01 Kick.wav" --json          # every stem: rate, channels, bit depth, duration
@@ -84,7 +87,11 @@ ferraus patch bass.wav --range 60s..62.4s --from 31.2s -o fixed/bass.wav --json
 ```
 
 A played part never nulls against its repeat (timing and dynamics differ), so `compare` is
-not the check; `analyze similarity` scoring `same` on the bars either side is. A programmed
+not the check; `analyze similarity` on the bars either side is, read against a control: the
+same bars compared with a bar from a different section (a verse bar for a chorus). On a
+humanized test bass the twins scored `same` (0.93); on a real played bass they scored 0.85
+and 0.89 and the control 0.75, all three `similar`, so the label alone does not decide: the
+twins must score clearly above the control (by 0.1 or more). A programmed
 loop that repeats exactly also nulls (`compare --no-align` deeper than -30 dB), and then the
 patch is invisible. Measured on the test session (a humanized bass, a noise burst added in
 the second chorus): `analyze sections` placed both choruses exactly (`offset_s` 28.81), the

@@ -48,3 +48,36 @@ tempo <bpm> (<source>); key <key>; reference <file or none>.
 Next: master with the `ferraus-master` skill or
 `ferraus master mix.wav --target streaming --genre <genre> -o master.wav`.
 ```
+
+# LISTEN.md template
+
+One page per round, written for someone with headphones on: what to play, what changed,
+what to decide. Every pair of clips is matched in loudness.
+
+```markdown
+# Listen: <song title>, v<N>
+
+Play `mix/versions/v<N>.wav`, or the clips below.
+
+## Since v<N-1>
+
+- <the change> (stage `<id>`): <measurement before → after>
+
+## Questions
+
+1. **<Section>, <m:ss>-<m:ss>: <what to listen for>.** A = `listen/q1-a.wav` (<current>),
+   B = `listen/q1-b.wav` (<alternative>). A or B?
+   <What differs, with the numbers: "B cuts the guitars at 400 Hz by 2 dB instead of 4;
+   vocal-to-music -1.9 LU instead of -2.1">.
+2. ...
+
+## What I need from you
+
+- <material that would fix a source problem, and the measurement that shows it: "the kick
+  track is a trigger mic with nothing below 120 Hz; the kick-in mic or a sample would give
+  the low end the pop curve expects">
+
+## How to answer
+
+"1: B", "vocal up a hair", "at 2:10 the guitars are too loud", or a new file.
+```

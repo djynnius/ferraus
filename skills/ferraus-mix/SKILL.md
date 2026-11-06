@@ -41,6 +41,8 @@ In a `mix/` folder beside the stems (or where the user says):
 2. `mix.wav`: 24-bit at the session rate, true peak ≤ -3 dBTP, no limiter on the bus.
 3. `prints/`: instrumental, a cappella, and bus prints from the same run.
 4. `MIX_NOTES.md`: decisions and measurements ([references/report-template.md](references/report-template.md)).
+5. After each round: `versions/v<N>.wav` and `.yaml`, and `LISTEN.md` with loudness-matched
+   clips in `listen/` (Listening rounds, below).
 
 Then hand off to the `ferraus-master` skill unless the user only wanted the mix.
 
@@ -63,15 +65,26 @@ country-pop song with a full band is `pop`.
 For every stem: `ferraus info`, `ferraus analyze loudness`, `ferraus analyze stereo`,
 `ferraus analyze problems --min-severity medium` (all with `--json`). Record:
 
-- **Sample rate and length.** One export shares a start time. A length mismatch over 10 ms
-  means a stem was exported from a different start: flag it, never guess an offset (the
-  `ferraus-stems` skill has the full export check).
+- **Sample rate and a shared start.** Stems of one session share a start time but often not
+  an end: a part that stops early is often exported shorter (on a real 23-stem session the
+  lengths ran from 90 to 164 s, all from one start). Judge the start, not the length: parts
+  that play from the top have matching head silence (`silence_head` in `analyze problems`;
+  every drum mic there started at 3.42 s), and `ferraus compare` on two mics of one source
+  (snare and overheads) reports an offset of a few ms, which is the mic distance. A head that
+  disagrees with the rest, or a bleed offset over about 20 ms, means a different start: flag
+  it, never guess an offset (the `ferraus-stems` skill has the full export check).
 - **Silent stems** (integrated below -50 LUFS or `-inf`): leave out and list.
 - **Fake stereo**: a stereo file with `correlation` above 0.98 and `width` near 0 holds a
   mono source. To pan it, collapse it first (`{ op: channels, to: mono }`). To make it wide,
   keep both channels and decorrelate them with `chorus` (`mix: 40-50%`); `widen` only scales
   side signal that exists, so on fake stereo it does nothing.
-- **Phase-inverted stereo** (`correlation` below 0): `invert-phase --channel right`, or flag.
+- **Correlation below 0** has two causes. A polarity flip mirrors the waveform: the channels
+  match in level and `ferraus compare left.wav right.wav` reports `polarity_inverted` with a
+  high `alignment_correlation`; then `invert-phase --channel right`. Two different takes in L
+  and R (a tambourine or shaker double) measure about 0 in every band, with different levels;
+  that is real stereo, so keep it and pan it like a double, never invert it. Split the
+  channels to compare (`ferraus channels stem.wav --extract L -o left.wav`, then `--extract R`). Flag
+  anything else.
 - **Roles.** `ferraus mix balance` infers them from file names (it also accepts
   `--roles`). Confirm odd ones with `analyze spectrum`. `lead` means the main melodic part
   when nobody sings (a lead synth in an instrumental); a synth line that plays under a vocal
@@ -119,8 +132,8 @@ For every stem: `ferraus info`, `ferraus analyze loudness`, `ferraus analyze ste
 | `dc_offset`, `clicks`, `rumble` | real | the `suggested_fix` (dc-remove, declick, high-pass) |
 | `hiss`, `noise_floor` on synths, drums, samples | the noise is part of the sound | ignore; clean only recorded sources (`dehiss`, `denoise`) |
 | `sibilance` on a vocal | real | de-ess in the vocal chain (`ferraus-vocals` for heavy cases) |
-| `phase`, `out_of_phase_bass` | real | `invert-phase` or `phase-align`, then re-check `analyze stereo` |
-| `inter_sample_peaks` | the stem peaks near 0 dBTP | nothing: faders and the float pipeline take care of it |
+| `phase`, `out_of_phase_bass` | real on a mono source in two channels; not on two takes in L and R (see Correlation below 0 above) | `invert-phase` or `phase-align` only for a polarity flip or a timing offset, then re-check `analyze stereo` |
+| `inter_sample_peaks`, or a true peak a little above 0 dBTP | the stem peaks near full scale | nothing: faders and the float pipeline take care of it. Only clipped runs (`ferraus analyze clipping`) need `declip` |
 
 ## Phase 2 - Per-stem chains
 
@@ -164,8 +177,11 @@ always last).
    hot; V2M is the authority.
 4. V2M is an average; the template's `vox_ride` stage holds it word by word, riding the lead
    vocal against every instrument before its compressors (what an engineer's volume
-   automation does). Gate: its `offset_after.spread_lu` ≤ 3 LU. The settings and how to read
-   the result are in the `ferraus-vocals` skill (section 4).
+   automation does). Gate: its `offset_after.spread_lu` ≤ 3 LU at the template's
+   `window: 400ms`. The spread is measured with the ride's own window, so a longer window
+   passes more easily without riding any better (a real vocal: 3.4 LU at 300 ms, 3.0 at
+   400 ms, 2.3 at 600 ms); widen `range` instead, and report the window with the number.
+   The settings and how to read the result are in the `ferraus-vocals` skill (section 4).
 
 ## Phase 4 - Stereo placement
 
@@ -192,6 +208,14 @@ For each region: apply its `suggested_fix` (an `eq` cut sized to clear the thres
 yielding stem's chain, before the compressor, then re-run. One cut per region, then
 re-measure; do not stack cuts. Skip pairs with `co_activity` below 0.2. On raw, unbalanced
 stems use `--levels ignore` (shape only) to predict clashes.
+
+Several parts can mask together what none masks alone: the template's `mask_vox_music` pair
+(lead vocal against the whole music bus) catches it, as six guitars did on a real session.
+A cut in a part's loudest region lowers its loudness, so the balance gate raises its fader
+again and the region comes back. When a region returns after a re-balance, deepen that same
+cut (it is still one cut) rather than adding another, or duck the music bus under the vocal
+instead (space-and-movement.md). Count balance and masking rounds together: 4 rounds in all,
+then report.
 
 When a cut would hollow out the yielding part, duck it with an external sidechain instead,
 so it only gives way while the priority part plays:
@@ -249,7 +273,16 @@ per failed check. It names only the worst tonal band; for the whole curve, read
 tolerance). With several references (3-5 tracks the producer named, or that share the
 genre and arrangement), run the check against each and act only on deviations they agree on:
 a band off from all of them in the same direction. A low end that is weak because the bass part has no energy below 55 Hz is fixed
-in the parts (a heavier kick or sub, the brief's call), not by boosting empty bands. A mix
+in the parts (a heavier kick or sub, the brief's call), not by boosting empty bands. The same
+holds for a kick track that is only a beater or trigger mic (crest factor above 30 dB,
+60-120 Hz at least 15 dB under 2-5 kHz in `bands.py`): it has no body to EQ, and a boost does
+nothing (a real one: +6 dB at 65 Hz moved the mix's 63 Hz band by -0.4 dB), while the
+check's own suggested boost costs headroom. Ask the producer for the kick-in or sub mic, or
+a kick sample (Listening rounds), and verify against the neighbouring genre too
+(`--genre rock` for power pop); report the check as left failing for that reason.
+
+Read `metrics.checks`, `metrics.failed_checks` and `metrics.fixes`: they are there on a pass
+and on a failure (a failure has no `result`, and `error.hint` is the first fix). A mix
 leaves this skill when `mix verify` passes, or when the report says, with numbers, which
 check was left failing and why.
 
@@ -273,16 +306,59 @@ a decision in the report; put the main ones in it (low end, presence, top, width
 ## Disk use
 
 Every stage result is a 32-bit float WAV in the pipeline cache (`ferraus doctor` shows where;
-`FERRAUS_HOME` moves it): a full run of a 10-stem, 80-second session writes about 0.75 GB,
-and every changed stage adds more. When a session is done, or the disk is tight,
+`FERRAUS_HOME` moves it): about 1 GB per 20 stem-minutes for a full run (a 10-stem,
+80-second session wrote 0.75 GB; 23 stems of 163 s wrote 2.1 GB), and every changed stage
+adds more. A fader moved early in the chain recomputes everything downstream, including the
+vocal ride, which listens to every instrument. When a session is done, or the disk is tight,
 `ferraus pipeline prune --max-size 2GB` (or `--days 0`) clears what is no longer needed.
 
-## Revision notes
+## Listening rounds
 
-Producers answer with "vocal up a hair" or "more punch". Map each note to the smallest
-`mix.yaml` change with [references/revision-notes.md](references/revision-notes.md), re-run,
-re-gate, and report before → after. `--set` edits one value for a quick try (here the vocal
-goes up 0.5 dB from the template's -2.5 dB):
+You cannot listen; the producer can. End every round with something to listen to and a few
+questions, not only a verdict: v<N> → `LISTEN.md` → the producer's answers → v<N+1>.
+
+1. **Keep every version.** After each accepted run, copy `mix/mix.wav` and `mix/mix.yaml` to
+   `mix/versions/v<N>.wav` and `.yaml`. "Go back to v2" is copying `v2.yaml` over `mix.yaml`
+   and re-running it, which the cache makes quick.
+2. **Ask, do not list.** Turn each judgement call (the convention-based choices and open
+   issues of `MIX_NOTES.md`) into an A/B question. Render the alternative from a copy of the
+   session in a folder beside `mix/`: `../stems` still resolves, its outputs stay in its own
+   folder, and the cache is shared, so only the changed stages run:
+
+   ```bash
+   mkdir -p mix-b && cp mix/mix.yaml mix-b/mix.yaml   # then change the one value in mix-b/mix.yaml
+   ferraus pipeline run mix-b/mix.yaml --bpm 100 --overwrite --json
+   ```
+
+   Then cut the same section from both, matched in loudness (louder reads as better):
+
+   ```bash
+   ferraus fx mix/mix.wav -o listen/q1-a.wav --fx "trim:range=32.1s..46.6s" --fx "normalize:lufs=-18LUFS" --json
+   ferraus fx mix-b/mix.wav -o listen/q1-b.wav --fx "trim:range=32.1s..46.6s" --fx "normalize:lufs=-18LUFS" --json
+   ```
+
+   Take the times from the song map, so every question names a section and its time. Three
+   to six questions a round, most important first, and only about what ears must judge: the
+   tone of a distorted guitar, the level of a double, whether an effect is tasteful, how much
+   the chorus lifts. A gate that passed is not a question.
+3. **Notes about a moment** ("at 1:32 the vocal drops", "the second chorus feels small"):
+   find the section in the song map and change it there, not across the song: an `envelope`
+   on that part's stage with keyframes at the section's boundaries (section moves in
+   [references/space-and-movement.md](references/space-and-movement.md)), or a second chain
+   switched at the boundary (`ferraus-vocals`). Notes about the whole song map to the
+   smallest `mix.yaml` change with [references/revision-notes.md](references/revision-notes.md).
+4. **Ask for material when the fix is in the source.** When a measurement shows processing
+   cannot get there (a kick with no body, a vocal recorded with the room in it, a part
+   clipped when it was recorded), say so with the number and ask for what would fix it: the
+   kick-in or sub mic, a kick sample, a dry take, a new export. Do not push EQ past ±6 dB
+   instead.
+5. **Apply the answers** ("1: B", "vocal up a hair", "at 2:10 the guitars are too loud", a new
+   file): one change per note, re-run, re-gate, and start the next `LISTEN.md` with what
+   changed and its before → after numbers. The template is in
+   [references/report-template.md](references/report-template.md).
+
+`--set` changes one value for a quick try without editing the file (here the vocal goes up
+0.5 dB from the template's -2.5 dB):
 
 ```bash
 ferraus pipeline run mix/mix.yaml --set stages.final.args.gains=0dB,-2dB --overwrite --json

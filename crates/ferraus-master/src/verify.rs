@@ -43,6 +43,41 @@ pub struct VerifyReport {
 
 impl VerifyReport {
     /// One line per failed check, for the error message.
+    /// A runnable fix for the failed checks of `path`: one `ferraus fx` chain with each failed
+    /// check's stage (silence and DC first, loudness and peak last), or the command a check names
+    /// itself. A loudness miss of more than 2 LU means an unmastered file or the wrong target:
+    /// then it is `ferraus master`.
+    pub fn fix_hint(&self, path: &str) -> String {
+        let failed: Vec<&Check> = self.checks.iter().filter(|c| c.status == "fail").collect();
+        let loudness_far = failed
+            .iter()
+            .any(|c| c.check == "loudness" && c.value.as_f64().is_some_and(|v| (v - self.target.lufs).abs() > 2.0))
+            || failed.iter().any(|c| c.check == "loudness" && !c.value.is_number());
+        if loudness_far {
+            return format!("ferraus master {path} --target {} -o fixed.wav", self.target.name);
+        }
+        let order = |op: &str| match op.split(':').next().unwrap_or("") {
+            "declip" => 0,
+            "dc-remove" => 1,
+            "silence trim" => 2,
+            "widen" => 3,
+            "normalize" => 4,
+            "limit" => 5,
+            _ => 6,
+        };
+        let mut stages: Vec<&str> =
+            failed.iter().map(|c| c.fix.as_str()).filter(|f| !f.is_empty() && !f.starts_with("ferraus ")).collect();
+        stages.sort_by_key(|f| order(f));
+        if !stages.is_empty() {
+            let fx: Vec<String> = stages.iter().map(|f| format!("--fx \"{f}\"")).collect();
+            return format!("ferraus fx {path} -o fixed.wav {}", fx.join(" "));
+        }
+        match failed.iter().find(|c| c.fix.starts_with("ferraus ")) {
+            Some(c) => c.fix.replacen("master.wav", path, 1),
+            None => format!("ferraus master {path} --target {} -o fixed.wav", self.target.name),
+        }
+    }
+
     pub fn failure_lines(&self) -> Vec<String> {
         self.checks.iter().filter(|c| c.status == "fail").map(|c| format!("{}: {}", c.check, c.details)).collect()
     }
@@ -60,7 +95,15 @@ fn check(check: &'static str, ok: bool, value: Value, limit: String, details: St
 }
 
 /// Run every check on `buf`. `info` (from the decoder) enables the format checks.
-pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tolerance_lu: f64) -> VerifyReport {
+/// `max_head_silence_s`: `None` when the head silence is deliberate (`--max-head-silence off`, or a
+/// plan that kept it): the check then only warns above [`MAX_HEAD_SILENCE_S`].
+pub fn verify(
+    buf: &AudioBuffer,
+    info: Option<&SourceInfo>,
+    target: &Target,
+    tolerance_lu: f64,
+    max_head_silence_s: Option<f64>,
+) -> VerifyReport {
     let mut checks = Vec::new();
     let l = loudness::loudness(buf);
 
@@ -180,14 +223,22 @@ pub fn verify(buf: &AudioBuffer, info: Option<&SourceInfo>, target: &Target, tol
 
     // head silence
     let sil = detect_silence(buf, -60.0, 0.1);
-    checks.push(check(
+    let head = sil.head_silence_s;
+    let mut c = check(
         "head_silence",
-        sil.head_silence_s <= MAX_HEAD_SILENCE_S,
-        jnum(sil.head_silence_s, 3),
-        format!("<= {MAX_HEAD_SILENCE_S} s below -60 dBFS"),
-        format!("{:.2} s of silence before the first sound", sil.head_silence_s),
+        max_head_silence_s.is_none_or(|m| head <= m + 1e-9),
+        jnum(head, 3),
+        match max_head_silence_s {
+            Some(m) => format!("<= {m} s below -60 dBFS"),
+            None => format!("kept on purpose (--max-head-silence off); warns above {MAX_HEAD_SILENCE_S} s"),
+        },
+        format!("{head:.2} s of silence before the first sound"),
         "silence trim:edges,threshold=-60dB",
-    ));
+    );
+    if max_head_silence_s.is_none() && head > MAX_HEAD_SILENCE_S {
+        c.status = "warn";
+    }
+    checks.push(c);
 
     // delivery format
     if target.sample_rate.is_some() || target.bit_depth.is_some() {
