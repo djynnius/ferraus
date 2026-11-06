@@ -59,7 +59,8 @@ github-build-setup = "../build-setup.yml"
 # Ubuntu 24.04 and support Ubuntu 24.04+, Debian 13+, Fedora 39+. The musl builds are fully
 # static (ONNX Runtime built from source with Alpine's GCC and musl): they run on Alpine and on
 # older glibc distributions. Intel macOS links an ONNX Runtime built from source on the Intel
-# runner; Windows ARM64 uses ort's prebuilt library.
+# runner; Windows ARM64 uses ort's prebuilt library. Apple silicon builds on macos-15 (GitHub
+# retired the macos-14 image dist picks by default); MACOSX_DEPLOYMENT_TARGET keeps 13.4.
 [dist.github-custom-runners]
 global = "ubuntu-24.04"
 x86_64-unknown-linux-gnu = "ubuntu-24.04"
@@ -67,4 +68,5 @@ aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
 x86_64-unknown-linux-musl = "ubuntu-24.04"
 aarch64-unknown-linux-musl = "ubuntu-24.04-arm"
 x86_64-apple-darwin = "macos-15-intel"
+aarch64-apple-darwin = "macos-15"
 aarch64-pc-windows-msvc = "windows-11-arm"
