@@ -22,13 +22,16 @@
 #           ±0.5 dB = on the genre template.
 #
 # File references: `$name` in an argument is a pipeline input or stage output, tracked like
-# `in:` (dependency order and cache invalidation). Used for sidechain keys.
+# `in:` (dependency order and cache invalidation). Used for sidechain keys and the music the
+# vocal rides against.
 #
 # Tested: on the 10-stem session these file names come from (pop, 100 BPM, A minor;
 # tools/eval/make_session.py generates it) this file converges: every balance correction
 # 0 dB, vocal-to-music -2.0 LU, true peak -3.4 dBTP at -19.5 LUFS, vocal space -14.2 LU,
 # instrument space -20.4 LU, no masking regions, `mix verify --genre pop` passes all 14
-# checks. On other material keep the structure and redo every number from measurements.
+# checks; the vocal rider narrows the vocal's offset to the music from 4.9 to 2.5 LU
+# (p10-p90) without moving any of those numbers. On other material keep the structure and
+# redo every number from measurements.
 version: 1
 
 inputs:
@@ -147,9 +150,18 @@ stages:
     in: [keys_fx, pad_fx, gtr_fx, synth_duck]
 
   # ---------------------------------------------------------------- vocals
+  - id: ride_key                                           # what the vocal rides against: every instrument before vocal-keyed ducking (a duck keyed by vox_fx here would be a loop)
+    op: mix
+    in: [drums_bus, bass_fx, keys_fx, pad_fx, gtr_fx, synth_fx]
+
+  - id: vox_ride                                           # word-by-word rides before the compressors; result.points is the automation
+    op: ride
+    in: vox
+    args: { against: $ride_key, range: 4dB, window: 400ms }
+
   - id: vox_fx
     op: fx
-    in: vox
+    in: vox_ride
     args:
       chain:
         - { op: highpass, freq: 90Hz }

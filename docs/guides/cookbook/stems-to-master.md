@@ -25,6 +25,51 @@ Three findings from that session show why a stem is read differently from a fini
   hum; `dehum` would notch the bass line. Hum is real only if it is there while the part is
   silent.
 
+### The song map, and a bad bar
+
+A rough sum of the stems (section 2 writes one with `-o`) gives the song's structure:
+
+```bash
+ferraus analyze sections rough.wav --bpm 100 --json
+```
+
+```json
+{"result": {"tempo_bpm": 100.0, "tempo_source": "given", "sections": [
+  {"label": "A", "role": "intro", "start_s": 0.0, "end_s": 9.6},
+  {"label": "B", "role": "verse", "start_s": 9.6, "end_s": 28.8},
+  {"label": "C", "role": "chorus", "start_s": 28.8, "end_s": 48.01},
+  {"label": "B", "role": "verse", "start_s": 48.01, "end_s": 57.6},
+  {"label": "C", "role": "chorus", "start_s": 57.6, "end_s": 80.01}],
+  "repeats": [{"a": 1, "b": 3, "label": "B", "similarity": 0.84, "offset_s": 38.41},
+              {"a": 2, "b": 4, "label": "C", "similarity": 0.97, "offset_s": 28.81}]}}
+```
+
+Every boundary is where the session's arrangement changes. The fourth section is a break that
+reuses the verse's vocal and bass, so it shares the verse's letter. With `--vocal` (the lead
+vocal stem) each section also reports how much of it is sung, and the role guesses firm up.
+
+`repeats` is what fixes a bad bar. To try it, a 0.4 s noise burst was added to the bass at
+62.0 s, in the second chorus. `analyze problems` does not flag a burst like that (it looks
+for clicks), but the bass has no business above 3 kHz, so its high band shows it:
+
+```bash
+ferraus highpass bass_bad.wav --freq 3kHz --order 4 -o bass_hi.wav --json
+ferraus analyze loudness bass_hi.wav --timeline --step 100ms --json
+```
+
+Eight 100 ms steps from 62.1 s rise from below -70 to as high as -15 LUFS. The twin of the
+bar 60.0-62.4 s is 28.81 s earlier, in the first chorus. The bars on either side match
+theirs (`analyze similarity` 0.93 and 0.94, `same`; the bass is humanized, so the bars never
+null), and `patch` copies the clean bar over the damaged one:
+
+```bash
+ferraus patch bass_bad.wav --range 60s..62.4s --from 31.2s -o bass_fixed.wav --json
+```
+
+The result reports `level_difference_db` 0.22 (the two passes were played at the same level).
+The 4-8 kHz band of that second is back to about -105 dB, as in the clean take, the file is
+still 80.0 s long, and everything outside the edit nulls against the input at -142 dB.
+
 ## 2. Faders from a genre template
 
 ```bash
@@ -58,8 +103,10 @@ ferraus pipeline run mix/mix.yaml --bpm 100 --overwrite --json
 Every stage reports what it measured, so one run returns the mix and its numbers:
 
 ```json
-{"result": {"computed": 43, "plan": [
-  {"id": "vox_fx", "result": {"chain_metrics": [{"op": "compress", "metrics": {"gain_reduction_mean_db": 4.16, "gain_reduction_max_db": 8.71}}, ...]}},
+{"result": {"computed": 45, "plan": [
+  {"id": "vox_ride", "result": {"target_lu": -1.23, "offset_before": {"spread_lu": 4.86}, "offset_after": {"spread_lu": 2.54},
+    "points": "0s=+4.0dB,9.67s=+4.0dB,9.79s=+3.5dB,9.84s=+2.5dB,9.94s=-0.3dB,...", "loudness_change_lu": -0.13}},
+  {"id": "vox_fx", "result": {"chain_metrics": [{"op": "compress", "metrics": {"gain_reduction_mean_db": 4.11, "gain_reduction_max_db": 8.83}}, ...]}},
   {"id": "bass_duck", "result": {"metrics": {"gain_reduction_mean_db": 0.43, "gain_reduction_max_db": 4.22}}},
   {"id": "balance", "result": {"gains": ["0dB", "0dB", "0dB", "0dB", "0dB", "0dB", "0dB", "0dB", "0dB", "0dB"]}},
   {"id": "vocal_level", "result": {"integrated_lufs": -20.3}},
@@ -71,6 +118,12 @@ They caught two traps while the template was built: the `vocal` compressor prese
 makeup gain (the vocal read 5.6 dB hot until `makeup: 0dB`), and `pans` on a bus `mix` stage
 applies a -3 dB pan law to mono inputs (the panned hats, keys and guitar read 3 dB low until
 they were panned inside their chains instead). With both fixed, the corrections are all 0 dB.
+
+The `vox_ride` stage is the vocal rider: before its compressors, the lead vocal is turned up
+and down word by word against every instrument (`ride --against`), the volume automation an
+engineer draws by hand. The spread of vocal-minus-music while singing (p10 to p90) went from
+4.86 to 2.54 LU, and `points` holds the ride as `envelope` keyframes that reproduce it
+exactly. None of the gates below moved.
 
 The vocal-to-music balance is then set in the `final` stage: a cappella LUFS minus
 instrumental LUFS, plus their final gains (0 and -2.5 dB), is -2.0 LU, the centre of the pop

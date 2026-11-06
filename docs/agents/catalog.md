@@ -11,6 +11,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `analyze masking <audio>x2: Where stem b masks stem a (same bands, same time), with an EQ cut for b [--threshold --window --floor]`
 - `analyze pitch: Pitch curve as JSON or CSV [--tracker --hop --range]`
 - `analyze problems: Diagnose clipping, DC, clicks, hum, hiss, phase, silence, and more [--min-severity]`
+- `analyze sections: Song structure: sections, repeats, and loudness per section [--min-bars --vocal]`
 - `analyze silence: List silent regions with start, end, and floor level [--threshold --min]`
 - `analyze similarity <audio>x2: Spectral, cepstral, and loudness similarity between two files`
 - `analyze spectrum: Long-term average spectrum in fractional-octave bands or FFT bins [--resolution]`
@@ -39,6 +40,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `mix <audio...>: Sum several files with per-input gain, pan, and offset [--gains --pans --offsets]`
 - `mix balance <audio...>: Propose stem gains that put a multitrack on a genre balance template [--roles --genre --anchor]`
 - `normalize: Set loudness (LUFS), peak, or RMS level to a target [--lufs --peak --rms]`
+- `patch: Replace a time range with audio from elsewhere or another take [--range --from --source]`
 - `resample: Change the sample rate with a high-quality sinc resampler [--to --quality]`
 - `reverse: Play the audio backwards`
 - `silence detect: Find silent regions and report their start, end, and level [--threshold --min --markers]`
@@ -53,11 +55,13 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `clip: Soft or hard clipper [--ceiling --mode --knee]`
 - `compress: Compress dynamic range (feed-forward, soft knee) [--threshold --ratio --attack]`
 - `deess: Reduce sibilance [--center --bandwidth --threshold]`
+- `deresonate: Dynamic resonance suppressor: tame rings or harsh peaks as they happen [--band --depth --threshold]`
 - `dynamics: Transfer-curve dynamics: compressor, expander, and gate from one curve [--curve --spline --attack]`
 - `expand: Downward expander [--threshold --ratio --attack]`
 - `gate: Noise gate with hysteresis and hold [--threshold --attack --hold]`
 - `limit: True-peak brickwall limiter [--ceiling --release --lookahead]`
 - `multiband: Multiband compressor [--crossovers --bands --threshold]`
+- `ride: Vocal rider: hold a vocal's level against the music, word by word [--against --target --range]`
 - `transient: Shape attack and sustain [--attack --sustain]`
 
 ## Tone

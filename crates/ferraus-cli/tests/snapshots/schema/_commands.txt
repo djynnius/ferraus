@@ -7,6 +7,7 @@ analyze loudness
 analyze masking
 analyze pitch
 analyze problems
+analyze sections
 analyze silence
 analyze similarity
 analyze spectrum
@@ -38,6 +39,7 @@ delay
 denoise
 denoise profile
 denoise profile merge
+deresonate
 dereverb
 describe
 distort
@@ -120,6 +122,7 @@ multiband
 normalize
 notch
 pan
+patch
 phase-align
 phaser
 pipeline explain
@@ -145,6 +148,7 @@ replay
 resample
 reverb
 reverse
+ride
 saturate
 schema
 score

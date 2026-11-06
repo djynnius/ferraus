@@ -1220,3 +1220,84 @@ fn silence_trim_agrees_with_detect_on_noisy_silence() {
     let out = ok_t("silence trim", &[("threshold", "-45dB")], b);
     assert!((out.duration_s() - 1.02).abs() < 0.03, "{}", out.duration_s());
 }
+
+// ---------------------------------------------------------------------------------------
+// patch
+// ---------------------------------------------------------------------------------------
+
+/// A 220 Hz sine has a whole number of cycles per second at 48 kHz, so the stretch
+/// 0.0..0.5 s is sample-identical to 1.0..1.5 s: a perfect "clean repeat".
+fn patch_fixture(sr: u32) -> (AudioBuffer, AudioBuffer) {
+    let clean = sine(sr, 220.0, 3.0, 0.5);
+    let mut damaged = clean.clone();
+    let squeak = ferraus_core::testing::noise(sr, 0.5, 0.4, 9);
+    for (i, x) in squeak.data[0].iter().enumerate() {
+        damaged.data[0][sr as usize + i] += *x;
+    }
+    (clean, damaged)
+}
+
+#[test]
+fn patch_replaces_a_range_from_a_clean_repeat() {
+    let sr = 48_000;
+    let (clean, damaged) = patch_fixture(sr);
+    let (r, c) =
+        run_t("patch", &[("range", "1s..1.5s"), ("from", "0s"), ("crossfade-curve", "linear")], damaged.clone());
+    let out = r.unwrap();
+    assert_eq!(out.frames(), damaged.frames(), "length kept");
+    let (o, cl, dm) = (&out.data[0], &clean.data[0], &damaged.data[0]);
+    let s = sr as usize;
+    let half = (0.005 * sr as f64) as usize;
+    // outside the edit and its crossfades nothing changed
+    assert!((0..s - half).chain(s * 3 / 2 + half..o.len()).all(|i| o[i] == dm[i]));
+    // the body is the clean repeat
+    let body_err = (s + half..s * 3 / 2 - half).map(|i| (o[i] - cl[i]).abs()).fold(0.0f32, f32::max);
+    assert!(body_err < 1e-6, "body error {body_err}");
+    // the squeak is gone: the output is now within the crossfade's reach of the clean sine
+    let err: f32 = (s..s * 3 / 2).map(|i| (o[i] - cl[i]).powi(2)).sum::<f32>() / (s / 2) as f32;
+    let before: f32 = (s..s * 3 / 2).map(|i| (dm[i] - cl[i]).powi(2)).sum::<f32>() / (s / 2) as f32;
+    assert!(err < before * 0.05, "residual {err} vs {before}");
+    assert!(c.metrics.contains_key("level_difference_db"));
+}
+
+#[test]
+fn patch_from_another_take_with_gain_and_clean_edges() {
+    let sr = 48_000;
+    let dir = TempDir::new("patch-source");
+    let take = pink(sr, 3.0, 0.3, 5);
+    let other = pink(sr, 3.0, 0.3, 6);
+    let src = dir.path("take3.wav");
+    write_wav(&src, &other);
+    let src_s = src.to_string_lossy().to_string();
+    let out = ok_t("patch", &[("range", "1s..2s"), ("from", "1s"), ("source", &src_s), ("gain", "-6dB")], take.clone());
+    let s = sr as usize;
+    let half = (0.005 * sr as f64) as usize;
+    let g = db(-6.0);
+    let body_err =
+        (s + half..2 * s - half).map(|i| (out.data[0][i] - other.data[0][i] * g).abs()).fold(0.0f32, f32::max);
+    assert!(body_err < 2e-4, "body error {body_err}");
+    for edge in [s, 2 * s] {
+        let r = click_ratio(&out.data[0], edge, sr);
+        assert!(r < 1.5, "click at {edge}: {r}");
+    }
+    // a stereo input takes a mono source on both channels
+    let st = ok_t("patch", &[("range", "1s..2s"), ("from", "1s"), ("source", &src_s)], stereo(take));
+    assert_eq!(st.channels(), 2);
+    assert!((st.data[0][s + s / 2] - st.data[1][s + s / 2]).abs() < 1e-6);
+}
+
+#[test]
+fn patch_edges_and_errors() {
+    let sr = 48_000;
+    let (clean, damaged) = patch_fixture(sr);
+    // a range at the very start has no leading crossfade
+    let out = ok_t("patch", &[("range", "0s..0.5s"), ("from", "1.5s"), ("crossfade-curve", "linear")], clean.clone());
+    assert!((out.data[0][0] - clean.data[0][(1.5 * sr as f64) as usize]).abs() < 1e-6);
+    // the source must hold the whole replacement
+    assert_eq!(err_code(run_t("patch", &[("range", "1s..2s"), ("from", "2.5s")], damaged.clone()).0), 2);
+    // an empty range is refused
+    assert_eq!(err_code(run_t("patch", &[("range", "1s..1s"), ("from", "0s")], damaged.clone()).0), 2);
+    // a much louder replacement is flagged
+    let (_, c) = run_t("patch", &[("range", "2s..2.5s"), ("from", "0s"), ("gain", "+8dB")], clean);
+    assert!(has_warning(&c, "level_mismatch"));
+}

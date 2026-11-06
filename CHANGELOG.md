@@ -4,6 +4,46 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 and the project uses [Semantic Versioning](https://semver.org/) for its CLI contract: a breaking
 change to any `--json` schema or exit code is a major version.
 
+## [Unreleased]
+
+### Added
+- `analyze sections <mix>`: song structure without a model. Sections on the bar grid
+  (downbeats, `--bpm`), labels for repeats (A, B, A, B, C, B), a best-effort role per section
+  (intro, verse, pre-chorus, chorus, bridge, instrumental, outro), loudness per section, and
+  `repeats` with `offset_s` (where the same bar sits in the twin section). `--vocal` adds the
+  vocal activity per section and firmer roles. Boundaries came out exact (within 10 ms) on
+  songs rendered with ferraus, including one without drums.
+- `ride <vocal> --against <music>`: a vocal rider. It turns the vocal up and down word by
+  word so it holds a steady level against the music (the volume automation engineers draw
+  before the compressor), and returns the ride as `envelope` keyframes (`result.points`) that
+  reproduce it exactly. On the mix template's test vocal the vocal-minus-music spread went
+  from 4.9 to 2.5 LU.
+- `deresonate`: a dynamic resonance suppressor. It turns down narrow spectral peaks only while
+  they stand out above their neighbourhood (a vocal's low-mid build-up that moves with the
+  notes, a guitar's ring), reports the bands it worked on in `result.top`, and leaves the
+  input bit for bit where nothing is reduced.
+- `patch`: replace a time range with audio from elsewhere in the file (a clean repeat of the
+  same part) or from another take (`--source`), keeping the length, with crossfades at both
+  edges.
+- Companion skills, from a study of a full professional mixing session:
+  - `ferraus-mix`: a song map from `analyze sections`, picking the anchor per song, printed
+    effects and bounced stacks treated as fixed, a vocal rider stage in the pipeline template,
+    section contrast, Haas widening and "handoff" panning, solo instruments, bus tape and
+    console color with its measured cost, a 10-12 kHz shelf instead of 7.5 kHz for a dull
+    top, several references, and a level-matched A/B against the rough mix.
+  - `ferraus-vocals`: rides before compression, `deresonate` for moving build-ups, separate
+    verse and chorus chains switched at the section boundaries, throws on phrase ends.
+  - `ferraus-stems`: an editing pass before the mix (`patch` from a clean repeat, `repair`,
+    `remove-sound`).
+- MCP prompt `mix-stems` covers the vocal ride and patching from a clean repeat.
+
+### Fixed
+- `replay` of a command that reads a side file (`compress --sidechain`, `ride --against`,
+  `patch --source`) passed the side file as a second input and failed; it is now passed back
+  as its flag.
+- Pipeline stages keep the result an effect returns (`ride`'s keyframes, `deresonate`'s
+  `top`) in `result.plan[]`.
+
 ## [0.1.3] — 2026-11-05
 
 ### Added

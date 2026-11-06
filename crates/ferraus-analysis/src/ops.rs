@@ -2,7 +2,7 @@
 //! function: it decodes the input(s), runs the analysis, records headline metrics, and
 //! returns the analysis struct (numbers rounded for tidy output) as the JSON result.
 
-use crate::{chords, compare, levels, loudness, masking, problems, spectrum, stereo, tempo, util};
+use crate::{chords, compare, levels, loudness, masking, problems, sections, spectrum, stereo, tempo, util};
 use ferraus_core::op::InputKind;
 use ferraus_core::prelude::*;
 use serde::Serialize;
@@ -75,6 +75,19 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus analyze masking lead.wav pad.wav --window 250ms --floor -24dB --json", "Longer frames and a stricter activity floor for sustained parts")
             .example("ferraus analyze masking vocal_raw.wav guitar_raw.wav --levels ignore --json", "Raw stems whose levels mean nothing yet: where could they clash once balanced")
             .example("ferraus fx bass.wav -o bass_eq.wav --fx \"eq:band=peak:80Hz:-3dB:q=1.4\"", "Apply a region's suggested_fix to b"),
+        OpSpec::custom("analyze sections", Category::Inspect, "Song structure: sections, repeats, and loudness per section", analyze_sections)
+            .about("For section-aware mixing: where the verses and choruses are, which sections repeat, and how loud each one is, from a mix, a rough mix, or an instrumental. Plain DSP, no model, best-effort. The input is mixed to mono. Beats come from the tempo tracker; --bpm sets tempo_bpm and the beats are taken from the tracked pulse at that tempo, half, or double (every other beat, or midpoints), else tracked again within 4% of it. Without --bpm, a reading above 160 BPM whose half tempo scores nearly as well is taken at half speed, since bars shorter than 1.5 s are rare. Bars start on the tracker's downbeats when the bar accent is clear (grid downbeats), else on the beat phase with the strongest kick and chord-change accents (grid beats), and with no steady beat on a fixed 2 s grid of four 0.5 s units (grid seconds). Per beat it measures chroma, spectral shape (cepstrum of a 40-band log-mel spectrum), onset pattern (sixteenths, below and above 200 Hz), and level. Boundaries are peaks, on bar starts and at least --min-bars apart, of Foote checkerboard novelty (Gaussian-tapered kernels at two scales) on a bar similarity matrix of spectral shape and onset pattern, plus harmonic change (pitch content of the 4 and 8 bars before against the bars after) and level jumps; a higher --sensitivity finds more. Sections share a letter (A, B, ... by first appearance) when their similarity is at least --similarity and, for a letter that already has several sections, no more than 0.1 below how alike those sections are to each other (a verse at 0.85 to two choruses that match at 0.96 keeps its own letter). The similarity weighs most the chroma compared beat by beat, bar by bar (best aligned within the length difference plus one bar), since the melody over the chords tells a verse from a chorus on the same progression; then onset patterns, mean spectral shape, level, and, with --vocal, how much of each section is sung. each same-letter pair is listed in repeats with offset_s, the time from a bar in one section to the same bar in its twin, so a bad note at t in section a can be patched from t + offset_s. lufs and delta_lu (against the whole song) are measured per section. Roles are heuristics with a role_confidence: the loudest repeating label (sung, with --vocal) is the chorus; another repeating label first heard before it is the verse (or, when no other label repeats, the section right before the first chorus); a short section between a verse and a chorus is the pre-chorus; a unique section in the second half between choruses is the bridge, or instrumental when the vocal stem is silent there; distinct first and last sections are the intro and outro; anything else is 'section'. --vocal (the lead vocal stem, starting with the mix) adds vocal_activity per section and makes the roles far more reliable. Limits: a tempo read at half or double speed halves or doubles the bars (pass --bpm); a verse and chorus over the same chords and the same arrangement can merge into one section; a key change splits repeats into different letters; sections shorter than --min-bars are absorbed by a neighbour; roles are guesses (check role_confidence and listen).")
+            .inputs(Inputs::ONE_AUDIO)
+            .best_effort()
+            .param(param("min-bars", ParamKind::Int).default("4").range("1..64").help("Shortest section, in bars"))
+            .param(param("sensitivity", ParamKind::Percent).default("50%").advanced().help("Boundary sensitivity: higher finds more boundaries (0..100%)"))
+            .param(param("similarity", ParamKind::Percent).default("80%").advanced().help("How alike two sections must be to share a label (0..100%)"))
+            .param(param("beats-per-bar", ParamKind::Int).range("1..16").advanced().help("Beats per bar, overriding the detected meter"))
+            .param(param("vocal", ParamKind::Path).help("Lead vocal stem of the same song, starting together with the mix: adds vocal_activity per section and improves the role guesses"))
+            .example("ferraus analyze sections mix.wav --json", "Sections with labels, roles, bars, loudness per section, and the repeats")
+            .example("ferraus analyze sections mix.wav --bpm 108 --json", "Use the known tempo instead of the detected one (fixes bars read at half or double speed)")
+            .example("ferraus analyze sections mix.wav --vocal stems/vocals.wav --json", "Add vocal activity per section for surer verse, chorus, and instrumental roles")
+            .example("ferraus analyze sections demo.wav --min-bars 8 --similarity 70% --json", "Only sections of 8 bars or more, and looser matching of repeats in a rough demo"),
         OpSpec::custom("compare", Category::Inspect, "Null test: align b to a and report RMS and peak difference and SI-SDR", compare_op)
             .about("b is aligned to a by FFT cross-correlation (within --max-offset), resampled and channel-matched if needed, then compared sample by sample: RMS and peak of the difference, null depth, best-fit gain, SI-SDR of b against a, and loudness difference. The agent's regression test.")
             .inputs(Inputs::exactly(2, InputKind::Audio))
@@ -353,6 +366,66 @@ fn analyze_masking(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+fn analyze_sections(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
+    let min_bars = a.int("min-bars")?;
+    if !(1..=64).contains(&min_bars) {
+        return Err(Error::usage(format!("--min-bars must be between 1 and 64, got {min_bars}")));
+    }
+    let percent = |name: &str| -> Result<f64> {
+        let v = a.percent(name)?;
+        if (0.0..=1.0).contains(&v) {
+            Ok(v)
+        } else {
+            Err(Error::usage(format!("--{name} must be between 0% and 100%, got '{}'", a.str_or(name, ""))))
+        }
+    };
+    let sensitivity = percent("sensitivity")?;
+    let similarity = percent("similarity")?;
+    let beats_per_bar = match a.raw("beats-per-bar") {
+        None => None,
+        Some(_) => {
+            let v = a.int("beats-per-bar")?;
+            if !(1..=16).contains(&v) {
+                return Err(Error::usage(format!("--beats-per-bar must be between 1 and 16, got {v}")));
+            }
+            Some(v as usize)
+        }
+    };
+    let bpm = ctx.bpm();
+    if let Some(b) = bpm {
+        if !(b.is_finite() && (20.0..=400.0).contains(&b)) {
+            return Err(Error::usage(format!("--bpm must be between 20 and 400 for analyze sections, got {b}")));
+        }
+    }
+    if let Some(mut p) = dry_plan(ctx) {
+        if let Some(v) = a.path("vocal") {
+            p["vocal"] = Value::String(v.display().to_string());
+        }
+        return Ok(p);
+    }
+    let buf = read(ctx, 0)?;
+    let vocal = match a.path("vocal") {
+        None => None,
+        Some(p) => {
+            let v = ctx.read_audio_path(&p)?;
+            if v.is_empty() {
+                return Err(Error::input(format!("the vocal stem {} has no audio", p.display())));
+            }
+            Some(if v.channels() > 1 { AudioBuffer::from_mono(v.sample_rate, v.mono_mix()) } else { v })
+        }
+    };
+    let opts = sections::SectionOptions { min_bars: min_bars as usize, sensitivity, similarity, beats_per_bar, bpm };
+    let r = sections::sections(&buf, vocal.as_ref(), &opts);
+    drop((buf, vocal));
+    for w in &r.warnings {
+        ctx.warn(w.code, w.message.clone());
+    }
+    ctx.metric("sections", r.sections.len());
+    ctx.metric("labels", r.labels.len());
+    ctx.metric("confidence", util::tidy(r.confidence));
+    to_json(&r)
+}
+
 fn compare_op(args: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let opts =
         compare::CompareOptions { max_offset_s: args.seconds("max-offset")?.max(0.0), no_align: args.flag("no-align") };
@@ -460,6 +533,7 @@ mod tests {
             "analyze chords",
             "analyze similarity",
             "analyze masking",
+            "analyze sections",
             "compare",
             "analyze problems",
             "analyze stats",
@@ -468,6 +542,7 @@ mod tests {
             assert!(r.get(name).is_some(), "{name}");
         }
         assert!(spec("analyze chords").best_effort);
+        assert!(spec("analyze sections").best_effort);
         assert!(ops().iter().all(|o| o.category == Category::Inspect));
     }
 
@@ -617,6 +692,101 @@ mod tests {
         let v = f(&a, &mut c).unwrap();
         assert_eq!(v["analyze"], "analyze masking");
         assert_eq!(v["inputs"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn sections_op_end_to_end() {
+        let d = TempDir::new("analysis-sections");
+        let (mix, vocal) = (d.path("mix.wav"), d.path("vocal.wav"));
+        let (m, v) = crate::sections::tests::synth_song("ABAB", 4, "A");
+        testing::write_wav(&mix, &stereo(m));
+        testing::write_wav(&vocal, &v);
+        let (r, c) = run("analyze sections", &[("min-bars", "2")], vec![mix.clone()]);
+        assert_eq!(r["tempo_source"], "detected");
+        assert!((r["tempo_bpm"].as_f64().unwrap() - 120.0).abs() < 1.0, "{r}");
+        assert_eq!(r["beats_per_bar"], 4);
+        assert!(r["integrated_lufs"].as_f64().is_some());
+        let secs = r["sections"].as_array().unwrap();
+        let labels: Vec<&str> = secs.iter().map(|s| s["label"].as_str().unwrap()).collect();
+        assert_eq!(labels, ["A", "B", "A", "B"], "{r}");
+        assert_eq!(secs[0]["start_bar"], 1);
+        assert_eq!(secs[2]["start_bar"], 9);
+        assert_eq!(secs[2]["repeat_of"], 0);
+        assert!(secs[0]["repeat_of"].is_null() && secs[0]["similarity_to_repeat"].is_null());
+        assert!(secs[0].get("vocal_activity").is_none());
+        assert_eq!(secs[1]["role"], "chorus");
+        assert!(secs.iter().all(|s| s["delta_lu"].is_number() && s["role_confidence"].is_number()));
+        assert_eq!(r["labels"]["B"]["count"], 2);
+        assert_eq!(r["labels"]["B"]["role"], "chorus");
+        let rep = r["repeats"].as_array().unwrap();
+        assert_eq!(rep.len(), 2);
+        assert!((rep[0]["offset_s"].as_f64().unwrap() - 16.0).abs() < 0.1, "{r}");
+        assert_eq!(r["boundaries_s"].as_array().unwrap().len(), 3);
+        assert_eq!(c.metrics["sections"], 4);
+        assert_eq!(c.metrics["labels"], 2);
+        assert!(c.metrics["confidence"].as_f64().unwrap() > 0.5);
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+
+        // a given tempo, a vocal stem, and a forced meter
+        let s = spec("analyze sections");
+        let Runner::Custom(f) = s.runner else { unreachable!() };
+        let args = testing::args(&s, &[("min-bars", "2"), ("vocal", vocal.to_str().unwrap())]);
+        let mut c = testing::ctx();
+        c.command = s.name.to_string();
+        c.globals.bpm = Some(120.0);
+        c.inputs = vec![mix.clone()];
+        let r = f(&args, &mut c).unwrap();
+        assert_eq!(r["tempo_source"], "given");
+        assert_eq!(r["tempo_bpm"].as_f64().unwrap(), 120.0);
+        let secs = r["sections"].as_array().unwrap();
+        assert!(secs[0]["vocal_activity"].as_f64().unwrap() > 0.5, "{r}");
+        assert!(secs[1]["vocal_activity"].as_f64().unwrap() < 0.05, "{r}");
+        assert_eq!(c.input_records.len(), 2);
+        let (r, _) = run("analyze sections", &[("min-bars", "2"), ("beats-per-bar", "2")], vec![mix.clone()]);
+        assert_eq!(r["beats_per_bar"], 2);
+        assert!((r["bar_s"].as_f64().unwrap() - 1.0).abs() < 0.05, "{r}");
+
+        // too short for two sections
+        let short = d.path("short.wav");
+        testing::write_wav(&short, &sine(22050, 440.0, 3.0, 0.3));
+        let (r, c) = run("analyze sections", &[], vec![short]);
+        assert_eq!(r["sections"].as_array().unwrap().len(), 1);
+        assert!(c.warnings.iter().any(|w| w.code == "too_short"), "{:?}", c.warnings);
+    }
+
+    #[test]
+    fn sections_rejects_bad_params_and_plans_a_dry_run() {
+        let s = spec("analyze sections");
+        let Runner::Custom(f) = s.runner else { unreachable!() };
+        for bad in [
+            ("min-bars", "0"),
+            ("min-bars", "65"),
+            ("sensitivity", "150%"),
+            ("similarity", "-10%"),
+            ("beats-per-bar", "0"),
+            ("beats-per-bar", "17"),
+        ] {
+            let a = testing::args(&s, &[bad]);
+            let mut c = testing::ctx();
+            c.globals.dry_run = true;
+            c.inputs = vec!["/nonexistent/a.wav".into()];
+            let e = f(&a, &mut c).unwrap_err();
+            assert_eq!(e.kind, ferraus_core::ErrorKind::Usage, "{bad:?}");
+        }
+        let a = testing::args(&s, &[]);
+        let mut c = testing::ctx();
+        c.globals.dry_run = true;
+        c.globals.bpm = Some(-5.0);
+        c.inputs = vec!["/nonexistent/a.wav".into()];
+        assert_eq!(f(&a, &mut c).unwrap_err().kind, ferraus_core::ErrorKind::Usage);
+        let a = testing::args(&s, &[("vocal", "/nonexistent/v.wav")]);
+        let mut c = testing::ctx();
+        c.command = s.name.to_string();
+        c.globals.dry_run = true;
+        c.inputs = vec!["/nonexistent/a.wav".into()];
+        let v = f(&a, &mut c).unwrap();
+        assert_eq!(v["analyze"], "analyze sections");
+        assert_eq!(v["vocal"], "/nonexistent/v.wav");
     }
 
     #[test]

@@ -8,6 +8,7 @@ pub mod filters;
 pub mod generate;
 pub mod hum;
 pub mod level;
+pub mod ride;
 pub mod space;
 pub mod spectral;
 pub mod stereo;

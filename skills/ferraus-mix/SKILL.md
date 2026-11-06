@@ -51,6 +51,13 @@ a reference track, vibe words, deliverables, and anything that must not change (
 vocal is intentional"). Unsupervised, do not ask: infer, choose the conventional option,
 and record the choice in the report so it can be flipped in `mix.yaml`.
 
+Then decide what carries the song before touching a fader. That is usually the lead vocal
+plus the main rhythm part: the strummed acoustic of a singer-songwriter song, the drums of a
+rock song. Those parts sit on the template. Parts that only decorate (a 12-string shimmer, a
+pedal-steel fill) are ear candy and sit a few dB lower. A laid-back acoustic, folk or
+country song mixes on `--genre acoustic` (drums back, voice and guitar as equals); a
+country-pop song with a full band is `pop`.
+
 ## Phase 1 - Intake
 
 For every stem: `ferraus info`, `ferraus analyze loudness`, `ferraus analyze stereo`,
@@ -74,6 +81,32 @@ For every stem: `ferraus info`, `ferraus analyze loudness`, `ferraus analyze ste
   octave errors (100 read as 200), 3:4 errors (100 read as 75), and report low confidence on
   sparse parts; distrust a result below confidence 0.5 or that the stems disagree on.
   `analyze key` on a harmonic stem confuses relative keys (A minor as C major).
+
+- **Song map.** Sum the stems at their starting gains and map the song:
+  `ferraus mix balance stems/*.wav --genre pop -o mix/rough.wav --json`, then
+  `ferraus analyze sections mix/rough.wav --bpm <tempo> --vocal "<lead vocal stem>" --json`.
+  It returns the sections with start and end times, labels for repeats (A, B, A, B, C, B),
+  a role guess per section (intro, verse, pre-chorus, chorus, bridge, instrumental, outro),
+  loudness per section, and the `repeats` with `offset_s` that the editing pass uses.
+  Boundaries are reliable on a steady tempo (pass the DAW tempo: a half- or double-time
+  reading halves or doubles the bars; a 2/4 bar or an edit shifts the bar grid after it).
+  Roles are heuristics (`role_confidence` 0.5-0.8 with `--vocal`, lower without): the
+  producer's arrangement notes beat them. It leans toward splitting: a second verse with a
+  much fuller arrangement can get its own letter and the role `section` (a sung `section`
+  between choruses is the sign; `--similarity 70%` regroups it). Write the map into the
+  report; it drives the per-section vocal check (gates.md) and the section contrast in
+  Phase 6.
+- **Printed decisions.** Reverb or delay printed on a stem, panning baked into a stereo
+  stem, several voices bounced to one track, drums delivered as one stereo sum: these are
+  the producer's choices and cannot be undone. Spot them from the file names or the brief
+  (wet, fx, verb, BG stack), or from a part whose gaps never fall silent (`analyze silence`
+  finds no regions between its phrases). Work around them: no second reverb on a stem that
+  is already wet, Haas or chorus to widen a mono stack (stereo-placement.md). List them in
+  the report as "would improve with dry or isolated stems".
+- **Fix before you mix.** A wrong or squeaky note, a fret slide, a chair creak in one pass
+  of a part that repeats: run the editing pass of the `ferraus-stems` skill (`patch` from a
+  clean repeat, `repair`, `remove-sound`) before Phase 2, so every later measurement sees the
+  fixed part.
 
 `analyze problems` is written for finished audio, so read it with a stem in mind:
 
@@ -108,6 +141,9 @@ always last).
   Move `threshold` first to reach the role's range.
 - Cuts before boosts, narrow cuts and wide boosts, no move beyond ±6 dB, and a move that
   does not change the measurement it was made for comes out again.
+- A resonance that moves with the notes (a vocal's low mids, a guitar's ring) gets
+  `deresonate` instead of a fixed cut; read its `result.top` to see what it cut. Gentle
+  settings and measured amounts are in role-recipes.md.
 
 ## Phase 3 - Balance
 
@@ -126,6 +162,10 @@ always last).
 3. Set the vocal-to-music balance (V2M) with the a cappella gain of the `final` stage, to
    the centre of the genre window in gates.md. The template tends to leave the vocal 1-3 dB
    hot; V2M is the authority.
+4. V2M is an average; the template's `vox_ride` stage holds it word by word, riding the lead
+   vocal against every instrument before its compressors (what an engineer's volume
+   automation does). Gate: its `offset_after.spread_lu` ≤ 3 LU. The settings and how to read
+   the result are in the `ferraus-vocals` skill (section 4).
 
 ## Phase 4 - Stereo placement
 
@@ -182,11 +222,20 @@ vocal bus, instrument returns 14-24 LU under the dry instrumental
 ([references/gates.md](references/gates.md)). Tempo math and starting values:
 [references/space-and-movement.md](references/space-and-movement.md).
 
+Section contrast: from the song map, verses can stay intimate (the vocal delay or echo send
+down or off, a drier vocal) and choruses open up (echo and plate up, BVs wider). That is an
+`envelope` on the send's `mix` stage with keyframes 100-200 ms either side of each section
+boundary (`points: "0s=-60dB,28.6s=-60dB,28.8s=0dB,47.9s=0dB,48.1s=-60dB"`). It is a creative
+convention: do it when the brief or the genre calls for movement, and name the stage in the
+report so the producer can flatten it.
+
 ## Phase 7 - Mix bus and the final gate
 
 Mix bus: gentle glue (`compress` `preset: bus`, `makeup: 0dB`, threshold set for 0.5-2 dB
 mean reduction), then a trim so true peak ≤ -3 dBTP. No limiter: mastering needs the
-headroom.
+headroom. Tape or console saturation on the buses and the mix bus is optional color, with
+measured costs (PLR, a darker top) in role-recipes.md (Bus color). A dull top end against
+the reference wants a 10-12 kHz shelf, not 7.5 kHz (role-recipes.md, Top end).
 
 ```bash
 ferraus mix verify mix/mix.wav --genre pop --json
@@ -197,10 +246,19 @@ and tonal balance against the genre curve (or `--reference ref.wav`), with a run
 per failed check. It names only the worst tonal band; for the whole curve, read
 `tonal_balance.bands[].delta_db` from `ferraus master analyze mix/mix.wav --genre pop --json`
 (a "solid low end" brief means checking 40-120 Hz there, not just passing the 6 dB
-tolerance). A low end that is weak because the bass part has no energy below 55 Hz is fixed
+tolerance). With several references (3-5 tracks the producer named, or that share the
+genre and arrangement), run the check against each and act only on deviations they agree on:
+a band off from all of them in the same direction. A low end that is weak because the bass part has no energy below 55 Hz is fixed
 in the parts (a heavier kick or sub, the brief's call), not by boosting empty bands. A mix
 leaves this skill when `mix verify` passes, or when the report says, with numbers, which
 check was left failing and why.
+
+Last, a level-matched A/B against the rough mix: the raw stems at their starting gains, no
+processing (`ferraus mix balance stems/*.wav --genre pop -o mix/rough.wav --json` writes it).
+Louder reads as better, so match first:
+`ferraus normalize mix/rough.wav --lufs <the mix's integrated LUFS> -o mix/rough_matched.wav`, then
+compare `analyze spectrum` and `analyze stereo` of the two. Every difference should trace to
+a decision in the report; put the main ones in it (low end, presence, top, width).
 
 ## Phase 8 - Deliver
 

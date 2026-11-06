@@ -487,7 +487,8 @@ fn compute_stage(
             let input = child.read_audio(0)?;
             let out = crate::exec::apply_spec(spec, args, input, child)?;
             child.write_audio(&dir.join("main.wav"), &out, Some("main"))?;
-            Value::Null
+            // a transform may return data beside its audio (ride's keyframes)
+            child.result.take().unwrap_or(Value::Null)
         }
         Runner::Chain => {
             let mut buf = child.read_audio(0)?;

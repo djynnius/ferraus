@@ -9,6 +9,7 @@ mod eq;
 mod fade;
 mod modfx;
 mod space;
+mod spectral;
 mod stereo;
 mod utility;
 mod vocoder;
@@ -21,6 +22,7 @@ pub fn all() -> Vec<OpSpec> {
     let mut v = Vec::new();
     v.extend(fade::ops());
     v.extend(dynamics::ops());
+    v.extend(spectral::ops());
     v.extend(eq::ops());
     v.extend(space::ops());
     v.extend(modfx::ops());

@@ -56,8 +56,13 @@ ferraus tune vocal.clean.wav --key auto --strength 85% -o vocal.tuned.wav --json
 ferraus mix vocal.tuned.wav beat.wav --gains 0dB,-3dB -o mix.wav --json
 ferraus master mix.wav --target streaming -o master.wav --report report.json --json
 
-# mix stems: faders from a genre template, conflicts with their fixes, a gate before mastering
+# mix stems: faders from a genre template, the song map, a patched bass note, vocal rides and
+# resonance control, conflicts with their fixes, a gate before mastering
 ferraus mix balance stems/*.wav --genre pop --json
+ferraus analyze sections rough_mix.wav --bpm 100 --vocal vocal.wav --json
+ferraus patch bass.wav --range 53.2s..54.4s --from 21.4s -o bass_fixed.wav --json
+ferraus ride vocal.wav --against instrumental.wav -o vocal_ride.wav --json
+ferraus deresonate vocal_ride.wav --band 150Hz..800Hz -o vocal_smooth.wav --json
 ferraus analyze masking vocal.wav keys.wav --json
 ferraus compress bass.wav --sidechain kick.wav --sidechain-hpf 0Hz --threshold -20dB --ratio 4:1 -o bass_duck.wav --json
 ferraus mix verify mix.wav --genre pop --json

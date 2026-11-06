@@ -15,6 +15,8 @@
 //! * [`saturation`] — oversampled tape/tube/soft/hard waveshaping.
 //! * [`vocoder`] — channel and spectral vocoders, oscillators, pitch tracker, MIDI notes.
 //! * [`pan`] — pan laws, balance, position names, sample-accurate keyframes.
+//! * [`resonance`] — dynamic resonance suppression (narrow spectral peaks turned down only
+//!   while they stand out above their neighbourhood).
 //! * [`fir`] — linear-phase FIR design and partitioned FFT convolution.
 //! * [`stft`] — STFT analysis/synthesis, Welch spectra, fractional-octave smoothing.
 //! * [`oversample`] — polyphase oversampling and true-peak measurement.
@@ -36,6 +38,7 @@ pub mod fir;
 pub mod modulation;
 pub mod oversample;
 pub mod pan;
+pub mod resonance;
 pub mod reverb;
 pub mod saturation;
 pub mod stft;

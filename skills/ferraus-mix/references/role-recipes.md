@@ -37,8 +37,10 @@ level decisions in the faders.
 - [Bass](#bass) · [Sub and 808](#sub-and-808)
 - [Lead vocal](#lead-vocal) · [Backing vocals](#backing-vocals)
 - [Electric and acoustic guitar](#electric-and-acoustic-guitar) · [Keys and piano](#keys-and-piano)
-- [Pads and strings](#pads-and-strings) · [Synth leads, arps, plucks](#synth-leads-arps-plucks)
+- [Pads and strings](#pads-and-strings) · [Solo instruments](#solo-instruments-harmonica-fiddle-sax-slide-lead-acoustic) ·
+  [Synth leads, arps, plucks](#synth-leads-arps-plucks)
 - [Brass](#brass) · [FX, risers, impacts](#fx-risers-impacts)
+- [Bus color](#bus-color-tape-and-console) · [Top end against a reference](#top-end-against-a-reference)
 - [High-pass table](#high-pass-table) · [Compression targets](#compression-targets)
 
 ## Kick
@@ -84,7 +86,14 @@ measure loud, so err low and check the mix's 6-10 kHz bands against the genre cu
 - { op: transient, attack: +2dB }
 ```
 
-Pan percussion opposite the hats so the top end balances.
+Pan percussion opposite the hats so the top end balances. When the shaker or tambourine is
+the only part carrying the subdivision (drums delivered as one stereo sum), keep it near
+centre instead (stereo-placement.md, rule 9).
+
+- Splashy tambourine or shaker (its 8-16 kHz region louder than the cymbals' in `bands.py`):
+  `{ op: lowpass, freq: 10kHz }` or `highshelf:8kHz:-3dB`.
+- A bone-dry shaker or tambourine against drums that carry their own room: a room-reverb send
+  at -14..-18 dB, so it plays in the same space.
 
 ## Drum bus or full kit
 
@@ -154,11 +163,16 @@ is raw. In the mix:
 ```yaml
 - { op: highpass, freq: 90Hz, order: 2 }           # 70 Hz for deep male voices, 100-120 Hz for bright female voices
 - { op: eq, band: ["peak:300Hz:-2dB:q=1.0"] }      # when: mix verify warns `mud`, or masking flags 200-400 Hz, or a resonance candidate there
+- { op: deresonate, band: 150Hz..800Hz, threshold: 5dB, depth: 3dB }  # instead of the cut when the build-up moves with the notes (ferraus-vocals, section 4)
 - { op: compress, preset: vocal, threshold: -28dB, makeup: 0dB }  # leveling: 3-6 dB mean; set threshold from the measured reduction
 - { op: compress, threshold: -24dB, ratio: 4:1, attack: 2ms, release: 50ms, makeup: 0dB }  # peaks: 1-3 dB max
 - { op: eq, band: ["peak:3kHz:+2dB:q=1.0", "highshelf:10kHz:+2dB"] }  # presence and air, when the vocal is masked or dull
 - { op: deess }                                    # after the boosts, which raise sibilance
 ```
+
+The lead vocal is ridden against the instruments before this chain (the template's
+`vox_ride` stage; the `ferraus-vocals` skill explains the numbers). Use the `eq` cut or
+`deresonate`, not both, unless the measurements call for each.
 
 The vocal is the reference point of the mix: centred, driest, brightest, and inside the
 vocal-to-music window (gates.md). Everything that competes with it between 1 and 5 kHz
@@ -186,7 +200,10 @@ Wider (`widen` 130-160% on stereo BV stems, or pairs panned ±40-80) and wetter 
 ```
 
 Distorted guitars are already compressed; skip the compressor unless the stem's loudness
-range is above 6 LU.
+range is above 6 LU. A guitar that rings at 2-5 kHz on some notes (a resonance candidate that
+comes and goes): `{ op: deresonate, band: 2kHz..6kHz, depth: 3dB }` rather than a fixed cut;
+on a test guitar with a +9 dB ring added at 3 kHz it found 2.8 and 3.2 kHz and cut that band
+by 2 dB. A broad, fixed bump is still an `eq` job.
 
 ## Keys and piano
 
@@ -207,6 +224,22 @@ range is above 6 LU.
 
 Duck pads 1-3 dB under the lead vocal (`sidechain: $vox_fx`) when masking reports a
 co-active region in 1-4 kHz, or under the kick for an EDM pump (see space-and-movement.md).
+
+## Solo instruments (harmonica, fiddle, sax, slide, lead acoustic)
+
+Players shape these phrases with their dynamics; a compressor flattens what they built.
+
+```yaml
+- { op: highpass, freq: 120Hz }
+- { op: limit, ceiling: -9dBTP, release: 50ms }    # catch one or two blasts: ceiling about 3 dB under the stem's true peak
+```
+
+When: `analyze loudness --timeline` shows one or two momentary spikes 6 dB or more above the
+rest of the part. Set `ceiling` about 3 dB under the stem's `true_peak_dbtp` and check the
+chain metrics: a few dB at most, almost nothing on average. For a single blast an `envelope`
+dip on that note is more transparent still. Give a part's first entrance its level (an
+`envelope` +1..+2 dB on its first phrase) so the handoff from the vocal lands, and send it to
+the vocal plate so the two share a space.
 
 ## Synth leads, arps, plucks
 
@@ -234,6 +267,44 @@ A lead synth that plays a melody *while* the vocal sings is an arrangement clash
 ```
 
 Usually 12-18 dB under the vocal; wide, wet, and allowed to move (autopan, pan sweeps).
+
+## Bus color: tape and console
+
+Saturation on the buses and the mix bus is a habit of many engineers ("everything through
+tape and a console"). It is a convention, not a fix: add it when the brief asks for warmth,
+glue or density, or the mix measures sterile (PLR above 16 dB on a pop mix), and never to
+win an A/B by being louder. Measured on a test mix at matched loudness:
+
+| Stage | PLR | Tone (level-matched) |
+|---|---|---|
+| `{ op: saturate, type: tape, drive: 3dB }` | -3.3 dB (peaks rounded off: true peak -3.4 → -7.1 dBTP) | darker top: -0.7 dB at 8 kHz, -1.4 dB at 12.7 kHz, -1.8 dB at 16 kHz |
+| `{ op: saturate, type: soft, drive: 3dB }` (console-like) | -2.0 dB | unchanged |
+| `{ op: saturate, type: tube, drive: 3dB }` | -0.3 dB | unchanged |
+| `type: tape, drive: 6dB` | -4.8 dB | as 3 dB |
+
+Saturation responds to the level going in, so measure after the faders are set. Stacking it on
+every bus and the mix bus adds up: check `mix verify`'s PLR (≥ 10 dB) after the whole chain,
+and re-run the `balance` stage, because density changes how loud parts read. Tape darkens: if
+the brief also wants sparkle, follow it with the top-end shelf below rather than driving
+harder.
+
+## Top end against a reference
+
+When a reference or the genre curve says the mix is dull above 8 kHz, use a high shelf at
+10-12 kHz, not 7.5 kHz: the lower shelf also lifts 5-8 kHz, where harshness lives. Measured
+on a test mix:
+
+| Shelf | 5 kHz | 8 kHz | 12.7 kHz | 16 kHz |
+|---|---|---|---|---|
+| `highshelf:7.5kHz:+3dB` | +0.4 | +1.7 | +2.8 | +3.0 |
+| `highshelf:10kHz:+2dB` | +0.1 | +0.5 | +1.6 | +1.9 |
+| `highshelf:12kHz:+3dB` | +0.0 | +0.3 | +1.8 | +2.6 |
+
+If the brighter mix turns harsh (`mix verify`'s `harsh` check, or 2-6 kHz rising above the
+reference), tame the peaks that ring rather than the whole band:
+`{ op: deresonate, band: 2kHz..6kHz, depth: 3dB }` on the bus that carries them. ferraus has no
+exciter; a parallel distortion of the top band, built from `highpass` + `saturate` + `mix`,
+measured poorly (it partly cancels the band it overlaps), so prefer the shelf.
 
 ## High-pass table
 

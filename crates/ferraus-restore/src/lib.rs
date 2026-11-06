@@ -1,8 +1,8 @@
 //! ferraus-restore: restoration (declip, dehum, declick, dehiss, repair, remove-sound,
-//! phase-align, center, leveler), Audition-parity filters (graphic-eq, fft-filter, notch,
-//! scientific filter), transfer-curve dynamics, echo, doppler, distort, automation
-//! (envelope, pitch-bend), generators, band-split, the channel mixer, and one-knob
-//! chains (enhance-voice, enhance, guitar).
+//! phase-align, center, leveler), the vocal rider (ride), Audition-parity filters
+//! (graphic-eq, fft-filter, notch, scientific filter), transfer-curve dynamics, echo,
+//! doppler, distort, automation (envelope, pitch-bend), generators, band-split, the channel
+//! mixer, and one-knob chains (enhance-voice, enhance, guitar).
 //!
 //! All DSP lives in [`dsp`] (FFT/STFT, biquads, AR interpolation, filter design, pitch
 //! shifting, loudness). Composite chains call other crates' ops by name at run time.
@@ -26,6 +26,7 @@ pub fn ops() -> Vec<OpSpec> {
     v.extend(ops::spectral::ops());
     v.extend(ops::stereo::ops());
     v.extend(ops::level::ops());
+    v.extend(ops::ride::ops());
     v.extend(ops::filters::ops());
     v.extend(ops::space::ops());
     v.extend(ops::automation::ops());
@@ -89,6 +90,7 @@ mod tests {
             "phase-align",
             "center",
             "leveler",
+            "ride",
             "enhance-voice",
             "enhance",
             "guitar",

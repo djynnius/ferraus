@@ -1,11 +1,12 @@
 //! ITU-R BS.1770-4 integrated loudness (K-weighting, 400 ms blocks, absolute and
 //! relative gating). Used by `enhance` to set its loudness target without a run-time
-//! dependency.
+//! dependency; `ride` uses the K-weighting and channel weights for its detectors.
 
 use super::biquad::{Coefs, Sos};
 use std::f64::consts::PI;
 
-fn k_weighting(sr: f64) -> Sos {
+/// The BS.1770 K-weighting filter (high shelf, then the RLB high-pass) at `sr` Hz.
+pub(crate) fn k_weighting(sr: f64) -> Sos {
     // stage 1: high shelf
     let (g, f0, q) = (3.999_843_853_973_347, 1_681.974_450_955_533, 0.707_175_236_955_419_6);
     let k = (PI * f0 / sr).tan();
@@ -27,6 +28,17 @@ fn k_weighting(sr: f64) -> Sos {
     Sos::new(vec![shelf, hp])
 }
 
+/// BS.1770 channel weight: L, R, C 1.0, LFE (channel 4) excluded, surrounds 1.41.
+pub(crate) fn channel_weight(c: usize) -> f64 {
+    if c == 3 {
+        0.0
+    } else if c >= 4 {
+        1.41
+    } else {
+        1.0
+    }
+}
+
 /// Integrated loudness in LUFS (`None` for silence or empty input).
 pub fn integrated(chans: &[Vec<f32>], sr: u32) -> Option<f64> {
     let n = chans.first().map(|c| c.len()).unwrap_or(0);
@@ -36,15 +48,6 @@ pub fn integrated(chans: &[Vec<f32>], sr: u32) -> Option<f64> {
     let srf = sr as f64;
     let kw = k_weighting(srf);
     let weighted: Vec<Vec<f32>> = chans.iter().map(|c| kw.apply(c)).collect();
-    let weight = |c: usize| {
-        if c == 3 {
-            0.0
-        } else if c >= 4 {
-            1.41
-        } else {
-            1.0
-        }
-    };
     let block = ((0.4 * srf) as usize).min(n).max(1);
     let hop = ((0.1 * srf) as usize).max(1);
     let mut powers = Vec::new();
@@ -57,7 +60,7 @@ pub fn integrated(chans: &[Vec<f32>], sr: u32) -> Option<f64> {
         let mut z = 0.0;
         for (c, ch) in weighted.iter().enumerate() {
             let ms: f64 = ch[start..end].iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / block as f64;
-            z += weight(c) * ms;
+            z += channel_weight(c) * ms;
         }
         powers.push(z);
         start += hop;
