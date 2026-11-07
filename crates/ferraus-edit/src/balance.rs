@@ -185,6 +185,8 @@ const AUTO_ANCHORS: &[&str] = &["vocal", "lead", "kick", "drums"];
 
 /// A rendered sum peaking above this (dBTP) gets a warning: mastering wants the headroom.
 const RENDER_HEADROOM_DBTP: f64 = -3.0;
+/// Highest true peak written to a fixed-point rough-mix file (`-o`); hotter sums are lowered.
+const WRITE_CEILING_DBTP: f64 = -1.0;
 
 /// A proposed boost above this (dB) usually means a near-silent or mislabelled stem.
 const LARGE_GAIN_DB: f64 = 12.0;
@@ -470,7 +472,22 @@ fn render(ctx: &mut OpCtx, stems: &mut [Stem], gains_db: &[f64], anchor_lufs: f6
     if ctx.globals.output.is_some() {
         let ext = util::audio_ext(ctx);
         let path = ctx.output_path(None, &ext)?;
-        let out = util::conform(sum, ctx);
+        let mut out = util::conform(sum, ctx);
+        // A fixed-point file cannot hold a sum above full scale: write it lower instead of
+        // clipping it (the balance between the stems is unchanged; 32-bit float keeps it as is).
+        if ctx.globals.bit_depth != Some(32) && true_peak > WRITE_CEILING_DBTP {
+            let g = WRITE_CEILING_DBTP - true_peak;
+            out.scale(db_to_lin(g) as f32);
+            v["written_gain_db"] = json!(util::round_db(g));
+            ctx.warn(
+                "render_lowered",
+                format!(
+                    "the balanced sum peaks at {true_peak:+.2} dBTP, so {} was written {:.2} dB lower to avoid clipping; the balance between the stems is unchanged",
+                    path.display(),
+                    -g
+                ),
+            );
+        }
         ctx.write_audio(&path, &out, None)?;
         v["path"] = json!(path.display().to_string());
     }

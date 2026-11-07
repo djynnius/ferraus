@@ -10,12 +10,12 @@ measure the reference the same way and use its values ±1 dB as the window.
 
 | # | Gate | Measure | Pass |
 |---|---|---|---|
-| 1 | Intake | `info`, `analyze loudness` per stem | one sample rate; lengths within 10 ms; no stem clipping (true peak ≤ 0 dBTP) or flagged |
+| 1 | Intake | `info`, `analyze loudness`, `analyze clipping` per stem | one sample rate; one shared start (matching head silence, bleed offsets of a few ms; lengths may differ); no clipped runs, or flagged (a true peak a little above 0 dBTP is not clipping) |
 | 2 | Balance | the `balance` stage (`mix balance` on processed stems) | every correction within ±0.5 dB |
-| 3 | Dynamics | stage `result.metrics` / `chain_metrics` | gain reduction inside the role ranges (role-recipes.md) |
+| 3 | Dynamics | stage `result.metrics` / `chain_metrics` | gain reduction inside the role ranges (role-recipes.md; drums with bleed by their max) |
 | 4 | Masking | `mask_*` stages (`analyze masking`, level-aware) on post-fader stems | no `regions` on any priority pair with `co_activity` ≥ 0.2 |
 | 5 | Stereo | `analyze stereo` on the mix | stereo-placement.md table |
-| 6 | Vocal-to-music | `analyze loudness` on a cappella and instrumental; the `vox_ride` stage | genre window below; ride `offset_after.spread_lu` ≤ 3 LU (the vocal holds its place word by word) |
+| 6 | Vocal-to-music | `analyze loudness` on a cappella and instrumental; the `vox_ride` stage | genre window below; ride `offset_after.spread_lu` ≤ 3 LU at `window: 400ms` (the vocal holds its place word by word) |
 | 7 | Space | `analyze loudness` on each return family and its dry bus | genre windows below |
 | 8 | Headroom | `analyze loudness` on the mix | true peak ≤ -3 dBTP; aim for -24..-14 LUFS (`mix verify` fails outside -26..-12) |
 | 9 | Final | `mix verify` | `pass: true` |

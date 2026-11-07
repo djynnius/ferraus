@@ -15,11 +15,37 @@ change to any `--json` schema or exit code is a major version.
   installs a specific release; ferraus never checks on its own.
 
 ### Changed
+- `ferraus-mix` works in listening rounds: each round keeps a numbered version and ends with
+  `LISTEN.md`, three to six A/B questions with loudness-matched clips of the section in
+  question, what changed since the last round, and what the producer could send to fix a
+  problem in the source. Notes about one moment ("at 1:32 ...") change that section only.
 - `ferraus self-update` is now an alias of `ferraus update`. It used to rerun the installer
   without checking the version first, and on a package-manager install it put a second copy in
   `~/.ferraus/bin`.
 
 ### Fixed
+- Found by mixing and mastering a real 23-track multitrack with the companion skills:
+  - `master verify --max-head-silence <time|off>`: a deliberate head silence (a master made
+    with `--trim-silence off`, as the master skill does) no longer fails verification with
+    `off`; it warns. A render whose plan kept the head silence does not count it against
+    `verify_pass`.
+  - `master verify`'s hint fixes the master itself: a `ferraus fx` chain with the failed
+    checks' stages (`silence trim`, `dc-remove`, `normalize`, `limit`, ...) instead of mastering
+    the master again; `ferraus master` only when the loudness is more than 2 LU off.
+  - `mix balance -o` no longer writes a clipped rough mix: a sum above -1 dBTP is written lower
+    (`render.written_gain_db`, warning `render_lowered`), with the balance unchanged.
+  - `master --plan` without `--relevel` no longer warns that the result "will clip" when only the
+    gain stage feeding the limiter goes over 0 dBFS in float.
+  - `compare` reports `polarity_inverted` only for an actual mirror image (correlation below
+    -0.5), not for two unrelated signals such as two takes in L and R.
+  - Skills: real-session rules for intake (a shared start judged by matching heads, not equal
+    lengths; two takes in L/R are not a polarity flip; a true peak just over 0 dBTP is not
+    clipping), drum compression judged by the max on mics with bleed, the vocal-ride gate at a
+    fixed 400 ms window, the master crest rule relative to what the target forces, alternate
+    versions mastered with the main master's report and printed through the mix bus (template),
+    a vocal-against-music-bus masking pair, pitch caveats for resonance hints, the patch check
+    read against a control, a kick with no body handled by asking for material, and disk
+    estimates scaled by stems and length.
 - MCP tool annotations: `models registry update` and `sounds update` are marked as reaching the
   network (`openWorldHint`), `accelerate status` no longer is, and `tags` is no longer marked
   read-only (`--set`, `--remove`, and `--art` write the file).

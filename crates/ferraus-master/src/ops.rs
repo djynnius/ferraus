@@ -91,6 +91,7 @@ pub fn ops() -> Vec<OpSpec> {
             .about("Checks a file against a delivery target: integrated loudness within --tolerance, true peak at or below the ceiling (4x oversampled), no clipping, DC offset at most 0.001, no out-of-phase bass (correlation below 120 Hz at least 0.5), no more than 1 s of head silence, broadband correlation not negative (below 0.3 warns), and for cd 44.1 kHz 16-bit. Exit code 9 (verification failed) when any check fails, with the failed checks in the message; the full list with a runnable fix per check is in the result.")
             .params(target_params())
             .param(param("tolerance", ParamKind::Str).default("0.5LU").help("Allowed distance from the target loudness (LU)"))
+            .param(param("max-head-silence", ParamKind::Str).default("1s").help("Longest silence allowed before the first sound, or 'off' when it is deliberate (then it only warns)"))
             .example("ferraus master verify master_v1.wav --target streaming --json", "Pass or fail per spec")
             .example("ferraus master verify spot.wav --target broadcast --standard atsc --tolerance 1LU", "Check an ATSC A/85 broadcast deliverable")
             .example("ferraus master verify release.wav --target cd", "Check loudness, true peak, and 44.1 kHz 16-bit for a CD master"),
@@ -378,7 +379,9 @@ fn master(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     } else {
         (output.clone(), None)
     };
-    let vr = verify::verify(&verify_buf, verify_info.as_ref(), &plan.target, 0.5);
+    // A plan that kept the head silence (`--trim-silence off`) kept it on purpose.
+    let head_limit = plan.stages.iter().any(|s| s.op == "silence trim").then_some(verify::MAX_HEAD_SILENCE_S);
+    let vr = verify::verify(&verify_buf, verify_info.as_ref(), &plan.target, 0.5, head_limit);
     if !vr.pass {
         ctx.warn("verify_failed", format!("master verify failed: {}", vr.failure_lines().join("; ")));
     }
@@ -537,7 +540,15 @@ fn master_verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }
     let target = targets::resolve(a, buf.channels())?;
     let tol = verify::parse_tolerance(&a.str_or("tolerance", "0.5LU"))?;
-    let r = verify::verify(&buf, info.as_ref(), &target, tol);
+    let max_head = match a.str_or("max-head-silence", "1s").trim().to_ascii_lowercase().as_str() {
+        "off" | "none" | "no" | "false" => None,
+        t => {
+            let s = units::parse_duration_s(t)
+                .map_err(|_| Error::usage(format!("--max-head-silence {t}: a time like 1s or 1500ms, or 'off'")))?;
+            Some(s)
+        }
+    };
+    let r = verify::verify(&buf, info.as_ref(), &target, tol, max_head);
     let v = serde_json::to_value(&r)?;
     ctx.metric("pass", r.pass);
     ctx.metric("checks", v["checks"].clone());
@@ -552,7 +563,7 @@ fn master_verify(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
             target.name,
             r.failure_lines().join("; ")
         ))
-        .with_hint(format!("ferraus master {} --target {} -o fixed.wav", input_path.display(), target.name)));
+        .with_hint(r.fix_hint(&input_path.display().to_string())));
     }
     Ok(v)
 }

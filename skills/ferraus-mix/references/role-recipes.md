@@ -12,7 +12,11 @@ How to measure the conditions:
   side, counting only bands within 30 dB of the stem's loudest band and never at the
   spectrum's edges. "Boxy", "ring", "honky" below mean a resonance candidate in that range.
   A band that only looks loud because the stem has nothing below it (a vocal's 250 Hz) is
-  not a candidate. `--compare <after>` shows what a move changed.
+  not a candidate. On pitched parts a candidate is often a note, not a resonance: a drum's
+  tuning (a real snare: +14.5 dB at 198 Hz; a tom: +14 dB at 125 Hz), a bass's most-played
+  notes, a sung note held long. Cut it only if it stays in place while the notes change
+  (run `bands.py` on two passages, or read `deresonate`'s `result.top`); a drum's
+  fundamental is its body, so leave it. `--compare <after>` shows what a move changed.
 - Mix-level triggers come first: `mix verify`'s `mud`, `harsh` and `sub_rumble` checks and
   `analyze masking` regions say which band of the mix is the problem; then cut the stems
   that carry the most of it, post-fader.
@@ -203,7 +207,10 @@ Distorted guitars are already compressed; skip the compressor unless the stem's 
 range is above 6 LU. A guitar that rings at 2-5 kHz on some notes (a resonance candidate that
 comes and goes): `{ op: deresonate, band: 2kHz..6kHz, depth: 3dB }` rather than a fixed cut;
 on a test guitar with a +9 dB ring added at 3 kHz it found 2.8 and 3.2 kHz and cut that band
-by 2 dB. A broad, fixed bump is still an `eq` job.
+by 2 dB. A broad, fixed bump is still an `eq` job. In the low mids (250-600 Hz) a distorted
+guitar is dense all the time, so `deresonate` there works nearly constantly and acts as a
+broadband cut (a real one: 3.8 dB mean, active in 79% of frames); use a static `eq` cut there
+and keep `deresonate` for rings that come and go.
 
 ## Keys and piano
 
@@ -342,3 +349,9 @@ measured poorly (it partly cancels the band it overlaps), so prefer the shelf.
 
 Outside the range: move `threshold` first (1 dB of threshold is roughly 1 dB of reduction at
 4:1 once the signal is well over it), and `ratio` only when the character is wrong.
+
+Drums recorded with mics (kick, snare, toms with bleed between the hits) are judged by the
+max column and by ear, not by the mean: the time mean includes the bleed between hits, so it
+cannot reach the mean range without the hits going over the max (a real snare measured
+0.7 dB mean at 7.6 dB max, and 0.8 / 8.9 one dB of threshold lower). Set the threshold so the
+hits reach 4-7 dB max on a snare (3-5 on a kick) and leave the mean where it lands.

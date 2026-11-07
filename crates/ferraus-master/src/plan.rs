@@ -218,14 +218,25 @@ pub fn run_stage(ctx: &mut OpCtx, stage: &Stage, buf: AudioBuffer) -> Result<(Au
 }
 
 /// Run every stage of a validated plan.
-pub fn run_plan(ctx: &mut OpCtx, plan: &Plan, mut buf: AudioBuffer) -> Result<(AudioBuffer, Vec<StageTrace>)> {
+pub fn run_plan(ctx: &mut OpCtx, plan: &Plan, buf: AudioBuffer) -> Result<(AudioBuffer, Vec<StageTrace>)> {
+    run_plan_before(ctx, plan, buf, None)
+}
+
+/// [`run_plan`] for the first part of a plan whose next stage (`next_op`) runs separately.
+fn run_plan_before(
+    ctx: &mut OpCtx,
+    plan: &Plan,
+    mut buf: AudioBuffer,
+    next_op: Option<&str>,
+) -> Result<(AudioBuffer, Vec<StageTrace>)> {
     let mut trace = Vec::new();
     let n = plan.stages.len();
     for (i, s) in plan.stages.iter().enumerate() {
         ctx.check_cancel()?;
         ctx.progress.stage(&s.op, i + 1, n);
         // a gain stage feeding the limiter may exceed 0 dBFS in float; that is not clipping
-        let feeds_limiter = s.op == "gain" && plan.stages.get(i + 1).map(|n| n.op == "limit").unwrap_or(false);
+        let next = plan.stages.get(i + 1).map(|n| n.op.as_str()).or(next_op);
+        let feeds_limiter = s.op == "gain" && next == Some("limit");
         let keep = move |code: &str| !(feeds_limiter && code == "clipping");
         let (out, metrics) = run_stage_filtered(ctx, s, buf, Some(&keep))?;
         buf = out;
@@ -251,7 +262,8 @@ pub fn run_plan_guarded(
     }
     let n = plan.stages.len();
     let head = Plan { stages: plan.stages[..n - 1].to_vec(), ..plan.clone() };
-    let (pre, mut trace) = if head.stages.is_empty() { (buf, Vec::new()) } else { run_plan(ctx, &head, buf)? };
+    let (pre, mut trace) =
+        if head.stages.is_empty() { (buf, Vec::new()) } else { run_plan_before(ctx, &head, buf, Some("limit"))? };
     let mut stage = plan.stages[n - 1].clone();
     let want = plan.target.true_peak_dbtp;
     let mut note = None;

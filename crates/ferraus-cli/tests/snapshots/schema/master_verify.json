@@ -70,6 +70,12 @@
         "description": "Allowed distance from the target loudness (LU) Type: text.",
         "default": "0.5LU",
         "x-ferraus-kind": "str"
+      },
+      "max_head_silence": {
+        "type": "string",
+        "description": "Longest silence allowed before the first sound, or 'off' when it is deliberate (then it only warns) Type: text.",
+        "default": "1s",
+        "x-ferraus-kind": "str"
       }
     },
     "required": [

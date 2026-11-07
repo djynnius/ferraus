@@ -157,7 +157,9 @@ pub fn compare(a: &AudioBuffer, b: &AudioBuffer, opts: &CompareOptions) -> Compa
         offset_samples: lag,
         offset_s: lag as f64 / a.sample_rate as f64,
         alignment_correlation: corr,
-        polarity_inverted: gain < 0.0,
+        // inverted only when b is a mirror of a, not when two unrelated signals (two takes)
+        // happen to give a slightly negative least-squares gain
+        polarity_inverted: sa > 0.0 && sb > 0.0 && ab / (sa * sb).sqrt() < -0.5,
         compared_frames: len,
         length_difference_s: b.duration_s() - a.duration_s(),
         rms_diff_db,
@@ -346,6 +348,14 @@ mod tests {
         let r = compare(&a, &inv, &CompareOptions::default());
         assert!(r.polarity_inverted);
         assert_eq!(r.offset_samples, 0);
+        // two unrelated signals (two takes in L and R) are not a polarity flip, whichever
+        // sign their least-squares gain happens to have
+        let take1 = stereo(noise(48000, 2.0, 0.3, 11));
+        for (seed, s) in [(12u64, 1.0f32), (12, -1.0), (13, 1.0), (13, -1.0)] {
+            let mut take2 = stereo(noise(48000, 2.0, 0.3, seed));
+            take2.scale(s);
+            assert!(!compare(&take1, &take2, &CompareOptions::default()).polarity_inverted, "seed {seed}, sign {s}");
+        }
     }
 
     #[test]

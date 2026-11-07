@@ -245,15 +245,35 @@ stages:
   - id: final
     op: mix
     in: [instrumental, acapella]
-    args: { gains: [0dB, -2.5dB] }                         # V2M gate: centre of the pop window; "vocal up 1 dB" = -1.5dB
+    args: { gains: [0dB, &vocal_gain -2.5dB] }             # V2M gate: centre of the pop window; "vocal up 1 dB" = -1.5dB
 
   - id: mixbus
     op: fx
     in: final
     args:
-      chain:
+      chain: &mixbus_chain                                 # shared with the alternate prints below
         - { op: compress, preset: bus, threshold: -22dB, makeup: 0dB }  # glue: 0.5-2 dB mean
         - { op: gain, by: +0.5dB }                         # trim so true peak <= -3 dBTP
+
+  # ---------------------------------------------------------------- alternate versions
+  # Printed through the same bus chain as the mix, as if the vocal (or the band) were muted,
+  # so mastering them with the main master's report matches it (ferraus-master, section 6).
+  # The a cappella keeps the vocal's level in the mix: after a --set try of `final`'s gains,
+  # write the accepted value into the file, which updates both.
+  - id: instrumental_print
+    op: fx
+    in: instrumental
+    args: { chain: *mixbus_chain }
+
+  - id: acapella_level
+    op: gain
+    in: acapella
+    args: { by: *vocal_gain }
+
+  - id: acapella_print
+    op: fx
+    in: acapella_level
+    args: { chain: *mixbus_chain }
 
   # ---------------------------------------------------------------- measurements
   - id: balance                                            # gains near 0 dB = on the genre template
@@ -266,6 +286,7 @@ stages:
   - { id: mask_vox_pad, op: analyze masking, in: [vox_fx, pad_fx] }
   - { id: mask_vox_synth, op: analyze masking, in: [vox_fx, synth_duck] }
   - { id: mask_vox_bv, op: analyze masking, in: [vox_fx, bv_fx] }
+  - { id: mask_vox_music, op: analyze masking, in: [vox_fx, music_bus] }  # parts that mask only together
   - { id: mix_level, op: analyze loudness, in: mixbus }
   - { id: mix_stereo, op: analyze stereo, in: mixbus }
   - { id: vocal_level, op: analyze loudness, in: acapella }          # V2M = vocal_level - inst_level + final gains
@@ -277,8 +298,8 @@ stages:
 
 outputs:
   - { from: mixbus, path: mix.wav, bit_depth: 24 }
-  - { from: instrumental, path: prints/instrumental.wav, bit_depth: 24 }
-  - { from: acapella, path: prints/acapella.wav, bit_depth: 24 }
+  - { from: instrumental_print, path: prints/instrumental.wav, bit_depth: 24 }
+  - { from: acapella_print, path: prints/acapella.wav, bit_depth: 24 }
   - { from: drums_bus, path: prints/drums.wav, bit_depth: 24 }
   - { from: bass_duck, path: prints/bass.wav, bit_depth: 24 }
   - { from: music_bus, path: prints/music.wav, bit_depth: 24 }

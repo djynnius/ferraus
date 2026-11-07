@@ -249,6 +249,72 @@ fn verify_flags_each_fault_and_passes_clean_masters() {
         assert_eq!(err["code"], "verification_failed");
         assert!(err["message"].as_str().unwrap().contains(check), "{check}: {}", err["message"]);
     }
+
+    // the hint fixes the failed check on the master itself instead of mastering it again
+    let silence = &faults[4].1;
+    let v = verify(silence, &[("target", "streaming")]);
+    let hint = v["error"]["hint"].as_str().unwrap();
+    assert!(hint.starts_with("ferraus fx ") && hint.contains("--fx \"silence trim:"), "{hint}");
+    let v = verify(&faults[1].1, &[("target", "streaming")]);
+    assert!(v["error"]["hint"].as_str().unwrap().contains("--fx \"dc-remove\""), "{v}");
+    // deliberate head silence: --max-head-silence off passes and warns
+    let v = verify(silence, &[("target", "streaming"), ("max-head-silence", "off")]);
+    assert_eq!(v["ok"], true, "{v}");
+    let check =
+        v["result"]["checks"].as_array().unwrap().iter().find(|c| c["check"] == "head_silence").unwrap().clone();
+    assert_eq!(check["status"], "warn", "{check}");
+    assert!(v["warnings"].as_array().unwrap().iter().any(|w| w["message"].as_str().unwrap().contains("head_silence")));
+    // a longer explicit limit passes too; a malformed one is a usage error
+    assert_eq!(verify(silence, &[("target", "streaming"), ("max-head-silence", "4s")])["ok"], true);
+    assert_eq!(verify(silence, &[("target", "streaming"), ("max-head-silence", "soon")])["error"]["exit_code"], 2);
+    // a mix far below the target is not fixed by normalizing: master it
+    let quiet_path = td.path("quiet.wav");
+    let mut quiet = clean.clone();
+    quiet.scale(0.1);
+    write(&quiet_path, &quiet);
+    let v = verify(&quiet_path, &[("target", "streaming")]);
+    assert!(v["error"]["hint"].as_str().unwrap().starts_with("ferraus master "), "{v}");
+}
+
+#[test]
+fn a_plan_run_hot_into_its_limiter_does_not_warn_about_clipping() {
+    let td = TempDir::new("m-hot-plan");
+    let s = short(style("pop"), 6.0);
+    let inp = td.path("song.wav");
+    write(&inp, &song(&s));
+    let plan = td.path("plan.json");
+    let o = invoke("master plan", &[&inp], &[("trim-silence", "off")], Some(&plan));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    // the same song 6 dB hotter through the unchanged plan: its gain stage overshoots 0 dBFS
+    // in float right before the limiter, which is not clipping
+    let mut hot = song(&s);
+    hot.scale(2.0);
+    let hot_path = td.path("hot.wav");
+    write(&hot_path, &hot);
+    let out = td.path("hot.master.wav");
+    let o = invoke("master", &[&hot_path], &[("plan", plan.to_str().unwrap())], Some(&out));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let v = serde_json::to_value(&o.envelope).unwrap();
+    assert!(!v["warnings"].as_array().unwrap().iter().any(|w| w["code"] == "clipping"), "{}", v["warnings"]);
+    assert!(loudness::true_peak_db(&read_wav(&out)) <= -0.99);
+}
+
+#[test]
+fn render_with_trim_off_keeps_the_head_silence_without_failing_verify() {
+    let td = TempDir::new("m-trim-off");
+    let s = short(style("pop"), 6.0);
+    let mut buf = song(&s);
+    let mut padded = AudioBuffer::new(buf.sample_rate, buf.channels(), 2 * buf.sample_rate as usize);
+    padded.append(&buf);
+    buf = padded;
+    let inp = td.path("late.wav");
+    write(&inp, &buf);
+    let out = td.path("late.master.wav");
+    let o = invoke("master", &[&inp], &[("trim-silence", "off")], Some(&out));
+    assert!(o.envelope.ok, "{:?}", o.envelope.error);
+    let v = serde_json::to_value(&o.envelope).unwrap();
+    assert_eq!(v["metrics"]["verify_pass"], true, "{}", v["metrics"]);
+    assert!(!v["warnings"].as_array().unwrap().iter().any(|w| w["code"] == "verify_failed"), "{}", v["warnings"]);
 }
 
 #[test]

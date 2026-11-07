@@ -75,7 +75,8 @@ in your notes:
 
 Keep `--trim-silence off` unless the producer wants silence trimmed: trimming changes the
 length, and alternate versions, stems and video sync rely on matching lengths. Handle the
-head and tail with `fade` if needed.
+head and tail with `fade` if needed. A master that keeps its head silence on purpose is
+verified with `--max-head-silence off` (section 4): the check then warns instead of failing.
 
 ### 3. Render
 
@@ -97,7 +98,7 @@ Read the report's `before` and `after`. Gates:
 |---|---|
 | `metrics.verify_pass` | true |
 | `loudness.limiter_gain_reduction_db` | ≤ intensity bound (light 2, medium 4, heavy 6 dB) |
-| `after.crest_factor_db` | not more than 3 dB below `before` (streaming); 5 dB (club/CD) |
+| `after.crest_factor_db` | not more than 3 dB below `before` (streaming; 5 dB club/CD) beyond what the target itself forces: a target of L LUFS under a ceiling of C dBTP leaves room for a PLR of at most C - L, so a mix arriving with `before.plr_db` above that must lose the difference (a mix at PLR 17.5 mastered to -14 LUFS / -1 dBTP must lose 4.5 dB, so up to 7.5 dB passes). When the forced loss alone is over 3 dB, offer a quieter master too (`--target apple`, -16 LUFS) |
 | `after.correlation` | within 0.1 of `before`, and ≥ 0.2 |
 | `after.tonal_rms_deviation_db` | not higher than `before` |
 | character | `ferraus analyze similarity master.ab-before.wav master.ab-after.wav --json`: `verdict` not `different`, `spectral_distance_db` ≤ 2 |
@@ -116,7 +117,14 @@ ferraus master verify master.wav --target streaming --json
 ```
 
 Run it for each destination you deliver. On failure ferraus exits with code 9 and the
-`error.hint` names a runnable fix.
+`error.hint` names a runnable fix for the master itself (`ferraus fx` with the failed checks'
+stages; `ferraus master` only when the loudness is more than 2 LU off, which means an
+unmastered file or the wrong target). When the head silence was kept on purpose
+(`--trim-silence off`), add `--max-head-silence off`:
+
+```bash
+ferraus master verify master.wav --target streaming --max-head-silence off --json
+```
 
 ### 5. Deliver
 
@@ -131,10 +139,15 @@ ferraus master deliver master.wav --formats wav24,wav16,mp3 --tags title="Song",
 ### 6. Alternate versions and albums
 
 - **Alternate versions** (instrumental, clean, TV mix, a cappella): master them with the
-  main master's plan file, never on their own, so they get identical processing and line up
-  sample for sample: `ferraus master instrumental.wav --plan plan.json -o master_instrumental.wav`.
-  Their loudness will be a little lower than the main master's; that is correct. Verify them
-  with `--tolerance 3LU` (the loudness check is for the main version).
+  plan the main master ran, never on their own, so they get identical processing and line up
+  sample for sample. That plan is in the main master's report: `--relevel` re-searched the
+  gain and limiter, and only the report has the result, not `plan.json`:
+  `ferraus master instrumental.wav --plan master.report.json -o master_instrumental.wav`.
+  Print the alternates through the same mix bus chain as the mix (the `ferraus-mix`
+  template's `prints/` do). Their loudness will then be a little lower than the main
+  master's, which is correct; louder means a different plan or a print that skipped the mix
+  bus. Verify them with `--tolerance 3LU` (the loudness check is for the main version), and
+  with `--max-head-silence off` when the main master kept its head silence.
 - **Albums and EPs**: follow [references/album.md](references/album.md): one ceiling, a
   loudness map that keeps ballads quieter than bangers, and consistent tone across tracks.
 

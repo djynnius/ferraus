@@ -1058,6 +1058,29 @@ fn balance_render_reports_and_writes_the_sum() {
     assert_eq!(r.unwrap()["render"]["headroom_ok"], false);
     let w = c.warnings.iter().find(|w| w.code == "render_headroom").expect("render_headroom warning");
     assert!(w.message.contains("--anchor-lufs -"), "{}", w.message);
+    // ...and written with -o, the file is lowered instead of clipped, keeping the balance
+    let (r, c, dir) = run_custom(
+        "mix balance",
+        &[("roles", "vocal,bass"), ("anchor-lufs", "-6LUFS")],
+        &stems,
+        Some("hot.wav"),
+        |_| {},
+    );
+    let v = r.unwrap();
+    let tp = v["render"]["true_peak_dbtp"].as_f64().unwrap();
+    assert!(tp > 0.0, "the test needs a sum above full scale, got {tp}");
+    let g = v["render"]["written_gain_db"].as_f64().unwrap();
+    assert!((g - (-1.0 - tp)).abs() < 0.02, "{v}");
+    assert!(c.warnings.iter().any(|w| w.code == "render_lowered"));
+    let written = read_wav(&dir.path("hot.wav"));
+    let written_tp = lin_to_db(loudness::true_peak_conservative(&written).unwrap() as f64);
+    assert!(written_tp <= -0.9, "written true peak {written_tp}");
+    let gains = format!("{},{}", v["gains"][0].as_str().unwrap(), v["gains"][1].as_str().unwrap());
+    let (_, _, mdir) =
+        run_custom("mix", &[("gains", &gains)], &stems, Some("m.wav"), |c| c.globals.bit_depth = Some(32));
+    let mut expected = read_wav(&mdir.path("m.wav"));
+    expected.scale(db_to_lin(g) as f32);
+    assert!(testing::rms_diff(&written, &expected) < 1e-3, "lowered by a plain gain, nothing else");
 }
 
 #[test]
