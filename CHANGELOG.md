@@ -6,7 +6,7 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
-## [0.1.5] — 2026-11-07
+## [0.1.5] — 2026-11-09
 
 ### Added
 - `ferraus update`: `--check` reports the newest release, its notes, and the command that updates
