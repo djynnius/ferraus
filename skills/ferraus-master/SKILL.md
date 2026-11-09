@@ -1,6 +1,6 @@
 ---
 name: ferraus-master
-description: Master a finished mix with the ferraus CLI like a mastering engineer - analyze, plan, review and edit the chain, render, verify against delivery specs, and deliver every format (streaming, Apple, club, CD, broadcast), including album sequencing and matched alternate versions (instrumental, clean, TV mix). Use this whenever someone wants a track mastered, made louder or "release ready", checked against Spotify/Apple/YouTube/CD/broadcast loudness, matched to a reference track, mastered as an album or EP, or delivered as WAV/MP3/FLAC with tags and ISRC - and also when they ask why a master sounds squashed, quiet, harsh, or different on streaming. Works unsupervised: every decision is justified by a measurement.
+description: 'Master a finished mix with the ferraus CLI like a mastering engineer - analyze, plan, review and edit the chain, render, verify against delivery specs, and deliver every format (streaming, Apple, club, CD, broadcast), including album sequencing and matched alternate versions (instrumental, clean, TV mix). Use this whenever someone wants a track mastered, made louder or "release ready", checked against Spotify/Apple/YouTube/CD/broadcast loudness, matched to a reference track, mastered as an album or EP, or delivered as WAV/MP3/FLAC with tags and ISRC - and also when they ask why a master sounds squashed, quiet, harsh, or different on streaming. Works unsupervised: every decision is justified by a measurement.'
 ---
 
 # Mastering with ferraus
