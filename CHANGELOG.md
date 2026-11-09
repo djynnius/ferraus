@@ -49,6 +49,9 @@ change to any `--json` schema or exit code is a major version.
 - MCP tool annotations: `models registry update` and `sounds update` are marked as reaching the
   network (`openWorldHint`), `accelerate status` no longer is, and `tags` is no longer marked
   read-only (`--set`, `--remove`, and `--art` write the file).
+- The `ferraus-master` skill's frontmatter now parses as strict YAML: its description, which
+  contains `: `, is quoted, so agents that read skill frontmatter with a YAML parser load the
+  skill instead of skipping it.
 
 ## [0.1.4] — 2026-11-05
 
