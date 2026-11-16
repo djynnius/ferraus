@@ -585,7 +585,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## GNU Lesser General Public License v3.0 or later
 
 Used by:
-- ferraus-engrave 0.1.5
+- ferraus-engrave 0.1.6
 - verovio-data 0.3.6
 - verovio-sys 0.3.6
 - verovio 0.3.6

@@ -229,8 +229,8 @@ DEALINGS IN THE SOFTWARE.
 ## MIT License
 
 Used by:
-- ferraus-plughost-vst3 0.1.5
-- ferraus-plugins 0.1.5
+- ferraus-plughost-vst3 0.1.6
+- ferraus-plugins 0.1.6
 - com-scrape-types 0.1.1
 - windows-link 0.2.1
 

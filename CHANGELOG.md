@@ -6,6 +6,8 @@ change to any `--json` schema or exit code is a major version.
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-11-16
+
 ### Fixed
 - License notices in every release artifact. Archives, MSIs, .deb/.rpm packages and container
   images carried only a list of crate names; they now carry the full license texts
