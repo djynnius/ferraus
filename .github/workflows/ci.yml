@@ -106,3 +106,11 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check licenses bans sources
+      # The THIRD-PARTY-LICENSES.md files shipped in every archive, package and image (and
+      # embedded for `ferraus licenses`) must match Cargo.lock: rerun tools/gen-licenses.sh.
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+      - name: Third-party license files are up to date
+        run: tools/gen-licenses.sh --check

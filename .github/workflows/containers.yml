@@ -49,6 +49,10 @@ jobs:
           docker run --rm --entrypoint sh ferraus:test -c \
             'ferraus generate tone --freq 440Hz --dur 4s -o t.wav >/dev/null && ferraus fx t.wav -o o.wav --fx normalize:lufs=-14 --json' \
             | jq -e .ok
+      - name: License files are in the image
+        run: |
+          docker run --rm --entrypoint sh ferraus:test -c \
+            'cd /usr/share/doc/ferraus && ls -l && test -s NOTICE && test -s NOTICE-image.md && test -s LICENSE-APACHE && test -s LICENSE-MIT && test -s THIRD-PARTY-LICENSES.md && grep -q "^ffmpeg" image-packages.tsv'
 
   cuda:
     runs-on: ubuntu-24.04
@@ -70,3 +74,9 @@ jobs:
           docker run --rm ferraus:cuda-test --version
           docker run --rm ferraus:cuda-test doctor --json | jq -e '.ok' && \
             docker run --rm ferraus:cuda-test doctor --json | jq '.result.compute'
+      - name: CUDA provider and license files are in the image
+        run: |
+          docker run --rm --entrypoint sh ferraus:cuda-test -c \
+            'cd /usr/share/doc/ferraus && ls -l && test -s NOTICE && grep -q "NVIDIA" NOTICE-image.md && test -s THIRD-PARTY-LICENSES.md && grep -q "^ffmpeg" image-packages.tsv \
+             && ls -l /data/cache/providers/onnxruntime-1.31.0-cuda/ && test -s /data/cache/providers/onnxruntime-1.31.0-cuda/LICENSE \
+             && test -s /data/cache/providers/onnxruntime-1.31.0-cuda/libonnxruntime_providers_cuda.so'

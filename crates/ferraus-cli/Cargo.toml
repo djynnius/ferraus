@@ -63,6 +63,11 @@ clap_complete = "4.5"
 [dev-dependencies]
 serde_yaml.workspace = true
 
+[package.metadata.dist]
+# Full third-party license texts (tools/gen-licenses.sh) and the NOTICE, beside the
+# auto-included README and LICENSE-APACHE/LICENSE-MIT.
+include = ["THIRD-PARTY-LICENSES.md", "../../NOTICE"]
+
 [package.metadata.deb]
 name = "ferraus"
 maintainer = "Sunday Ikpe <ikakke.ikpe@gmail.com>"
@@ -80,6 +85,8 @@ assets = [
   ["target/release/ferraus-plughost", "usr/lib/ferraus/", "755"],
   ["../../README.md", "usr/share/doc/ferraus/README", "644"],
   ["THIRD-PARTY-LICENSES.md", "usr/share/doc/ferraus/THIRD-PARTY-LICENSES.md", "644"],
+  ["../../LICENSE-APACHE", "usr/share/doc/ferraus/LICENSE-APACHE", "644"],
+  ["../../NOTICE", "usr/share/doc/ferraus/NOTICE", "644"],
   ["../../target/completions/ferraus.bash", "usr/share/bash-completion/completions/ferraus", "644"],
   ["../../target/completions/_ferraus", "usr/share/zsh/vendor-completions/_ferraus", "644"],
   ["../../target/completions/ferraus.fish", "usr/share/fish/vendor_completions.d/ferraus.fish", "644"],
@@ -94,7 +101,10 @@ assets = [
   { source = "target/release/ferraus", dest = "/usr/bin/ferraus", mode = "755" },
   { source = "target/release/ferraus-plughost", dest = "/usr/lib/ferraus/ferraus-plughost", mode = "755" },
   { source = "README.md", dest = "/usr/share/doc/ferraus/README", mode = "644", doc = true },
-  { source = "crates/ferraus-cli/THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/ferraus/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
+  { source = "crates/ferraus-cli/THIRD-PARTY-LICENSES.md", dest = "/usr/share/licenses/ferraus/THIRD-PARTY-LICENSES.md", mode = "644" },
+  { source = "LICENSE-APACHE", dest = "/usr/share/licenses/ferraus/LICENSE-APACHE", mode = "644" },
+  { source = "LICENSE-MIT", dest = "/usr/share/licenses/ferraus/LICENSE-MIT", mode = "644" },
+  { source = "NOTICE", dest = "/usr/share/licenses/ferraus/NOTICE", mode = "644" },
   { source = "target/completions/ferraus.bash", dest = "/usr/share/bash-completion/completions/ferraus", mode = "644" },
   { source = "target/completions/_ferraus", dest = "/usr/share/zsh/site-functions/_ferraus", mode = "644" },
   { source = "target/completions/ferraus.fish", dest = "/usr/share/fish/vendor_completions.d/ferraus.fish", mode = "644" },

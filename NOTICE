@@ -1,0 +1,50 @@
+ferraus
+Copyright 2026 Sunday Ikpe and the ferraus contributors
+
+Licensed under the Apache License, Version 2.0 (LICENSE-APACHE) or the MIT license
+(LICENSE-MIT), at your option, except where a file says otherwise.
+
+Third-party code compiled into the binaries, with full license texts, is listed in
+THIRD-PARTY-LICENSES.md (also printed by `ferraus licenses`). The score-engraving helper,
+ferraus-engrave, is a separate program under the LGPL-3.0-or-later; see its own NOTICE.
+
+-------------------------------------------------------------------------------------------
+crates/ferraus-midi/src/transcribe/poly.rs is a Rust translation of note decoding from
+Basic Pitch (https://github.com/spotify/basic-pitch), licensed under the Apache License 2.0
+only. Basic Pitch's NOTICE follows.
+
+Basic Pitch
+Copyright 2022 Spotify AB
+
+This product includes software developed at
+Spotify AB (http://www.spotify.com/).
+
+This product includes software from Librosa (ISC).
+* Copyright (C) 2013--2017, librosa development team.
+
+This product includes software from mir_eval (MIT)
+* Copyright (C) 2014 Colin Raffel
+
+This product includes software from numpy (BSD)
+* Copyright (C) 2005-2022, NumPy Developers.
+
+This product includes software from pretty-midi (MIT)
+* Copyright (C) 2014 Colin Raffel
+
+This product includes software from resampy (ISC)
+* Copyright (C) 2016, Brian McFee
+
+This product includes software from scipy (BSD)
+* Copyright (C) 2001-2002 Enthought, Inc. 2003-2022, SciPy Developers
+
+This product includes software from tensorflow (Apache 2.0)
+* Copyright (C) 2019 Google, LLC <packages@tensorflow.org>
+
+The tests for `basic-pitch` include audio files from the
+Vocadito dataset liscened under Creative Commons
+Attribution 4.0 International. The dataset can be found at:
+https://zenodo.org/record/5578807#.YnRm5vPMKDU
+
+-------------------------------------------------------------------------------------------
+crates/ferraus-score/src/omr/segment.rs follows the page tiling of oemer
+(https://github.com/BreezeWhite/oemer), Copyright (c) the oemer authors, MIT License.

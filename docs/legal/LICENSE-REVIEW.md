@@ -11,12 +11,19 @@ separate LGPL `ferraus-engrave` executable.
 
 ## Project license
 
-All crates and the `ferraus` binary: **Apache-2.0 OR MIT**. The binary statically links 218
-third-party crates, all under permissive licenses (MIT, Apache-2.0, BSD, ISC, Zlib,
-Unicode, CDLA-Permissive-2.0, Unlicense) plus **MPL-2.0** (Symphonia and others: file-level
-copyleft; source of those files is available unmodified from crates.io). Full list:
-`crates/ferraus-cli/THIRD-PARTY-LICENSES.md` (regenerated with full texts by cargo-about at
-release). `deny.toml` enforces this policy in CI.
+All crates and the `ferraus` binary: **Apache-2.0 OR MIT**, except
+`crates/ferraus-midi/src/transcribe/poly.rs` (Apache-2.0 only: a translation of Basic Pitch's
+note decoding; Spotify's NOTICE is in the root `NOTICE`). The binary statically links about 300
+third-party crates (across all release targets), all under permissive licenses (MIT, Apache-2.0,
+BSD, ISC, Zlib, Unicode, CDLA-Permissive-2.0, Unlicense) plus **MPL-2.0** (Symphonia and others:
+file-level copyleft; source of those files is available unmodified from crates.io), and ONNX
+Runtime 1.31 (MIT, with its own third-party notices) and, on the musl targets, musl libc (MIT).
+`deny.toml` enforces the crate policy in CI.
+
+Full license texts: `tools/gen-licenses.sh` writes `THIRD-PARTY-LICENSES.md` for each released
+app (cargo-about for every release target, plus ONNX Runtime and musl from `licenses/`); CI
+fails when they are out of date. They ship in every archive, MSI, .deb/.rpm and container
+image, with `NOTICE`, and `ferraus licenses --full` prints the embedded copy.
 
 ## Components shipped as separate executables
 
@@ -36,10 +43,23 @@ artifacts' license notices adequate.
 | Component | License | How it is obtained |
 | --- | --- | --- |
 | FFmpeg | LGPL or GPL per build | user's PATH, or `doctor --install-ffmpeg` (pinned static build; license shown) |
-| libmp3lame | LGPL-2.1 | `dlopen` at run time if installed |
+| libmp3lame | LGPL-2.0-or-later | `dlopen` at run time if installed |
 | libopus | BSD-3-Clause | `dlopen` at run time if installed |
-| ONNX Runtime GPU providers, CUDA/cuDNN | MIT / NVIDIA EULA | `accelerate install` (EULA shown, `--accept-eula` required) |
+| ONNX Runtime GPU providers, CUDA/cuDNN | MIT / NVIDIA EULA | `accelerate install` (EULA shown; `--accept-eula` or the global `-y` accepts it; SHA-256 pinned; ONNX Runtime's LICENSE and notices kept beside the libraries) |
 | Audiveris | AGPL-3.0 | `doctor --install-audiveris` (separate Java process) |
+
+## Container images (redistribution)
+
+`ghcr.io/djynnius/ferraus` (Debian 13) and `:latest-cuda` (Ubuntu 24.04 on
+`nvidia/cuda:13.0.1-cudnn-runtime-ubuntu24.04`) include unmodified distribution packages, among
+them FFmpeg (GPL-2.0-or-later as Debian builds it) and LAME (LGPL). Each image carries
+`/usr/share/doc/ferraus/`: the project licenses, `NOTICE`, `THIRD-PARTY-LICENSES.md`,
+`image-packages.tsv` (every package with its exact source version) and `NOTICE-image.md` (where
+the corresponding source is). The CUDA image also states that the NVIDIA software is under the
+NVIDIA Deep Learning Container License, the CUDA EULA and the cuDNN license. Questions for
+counsel: whether source pointers to the distributions' archives satisfy GPLv2 §3 for unmodified
+packages or a written offer or hosted sources are needed; whether the derived CUDA image meets
+the NVIDIA container license's flow-down terms.
 
 ## Model weights (gate G3)
 

@@ -37,14 +37,15 @@ install-updater = false
 github-attestations = true
 # Which actions to run on pull requests
 pr-run-mode = "plan"
-# Extra static files to include in each app archive
-include = ["crates/ferraus-cli/THIRD-PARTY-LICENSES.md"]
+# License files are listed per app ([package.metadata.dist] include in each crate): the LGPL
+# engraver must not carry ferraus's Apache/MIT files, and each app has its own third-party list.
 # ONNX Runtime's prebuilt Windows libraries use the DLL C runtime (/MD); a static CRT does not
 # link (LNK2019 on __imp_ symbols). Windows users need the Visual C++ Redistributable.
 msvc-crt-static = false
 # release.yml carries hand edits (the Homebrew job runs in the release environment); keep them
 # when regenerating with `dist generate`
-allow-dirty = ["ci"]
+# msi: the WiX sources are edited by hand to install the license files
+allow-dirty = ["ci", "msi"]
 # Sign and notarize macOS binaries in CI: off until a Developer ID certificate is set up
 # (CODESIGN_* secrets, docs/dev/RELEASE-SETUP.md section 4); then set this to true and run `dist generate`
 macos-sign = false

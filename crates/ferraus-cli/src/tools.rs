@@ -41,10 +41,13 @@ pub fn ops() -> Vec<OpSpec> {
             .example("ferraus doctor --json", "The same report as JSON: version, paths, FFmpeg, models, devices, plugins")
             .example("ferraus doctor --install-audiveris -y", "Download the optional Audiveris OMR engine for score read"),
         OpSpec::custom("licenses", Category::System, "Print every third-party license and attribution", licenses)
+            .about("Lists the third-party code compiled into this binary, grouped by license, with the crates and libraries each license covers. --full adds every license's full text (the THIRD-PARTY-LICENSES.md shipped with each release, embedded here so installs without the archive have it too). FFmpeg, LAME, CUDA, plugins, sound libraries, and model weights are not compiled in; their licenses are shown when they are downloaded.")
             .inputs(Inputs::NONE)
-            .example("ferraus licenses > THIRD-PARTY-LICENSES.md", "Save the attributions")
-            .example("ferraus licenses | grep -i mpl", "Find copyleft-at-file-level components")
-            .example("ferraus licenses --json", "Every component with its license as JSON"),
+            .param(param("full", ParamKind::Flag).help("Include the full text of every license (about 600 KB)"))
+            .example("ferraus licenses", "Every license and the components it covers")
+            .example("ferraus licenses --full > THIRD-PARTY-LICENSES.md", "Save the full license texts")
+            .example("ferraus licenses | grep -i -A3 mozilla", "Find the components under the MPL")
+            .example("ferraus licenses --json", "The list as JSON (`result.text`)"),
         OpSpec::custom("bench", Category::System, "Measure real-time factors of every effect on this machine", bench)
             .about("Runs each single-input effect with its defaults on a synthetic stereo signal and reports how many times faster than real time it ran. With --baseline, fails (exit 9) when any effect is more than --tolerance slower than the saved numbers.")
             .inputs(Inputs::NONE)
@@ -208,8 +211,32 @@ fn doctor(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     Ok(Value::Object(report))
 }
 
-fn licenses(_a: &Args, _ctx: &mut OpCtx) -> Result<Value> {
-    Ok(json!({ "text": include_str!("../THIRD-PARTY-LICENSES.md") }))
+const THIRD_PARTY_LICENSES: &str = include_str!("../THIRD-PARTY-LICENSES.md");
+
+fn licenses(a: &Args, _ctx: &mut OpCtx) -> Result<Value> {
+    if a.flag("full") {
+        return Ok(json!({ "text": THIRD_PARTY_LICENSES }));
+    }
+    Ok(json!({ "text": license_summary(THIRD_PARTY_LICENSES) }))
+}
+
+/// The license file without the license texts: headings and "Used by" lists only (every fenced
+/// block is a license text).
+fn license_summary(full: &str) -> String {
+    let mut out = String::new();
+    let mut in_text = false;
+    for line in full.lines() {
+        if line.starts_with("```") {
+            in_text = !in_text;
+            continue;
+        }
+        if !in_text {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str("\nRun `ferraus licenses --full` for the full text of every license.\n");
+    out
 }
 
 fn self_uninstall(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
@@ -313,4 +340,26 @@ fn bench(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
         return Err(Error::verification(format!("{} effects regressed by more than the tolerance", regressions.len())));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod license_tests {
+    use super::*;
+
+    #[test]
+    fn embedded_licenses_have_full_texts_and_a_short_summary() {
+        // the release file carries the texts (tools/gen-licenses.sh), not just names
+        assert!(THIRD_PARTY_LICENSES.contains("Permission is hereby granted"));
+        assert!(THIRD_PARTY_LICENSES.contains("Apache License"));
+        assert!(THIRD_PARTY_LICENSES.contains("ONNX Runtime"));
+        let summary = license_summary(THIRD_PARTY_LICENSES);
+        assert!(
+            summary.len() * 5 < THIRD_PARTY_LICENSES.len(),
+            "summary {} of {}",
+            summary.len(),
+            THIRD_PARTY_LICENSES.len()
+        );
+        assert!(summary.contains("## MIT License") && summary.contains("Used by:"));
+        assert!(!summary.contains("Permission is hereby granted"));
+    }
 }

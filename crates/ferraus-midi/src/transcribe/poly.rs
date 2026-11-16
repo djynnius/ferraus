@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// Note decoding in this file is translated from Basic Pitch's `note_creation.py`
+// (https://github.com/spotify/basic-pitch), Copyright 2022 Spotify AB, licensed under the
+// Apache License 2.0. Modified: translated to Rust and adapted to ferraus by the ferraus
+// contributors, 2026. Unlike the rest of ferraus (Apache-2.0 OR MIT), this file is under the
+// Apache License 2.0 only; Basic Pitch's NOTICE is in the repository's NOTICE file.
+
 //! Polyphonic transcription seam and Basic Pitch note decoding.
 //!
 //! Basic Pitch (Spotify, Apache-2.0) is a small CNN that maps audio at 22 050 Hz to three

@@ -14,15 +14,24 @@ RUN case "$TARGETARCH" in \
     && mv "/ferraus-$t" /ferraus
 
 FROM debian:trixie-slim
+# Debian's ffmpeg is GPL-2.0-or-later and LAME LGPL: list every package with its source version
+# so recipients can get the corresponding source (NOTICE-image.md says where).
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates libmp3lame0 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /usr/share/doc/ferraus \
+    && dpkg-query -W -f='${Package}\t${Version}\t${source:Package}\t${source:Version}\n' \
+       > /usr/share/doc/ferraus/image-packages.tsv
 COPY --from=unpack /ferraus/ferraus /usr/local/bin/ferraus
 COPY --from=unpack /ferraus/ferraus-plughost /usr/local/lib/ferraus/ferraus-plughost
 COPY --from=unpack /ferraus/THIRD-PARTY-LICENSES.md /ferraus/LICENSE-APACHE /ferraus/LICENSE-MIT /usr/share/doc/ferraus/
+COPY NOTICE packaging/docker/NOTICE-image.md /usr/share/doc/ferraus/
 ENV FERRAUS_HOME=/data
 VOLUME ["/data", "/work"]
 WORKDIR /work
 # lets the official MCP Registry verify that this image belongs to the listing in server.json
 LABEL io.modelcontextprotocol.server.name="io.github.djynnius/ferraus"
+LABEL org.opencontainers.image.source="https://github.com/djynnius/ferraus" \
+      org.opencontainers.image.licenses="Apache-2.0 OR MIT" \
+      org.opencontainers.image.description="ferraus audio workstation. Includes Debian packages under their own licenses (FFmpeg GPL-2.0-or-later, LAME LGPL); see /usr/share/doc/ferraus/NOTICE-image.md"
 ENTRYPOINT ["ferraus"]
 CMD ["--help"]
