@@ -243,7 +243,7 @@ ferraus: audio editing CLI. Grammar: ferraus <command> [inputs] [flags] [-o out]
 - `bench: Measure real-time factors of every effect on this machine [--only --duration --save]`
 - `completions [shell]: Print a shell completion script`
 - `doctor: Report what is installed: version, paths, FFmpeg, models, devices, plugins [--install-ffmpeg --install-audiveris]`
-- `licenses: Print every third-party license and attribution`
+- `licenses: Print every third-party license and attribution [--full]`
 - `self-uninstall: Remove everything the URL installer placed [--purge]`
 - `update: Check for a newer release and update ferraus [--check --version]`
 

@@ -109,6 +109,22 @@
                     </Component>
                     -->
 
+                    <!-- License files beside bin\ (tools/gen-licenses.sh writes the third-party list) -->
+                    <Component Id='Copying' Guid='*'>
+                        <File Id='CopyingFile' Name='COPYING' DiskId='1' Source='$(sys.SOURCEFILEDIR)..\COPYING' KeyPath='yes'/>
+                    </Component>
+                    <Component Id='CopyingLesser' Guid='*'>
+                        <File Id='CopyingLesserFile' Name='COPYING.LESSER' DiskId='1' Source='$(sys.SOURCEFILEDIR)..\COPYING.LESSER' KeyPath='yes'/>
+                    </Component>
+                    <Component Id='Notice' Guid='*'>
+                        <File Id='NoticeFile' Name='NOTICE' DiskId='1' Source='$(sys.SOURCEFILEDIR)..\NOTICE' KeyPath='yes'/>
+                    </Component>
+                    <Component Id='ThirdPartyLicenses' Guid='*'>
+                        <File Id='ThirdPartyLicensesFile' Name='THIRD-PARTY-LICENSES.md' DiskId='1' Source='$(sys.SOURCEFILEDIR)..\THIRD-PARTY-LICENSES.md' KeyPath='yes'/>
+                    </Component>
+                    <Component Id='FontLicense' Guid='*'>
+                        <File Id='FontLicenseFile' Name='OFL-1.1.txt' DiskId='1' Source='$(sys.SOURCEFILEDIR)..\..\..\licenses\fonts\OFL-1.1.txt' KeyPath='yes'/>
+                    </Component>
                     <Directory Id='Bin' Name='bin'>
                         <Component Id='Path' Guid='177D3505-3F9F-4A0C-A3F5-06AF7F873053' KeyPath='yes'>
                             <Environment
@@ -148,6 +164,11 @@
               sidecar file to the installer.
             -->
             <!--<ComponentRef Id='License'/>-->
+            <ComponentRef Id='Copying'/>
+            <ComponentRef Id='CopyingLesser'/>
+            <ComponentRef Id='Notice'/>
+            <ComponentRef Id='ThirdPartyLicenses'/>
+            <ComponentRef Id='FontLicense'/>
 
             <ComponentRef Id='binary0'/>
 

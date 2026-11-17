@@ -1,8 +1,20 @@
-# cargo-about configuration: `cargo about generate about.hbs > crates/ferraus-cli/THIRD-PARTY-LICENSES.md`
+# cargo-about configuration. Run tools/gen-licenses.sh (not cargo-about directly): it writes
+# crates/ferraus-cli/THIRD-PARTY-LICENSES.md (ferraus, ferraus-plughost, ferraus-plughost-vst3)
+# and crates/ferraus-engrave/THIRD-PARTY-LICENSES.md, and appends the C/C++ libraries that
+# cargo cannot see (ONNX Runtime, musl).
 accepted = [
   "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "ISC",
   "Zlib", "MPL-2.0", "Unicode-3.0", "Unicode-DFS-2016", "CC0-1.0", "BSL-1.0", "0BSD", "MIT-0",
   "OpenSSL", "CDLA-Permissive-2.0", "Unlicense",
+  # only ferraus-engrave (Verovio); cargo-deny keeps it out of every other binary
+  "LGPL-3.0-or-later",
+]
+# every release target, so platform-only crates (windows-sys, linux-raw-sys, ...) are listed
+targets = [
+  "aarch64-apple-darwin", "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl",
+  "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc",
 ]
 ignore-build-dependencies = false
 ignore-dev-dependencies = true

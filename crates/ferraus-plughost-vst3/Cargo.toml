@@ -13,6 +13,7 @@ publish = false
 # Released as its own app (archive + installers) so a crashing plugin cannot take ferraus down;
 # ferraus finds it next to itself or on PATH.
 dist = true
+include = ["THIRD-PARTY-LICENSES.md", "../../NOTICE"]
 # Not on the static musl targets: a statically linked program cannot load plugin libraries.
 targets = [
   "aarch64-apple-darwin",

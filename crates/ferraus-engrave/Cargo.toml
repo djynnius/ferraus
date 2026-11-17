@@ -12,6 +12,9 @@ authors.workspace = true
 # Released as its own LGPL app (archive + installers); ferraus finds it next to itself or
 # on PATH, and falls back to LilyPond or its native SVG renderer without it.
 dist = true
+# LGPL material only: not ferraus's Apache/MIT files (no auto-includes)
+auto-includes = false
+include = ["COPYING", "COPYING.LESSER", "NOTICE", "THIRD-PARTY-LICENSES.md", "../../licenses/fonts/OFL-1.1.txt"]
 
 [package.metadata.wix]
 upgrade-guid = "45CD5C5F-1E30-4851-A0BF-A18CB0F9F922"

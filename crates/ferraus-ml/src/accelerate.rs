@@ -76,17 +76,36 @@ pub fn load_installed(dir: &Path) -> Installed {
 /// The GPU package for this platform: (archive file name, libraries it must contain).
 pub fn cuda_package(os: &str, arch: &str) -> Option<(String, Vec<&'static str>)> {
     match (os, arch) {
+        // since 1.31 the GPU packages name their CUDA major version; ferraus targets CUDA 13
         ("linux", "x86_64") => Some((
-            format!("onnxruntime-linux-x64-gpu-{ORT_VERSION}.tgz"),
+            format!("onnxruntime-linux-x64-gpu_cuda13-{ORT_VERSION}.tgz"),
             vec!["libonnxruntime_providers_cuda.so", "libonnxruntime_providers_shared.so"],
         )),
         ("windows", "x86_64") => Some((
-            format!("onnxruntime-win-x64-gpu-{ORT_VERSION}.zip"),
+            format!("onnxruntime-win-x64-gpu_cuda13-{ORT_VERSION}.zip"),
             vec!["onnxruntime_providers_cuda.dll", "onnxruntime_providers_shared.dll"],
         )),
         _ => None,
     }
 }
+
+/// SHA-256 of each GPU package, from the asset digests of the ONNX Runtime GitHub release:
+/// the download is refused if it does not match.
+pub fn cuda_package_sha256(file: &str) -> Option<&'static str> {
+    match file {
+        "onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz" => {
+            Some("2867dec99c6a4926e8142361b9d4d1518c16c85b854b4d41d28d65d3b2c81135")
+        }
+        "onnxruntime-win-x64-gpu_cuda13-1.31.0.zip" => {
+            Some("d332ccf84acb769a11364cddd4e8d2992a168d16be472d5ba70b279b644552f5")
+        }
+        _ => None,
+    }
+}
+
+/// License files kept beside the provider libraries (MIT requires the notice to travel with
+/// copies, and the CUDA container image redistributes them).
+const NOTICE_FILES: [&str; 2] = ["LICENSE", "ThirdPartyNotices.txt"];
 
 pub fn cuda_package_url(file: &str) -> String {
     format!("https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{file}")
@@ -240,7 +259,7 @@ fn install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     let urls = vec![url.clone()];
     let rep = ferraus_models::download::download(ferraus_models::download::DownloadRequest {
         urls: &urls,
-        sha256: None,
+        sha256: cuda_package_sha256(&file),
         dest: &archive,
         log: &mut log,
         check_cancel: &check,
@@ -285,7 +304,7 @@ fn install(a: &Args, ctx: &mut OpCtx) -> Result<Value> {
     }))
 }
 
-/// Extract only the provider libraries (flattened) from a `.tgz` or `.zip`.
+/// Extract only the provider libraries and the license notices (flattened) from a `.tgz` or `.zip`.
 fn extract(archive: &Path, into: &Path, libs: &[&str]) -> Result<Vec<String>> {
     let name = archive.to_string_lossy().to_string();
     let mut out = Vec::new();
@@ -298,7 +317,7 @@ fn extract(archive: &Path, into: &Path, libs: &[&str]) -> Result<Vec<String>> {
             let Some(fname) = path.file_name().map(|f| f.to_string_lossy().to_string()) else {
                 continue;
             };
-            if libs.iter().any(|l| fname == *l) {
+            if libs.iter().any(|l| fname == *l) || NOTICE_FILES.contains(&fname.as_str()) {
                 let dest = into.join(&fname);
                 let mut w = std::fs::File::create(&dest)?;
                 std::io::copy(&mut entry, &mut w)?;
@@ -314,7 +333,7 @@ fn extract(archive: &Path, into: &Path, libs: &[&str]) -> Result<Vec<String>> {
         for i in 0..z.len() {
             let mut e = z.by_index(i).map_err(|e| Error::verification(e.to_string()))?;
             let fname = Path::new(e.name()).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
-            if libs.iter().any(|l| fname == *l) {
+            if libs.iter().any(|l| fname == *l) || NOTICE_FILES.contains(&fname.as_str()) {
                 let mut w = std::fs::File::create(into.join(&fname))?;
                 std::io::copy(&mut e, &mut w)?;
                 out.push(fname);
@@ -331,8 +350,14 @@ mod tests {
 
     #[test]
     fn packages_per_platform() {
-        assert!(cuda_package("linux", "x86_64").unwrap().0.contains("linux-x64-gpu"));
-        assert!(cuda_package("windows", "x86_64").unwrap().0.ends_with(".zip"));
+        let (linux, _) = cuda_package("linux", "x86_64").unwrap();
+        assert_eq!(linux, format!("onnxruntime-linux-x64-gpu_cuda13-{ORT_VERSION}.tgz"));
+        let (windows, _) = cuda_package("windows", "x86_64").unwrap();
+        assert_eq!(windows, format!("onnxruntime-win-x64-gpu_cuda13-{ORT_VERSION}.zip"));
+        // every published package is pinned, so a version bump without new hashes fails here
+        for f in [&linux, &windows] {
+            assert_eq!(cuda_package_sha256(f).map(str::len), Some(64), "{f} has no pinned SHA-256");
+        }
         assert!(cuda_package("macos", "aarch64").is_none());
         assert!(cuda_package("linux", "aarch64").is_none());
         assert!(cuda_package_url("x.tgz").starts_with("https://github.com/microsoft/onnxruntime/releases/download/v"));
@@ -346,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn tgz_extraction_keeps_only_libraries() {
+    fn tgz_extraction_keeps_only_libraries_and_notices() {
         let dir = ferraus_core::testing::TempDir::new("accel-tgz");
         let archive = dir.path("pkg.tgz");
         {
@@ -357,6 +382,8 @@ mod tests {
                 ("onnxruntime-x/lib/libonnxruntime_providers_cuda.so", b"cuda".as_slice()),
                 ("onnxruntime-x/lib/libonnxruntime_providers_shared.so", b"shared"),
                 ("onnxruntime-x/README.md", b"readme"),
+                ("onnxruntime-x/LICENSE", b"MIT License"),
+                ("onnxruntime-x/ThirdPartyNotices.txt", b"notices"),
             ] {
                 let mut h = tar::Header::new_gnu();
                 h.set_size(data.len() as u64);
@@ -370,8 +397,9 @@ mod tests {
         std::fs::create_dir_all(&out).unwrap();
         let libs = ["libonnxruntime_providers_cuda.so", "libonnxruntime_providers_shared.so"];
         let got = extract(&archive, &out, &libs).unwrap();
-        assert_eq!(got.len(), 2);
+        assert_eq!(got.len(), 4, "{got:?}");
         assert!(out.join("libonnxruntime_providers_cuda.so").exists());
+        assert!(out.join("LICENSE").exists() && out.join("ThirdPartyNotices.txt").exists());
         assert!(!out.join("README.md").exists());
     }
 

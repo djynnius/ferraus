@@ -1,0 +1,29 @@
+ferraus-engrave
+Copyright 2026 Sunday Ikpe and the ferraus contributors
+
+ferraus-engrave is free software: you can redistribute it and/or modify it under the terms of
+the GNU Lesser General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version (COPYING.LESSER, which
+supplements the GNU General Public License version 3 in COPYING). It is distributed WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE.
+
+This program uses, and statically links, the Verovio music notation engraving library,
+version 6.2.1 (https://www.verovio.org), licensed under the GNU LGPL version 3 or later,
+together with the libraries Verovio bundles (listed in THIRD-PARTY-LICENSES.md).
+
+Corresponding source
+- Verovio 6.2.1: https://github.com/rism-digital/verovio/tree/version-6.2.1, and the exact copy
+  built into this program in the verovio-sys 0.3.6 crate: https://crates.io/crates/verovio-sys/0.3.6
+- ferraus-engrave: https://github.com/djynnius/ferraus/tree/main/crates/ferraus-engrave (each
+  release is tagged, e.g. https://github.com/djynnius/ferraus/tree/v0.1.5)
+To use a modified Verovio, build ferraus-engrave from that source with your copy of verovio-sys
+(for example through a [patch] section in Cargo.toml); `cargo build -p ferraus-engrave` relinks it.
+
+Fonts
+The music and text fonts embedded through Verovio are licensed under the SIL Open Font License
+1.1 (OFL-1.1.txt): Leipzig (Verovio's own font), Bravura (designed by Daniel Spreadbury,
+Copyright (c) Steinberg Media Technologies GmbH, Reserved Font Name "Bravura"), Gootville
+(designed by Grzegorz Pruchniakowski, from MuseScore), Petaluma (Copyright (c) Steinberg Media
+Technologies GmbH, Reserved Font Name "Petaluma"), Leland (Copyright (c) MuseScore BVBA), and
+Liberation (originally designed by Steve Matteson).

@@ -14,6 +14,24 @@
       "output": {
         "type": "string",
         "description": "Output path or template ({name}, {stem}, {index}, {ext}); '-' for stdout"
+      },
+      "full": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "true",
+              "false"
+            ]
+          }
+        ],
+        "description": "Include the full text of every license (about 600 KB) Type: flag.",
+        "x-ferraus-kind": "flag"
       }
     },
     "required": [],

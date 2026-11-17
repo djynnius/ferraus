@@ -1,3 +1,6 @@
+// The page tiling below follows oemer's `inference.py` (https://github.com/BreezeWhite/oemer),
+// Copyright (c) the oemer authors, MIT License; see the repository's NOTICE file.
+
 //! Running oemer's two segmentation networks over a page.
 //!
 //! ferraus-score has no ONNX runtime of its own: the CLI registers a [`SegBackend`] that

@@ -6,14 +6,26 @@ RUN cargo build --release --locked -p ferraus --bins --features cuda
 
 FROM nvidia/cuda:13.0.1-cudnn-runtime-ubuntu24.04
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates libmp3lame0 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /usr/share/doc/ferraus \
+    && dpkg-query -W -f='${Package}\t${Version}\t${source:Package}\t${source:Version}\n' \
+       > /usr/share/doc/ferraus/image-packages.tsv \
+    && if [ -f /NGC-DL-CONTAINER-LICENSE ]; then cp /NGC-DL-CONTAINER-LICENSE /usr/share/doc/ferraus/; fi
 COPY --from=build /src/target/release/ferraus /usr/local/bin/ferraus
 COPY --from=build /src/target/release/ferraus-plughost /usr/local/lib/ferraus/ferraus-plughost
+COPY --from=build /src/LICENSE-APACHE /src/LICENSE-MIT /src/NOTICE /src/crates/ferraus-cli/THIRD-PARTY-LICENSES.md /usr/share/doc/ferraus/
+COPY packaging/docker/NOTICE-image.md packaging/docker/NOTICE-cuda.md /tmp/
+RUN cat /tmp/NOTICE-image.md /tmp/NOTICE-cuda.md > /usr/share/doc/ferraus/NOTICE-image.md && rm /tmp/NOTICE-*.md
 ENV FERRAUS_HOME=/data
-RUN ferraus accelerate install -y || true
+# The CUDA execution provider (pinned SHA-256; keeps ONNX Runtime's LICENSE and notices). A
+# failure here must fail the build: an image without the provider has no GPU support.
+RUN ferraus accelerate install --accept-eula
 VOLUME ["/data", "/work"]
 WORKDIR /work
 # lets the official MCP Registry verify that this image belongs to the listing in server.json
 LABEL io.modelcontextprotocol.server.name="io.github.djynnius/ferraus"
+LABEL org.opencontainers.image.source="https://github.com/djynnius/ferraus" \
+      org.opencontainers.image.licenses="Apache-2.0 OR MIT" \
+      org.opencontainers.image.description="ferraus with CUDA. NVIDIA CUDA/cuDNN are under NVIDIA's licenses; Ubuntu packages under their own (FFmpeg GPL-2.0-or-later, LAME LGPL); see /usr/share/doc/ferraus/NOTICE-image.md"
 ENTRYPOINT ["ferraus"]
 CMD ["--help"]
