@@ -1,0 +1,51 @@
+# Daily adoption numbers (tools/metrics/collect.py) kept on the `metrics` branch: one JSON line
+# per day in history.jsonl and a summary table in README.md, which GitHub renders on that
+# branch. GitHub keeps traffic (views, clones, referrers) for 14 days only, so collecting
+# daily is what turns it into a history.
+#
+# Traffic needs a token that can read the repository's administration data: create a
+# fine-grained personal access token for djynnius/ferraus with "Administration: Read-only",
+# and save it as the repository secret METRICS_TOKEN. Without it every other number is still
+# collected and the traffic fields stay null. The metrics branch is public like the repo.
+name: Metrics
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the metrics branch beside the source
+        run: |
+          if git ls-remote --exit-code --heads origin metrics >/dev/null; then
+            git fetch --depth 1 origin metrics:metrics
+            git worktree add ../data metrics
+          else
+            git worktree add --orphan -b metrics ../data
+          fi
+      - name: Collect
+        env:
+          GITHUB_TOKEN: ${{ secrets.METRICS_TOKEN || github.token }}
+        run: python3 tools/metrics/collect.py --history ../data/history.jsonl --summary ../data/README.md > /dev/null
+      - name: Commit the day's numbers
+        working-directory: ../data
+        run: |
+          git add history.jsonl README.md
+          if git diff --cached --quiet; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "metrics $(date -u +%F)"
+          git push origin metrics
