@@ -1,6 +1,6 @@
 # ferraus adoption
 
-Updated 2026-11-18 by `tools/metrics/collect.py` (2 snapshot(s) since 2026-11-17).
+Updated 2026-11-19 by `tools/metrics/collect.py` (3 snapshot(s) since 2026-11-17).
 Release counts include the release pipeline's own downloads (about one per file per release).
 
 | Metric | Now | 7 days | Since start |
@@ -10,10 +10,10 @@ Release counts include the release pipeline's own downloads (about one per file 
 |   macOS / Linux / Windows | 35 / 125 / 87 |  |  |
 | Installer scripts run (sh / ps1) | 35 / 39 |  |  |
 | Update checks (dist-manifest.json) | 66 |  | 0 |
-| crates.io downloads | 70 |  | +2 |
-| Container pulls (ghcr.io) | 546 |  | +39 |
+| crates.io downloads | 71 |  | +3 |
+| Container pulls (ghcr.io) | 604 |  | +97 |
 | skills.sh installs | 8 |  | 0 |
-| Repo views, 14 days (unique) | 98 (28) |  |  |
+| Repo views, 14 days (unique) | 98 (27) |  |  |
 | MCP Registry latest | 0.1.6 |  |  |
 | Glama grade | B |  |  |
 
@@ -36,13 +36,14 @@ Release counts include the release pipeline's own downloads (about one per file 
 | 2026-11-15 | 0 | 0 |
 | 2026-11-16 | 8 | 5 |
 | 2026-11-17 | 11 | 4 |
+| 2026-11-18 | 1 | 1 |
 
 ## Where visitors came from (14 days)
 
 | Referrer | Views | Unique |
 |---|---|---|
 | github.com | 18 | 3 |
-| linkedin.com | 6 | 6 |
+| linkedin.com | 5 | 5 |
 | search.brave.com | 1 | 1 |
 
 ## Listings
