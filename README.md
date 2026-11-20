@@ -1,17 +1,17 @@
 # ferraus adoption
 
-Updated 2026-11-19 by `tools/metrics/collect.py` (3 snapshot(s) since 2026-11-17).
+Updated 2026-11-20 by `tools/metrics/collect.py` (4 snapshot(s) since 2026-11-17).
 Release counts include the release pipeline's own downloads (about one per file per release).
 
 | Metric | Now | 7 days | Since start |
 |---|---|---|---|
 | GitHub stars | 5 |  | 0 |
-| Release installs (archives, MSI, deb, rpm) | 247 |  | 0 |
-|   macOS / Linux / Windows | 35 / 125 / 87 |  |  |
-| Installer scripts run (sh / ps1) | 35 / 39 |  |  |
-| Update checks (dist-manifest.json) | 66 |  | 0 |
+| Release installs (archives, MSI, deb, rpm) | 248 |  | +1 |
+|   macOS / Linux / Windows | 35 / 126 / 87 |  |  |
+| Installer scripts run (sh / ps1) | 35 / 40 |  |  |
+| Update checks (dist-manifest.json) | 67 |  | +1 |
 | crates.io downloads | 71 |  | +3 |
-| Container pulls (ghcr.io) | 604 |  | +97 |
+| Container pulls (ghcr.io) | 640 |  | +133 |
 | skills.sh installs | 8 |  | 0 |
 | Repo views, 14 days (unique) | 98 (27) |  |  |
 | MCP Registry latest | 0.1.6 |  |  |
