@@ -1,19 +1,19 @@
 # ferraus adoption
 
-Updated 2026-11-25 by `tools/metrics/collect.py` (9 snapshot(s) since 2026-11-17).
+Updated 2026-11-26 by `tools/metrics/collect.py` (10 snapshot(s) since 2026-11-17).
 Release counts include the release pipeline's own downloads (about one per file per release).
 
 | Metric | Now | 7 days | Since start |
 |---|---|---|---|
 | GitHub stars | 6 | +1 | +1 |
-| Release installs (archives, MSI, deb, rpm) | 265 | +18 | +18 |
-|   macOS / Linux / Windows | 36 / 131 / 98 |  |  |
-| Installer scripts run (sh / ps1) | 39 / 44 |  |  |
+| Release installs (archives, MSI, deb, rpm) | 267 | +20 | +20 |
+|   macOS / Linux / Windows | 36 / 131 / 100 |  |  |
+| Installer scripts run (sh / ps1) | 39 / 45 |  |  |
 | Update checks (dist-manifest.json) | 69 | +3 | +3 |
-| crates.io downloads | 71 | +1 | +3 |
-| Container pulls (ghcr.io) | 861 | +315 | +354 |
-| skills.sh installs | 16 | +8 | +8 |
-| Repo views, 14 days (unique) | 74 (29) |  |  |
+| crates.io downloads | 71 | 0 | +3 |
+| Container pulls (ghcr.io) | 898 | +294 | +391 |
+| skills.sh installs | 17 | +9 | +9 |
+| Repo views, 14 days (unique) | 53 (22) |  |  |
 | MCP Registry latest | 0.1.6 |  |  |
 | Glama grade | B |  |  |
 
@@ -43,12 +43,13 @@ Release counts include the release pipeline's own downloads (about one per file 
 | 2026-11-22 | 6 | 3 |
 | 2026-11-23 | 0 | 0 |
 | 2026-11-24 | 0 | 0 |
+| 2026-11-25 | 1 | 1 |
 
 ## Where visitors came from (14 days)
 
 | Referrer | Views | Unique |
 |---|---|---|
-| github.com | 10 | 2 |
+| github.com | 8 | 2 |
 | search.brave.com | 1 | 1 |
 
 ## Listings
